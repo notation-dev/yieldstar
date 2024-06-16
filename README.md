@@ -1,4 +1,4 @@
-# yield-star-workflows
+# yieldstar
 
 To install dependencies:
 
