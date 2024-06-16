@@ -5,7 +5,7 @@ import {
   RetryableError,
 } from "yield-star-workflows";
 
-const db = await SqliteConnector.createDb("./db/workflows.sqlite");
+const db = await SqliteConnector.createDb("./.db/workflows.sqlite");
 const sqliteConnector = new SqliteConnector({ db });
 
 sqliteConnector.deleteAll();
