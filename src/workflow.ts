@@ -56,18 +56,20 @@ const stepRunner = {
   },
 };
 
-export function createWorkflow(
-  workflowFn: (step: typeof stepRunner) => AsyncGenerator<any>
-) {
+export type CompositeStepGenerator<T> = (params: {
+  executionId: string;
+  connector: Connector;
+}) => AsyncGenerator<StepResponse, WorkflowResult<T>, StepResponse>;
+
+export function createWorkflow<T>(
+  workflowFn: (step: typeof stepRunner) => AsyncGenerator<any, T>
+): CompositeStepGenerator<T> {
   /**
    * @description Consumes workflow steps, handling any workflow logic, and
    * yielding control to a worker (composite step consumer) to do async work
    * @yields {StepResponse}
    */
-  return async function* compositeStepGenerator(params: {
-    executionId: string;
-    connector: Connector;
-  }): AsyncGenerator<StepResponse, StepResult | void, StepResponse> {
+  return async function* compositeStepGenerator(params) {
     const workflowIterator = workflowFn(stepRunner);
     const { executionId, connector } = params;
 
@@ -182,7 +184,7 @@ export function createWorkflow(
         yield stepResponse;
       }
     }
+
+    throw new Error("Critical error");
   };
 }
-
-export type CompositeStepGenerator = ReturnType<typeof createWorkflow>;

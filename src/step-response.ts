@@ -19,10 +19,10 @@ export class StepResult extends StepResponse {
   }
 }
 
-export class WorkflowResult extends StepResponse {
+export class WorkflowResult<T extends any> extends StepResponse {
   type = "workflow-result";
-  result: any;
-  constructor(result: any) {
+  result: T;
+  constructor(result: T) {
     super();
     this.result = result;
   }
