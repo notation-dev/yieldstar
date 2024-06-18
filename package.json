@@ -1,8 +1,12 @@
 {
-  "name": "yield-star-workflows",
+  "name": "yieldstar-packages",
   "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
-    "start": "bun scripts/run-example.ts"
+    "start": "bun scripts/run-example.ts",
+    "dev": "bun run --filter '*' build --watch"
   },
   "devDependencies": {
     "@types/bun": "latest",
@@ -11,8 +15,5 @@
   },
   "peerDependencies": {
     "typescript": "^5.0.0"
-  },
-  "dependencies": {
-    "serialize-error": "^11.0.3"
   }
 }

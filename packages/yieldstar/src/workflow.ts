@@ -10,6 +10,7 @@ import {
   WorkflowResult,
 } from "./step-response";
 import { RetryableError } from "./errors";
+import { deserialize, serialize } from "./serialise";
 
 /**
  * @description A library of step generators, each of which:
@@ -111,7 +112,10 @@ export function createWorkflow<T>(
 
       // 4. If the first yielded value is a cache check, advance to actual step, passing it the cached value
       if (stepResponse instanceof StepCacheCheck) {
-        iteratorResult = await workflowIterator.next(cached?.response);
+        const cachedResponse = cached
+          ? deserialize(cached.stepResponseJson)
+          : null;
+        iteratorResult = await workflowIterator.next(cachedResponse);
         stepResponse = iteratorResult.value;
       }
 
@@ -145,7 +149,7 @@ export function createWorkflow<T>(
           stepIndex,
           stepAttempt,
           stepDone: !needsRetry,
-          stepResponse,
+          stepResponseJson: serialize(stepResponse),
         });
       }
 

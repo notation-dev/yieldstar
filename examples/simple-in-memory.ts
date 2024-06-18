@@ -1,8 +1,5 @@
-import {
-  createWorkflow,
-  runToCompletion,
-  MemoryConnector,
-} from "yield-star-workflows";
+import { createWorkflow, runToCompletion } from "yieldstar";
+import { MemoryConnector } from "yieldstar-memory";
 
 const memoryConnector = new MemoryConnector();
 

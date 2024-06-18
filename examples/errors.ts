@@ -1,9 +1,5 @@
-import {
-  createWorkflow,
-  runToCompletion,
-  SqliteConnector,
-  RetryableError,
-} from "yield-star-workflows";
+import { createWorkflow, runToCompletion, RetryableError } from "yieldstar";
+import { SqliteConnector } from "yieldstar-sqlite-bun";
 
 const db = await SqliteConnector.createDb("./.db/workflows.sqlite");
 const sqliteConnector = new SqliteConnector({ db });
