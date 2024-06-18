@@ -1,0 +1,12 @@
+{
+  "name": "yieldstar-memory",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "bun build src/index.ts --outfile dist/index.js"
+  },
+  "dependencies": {
+    "yieldstar": "workspace:*"
+  }
+}

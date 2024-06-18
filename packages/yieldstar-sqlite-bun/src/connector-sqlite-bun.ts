@@ -1,7 +1,5 @@
 import { Database } from "bun:sqlite";
-import { WorkerConnector } from "./connector";
-import { deserialize, serialize } from "./serialise";
-import type { StepResponse } from "./step-response";
+import { WorkerConnector } from "yieldstar";
 import { mkdir } from "node:fs/promises";
 import { dirname } from "path";
 
@@ -81,10 +79,8 @@ export class SqliteConnector extends WorkerConnector {
       return null;
     }
 
-    const stepResponse = deserialize(result.step_response);
-
     return {
-      response: stepResponse,
+      stepResponseJson: result.step_response,
       meta: {
         attempt: result.step_attempt,
         done: Boolean(result.step_done),
@@ -97,7 +93,7 @@ export class SqliteConnector extends WorkerConnector {
     stepIndex: number;
     stepAttempt: number;
     stepDone: boolean;
-    stepResponse: StepResponse;
+    stepResponseJson: string;
   }) {
     const query = this.db.query(`
       INSERT INTO step_responses (execution_id, step_index, step_attempt, step_done, step_response) 
@@ -108,7 +104,7 @@ export class SqliteConnector extends WorkerConnector {
       $stepIndex: params.stepIndex,
       $stepAttempt: params.stepAttempt,
       $stepDone: params.stepDone,
-      $stepResponse: serialize(params.stepResponse),
+      $stepResponse: params.stepResponseJson,
     });
   }
 

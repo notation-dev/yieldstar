@@ -1,4 +1,4 @@
-import { WorkerConnector } from "./connector";
+import { WorkerConnector } from "yieldstar";
 
 export class MemoryConnector extends WorkerConnector {
   cache: Record<string, any[]> = {};
@@ -21,12 +21,12 @@ export class MemoryConnector extends WorkerConnector {
     stepIndex: number;
     stepAttempt: number;
     stepDone: boolean;
-    stepResponse: {};
+    stepResponseJson: string;
   }) {
-    const { stepAttempt, stepDone, stepResponse, ...keyParams } = params;
+    const { stepAttempt, stepDone, stepResponseJson, ...keyParams } = params;
     const key = this.getKey(keyParams);
     const value = {
-      response: stepResponse,
+      stepResponseJson,
       meta: {
         attempt: stepAttempt,
         done: stepDone,

@@ -1,7 +1,5 @@
-import { StepResponse } from "./step-response";
-
 type CacheResponse = {
-  response: StepResponse;
+  stepResponseJson: string;
   meta: { attempt: number; done: boolean };
 };
 
@@ -17,7 +15,7 @@ export abstract class Connector {
     stepIndex: number;
     stepAttempt: number;
     stepDone: boolean;
-    stepResponse: {};
+    stepResponseJson: string;
   }): Promise<void>;
   abstract onSchedule(executionId: string, timestamp: number): Promise<void>;
 }
