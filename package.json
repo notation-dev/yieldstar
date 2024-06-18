@@ -5,8 +5,9 @@
     "packages/*"
   ],
   "scripts": {
+    "dev": "bun run --filter '*' build --watch",
     "start": "bun scripts/run-example.ts",
-    "dev": "bun run --filter '*' build --watch"
+    "test": "bun test"
   },
   "devDependencies": {
     "@types/bun": "latest",
