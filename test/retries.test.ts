@@ -1,4 +1,4 @@
-import { beforeEach, expect, test, mock } from "bun:test";
+import { beforeEach, expect, test } from "bun:test";
 import { createWorkflow, runToCompletion, RetryableError } from "yieldstar";
 import { SqliteConnector } from "yieldstar-sqlite-bun";
 
@@ -33,7 +33,7 @@ test("retrying an error for maxAttempts", async () => {
   }
 });
 
-test("maxAttempts refers to number of step attempts, not number of times error is thrown", async () => {
+test("retrying an for maxAttempts (irrespective of number of times error is thrown)", async () => {
   let runs = 0;
 
   const myWorkflow = createWorkflow(async function* (step) {
@@ -41,7 +41,7 @@ test("maxAttempts refers to number of step attempts, not number of times error i
       runs++;
       if (runs === 5) {
         throw new RetryableError("Step error", {
-          maxAttempts: 5,
+          maxAttempts: 4,
           retryInterval: 1,
         });
       }
@@ -61,6 +61,39 @@ test("maxAttempts refers to number of step attempts, not number of times error i
   } catch {
     expect(runs).toEqual(5);
   }
+});
+
+test("retrying an for maxAttempts (irrespective of number of number of workflow executions)", async () => {
+  let runs = 0;
+
+  const myWorkflow = createWorkflow(async function* (step) {
+    try {
+      yield* step.run(async () => {
+        runs++;
+        throw new RetryableError("Step error", {
+          maxAttempts: 3,
+          retryInterval: 1,
+        });
+      });
+    } catch {}
+    try {
+      yield* step.run(async () => {
+        runs++;
+        throw new RetryableError("Step error", {
+          maxAttempts: 3,
+          retryInterval: 1,
+        });
+      });
+    } catch {}
+  });
+
+  await runToCompletion({
+    workflow: myWorkflow,
+    connector: sqliteConnector,
+    executionId: "abc:123",
+  });
+
+  expect(runs).toEqual(6);
 });
 
 test("retrying an error after retry interval", async () => {
@@ -91,5 +124,6 @@ test("retrying an error after retry interval", async () => {
 
   for (const interval of intervals) {
     expect(interval).toBeGreaterThan(100);
+    expect(interval).toBeLessThan(105);
   }
 });
