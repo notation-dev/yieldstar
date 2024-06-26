@@ -144,7 +144,8 @@ export function createWorkflow<T>(
       // 7. Determine if step needs to be retried
       const needsRetry =
         stepResponse instanceof StepError &&
-        stepResponse.maxAttempts > stepAttempt;
+        // 1-indexed vs 0-indexed
+        stepResponse.maxAttempts > stepAttempt + 1;
 
       // 8. If this step attempt is not already cached, cache it
       if (!cached) {
