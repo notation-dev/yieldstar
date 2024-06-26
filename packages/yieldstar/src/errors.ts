@@ -1,8 +1,13 @@
 export class RetryableError extends Error {
-  attempts: number;
-  constructor(message: string, opts: { attempts: number }) {
+  maxAttempts: number;
+  retryInterval: number;
+  constructor(
+    message: string,
+    opts: { maxAttempts: number; retryInterval: number }
+  ) {
     super(message);
     this.name = "RetryableError";
-    this.attempts = opts.attempts;
+    this.maxAttempts = opts.maxAttempts;
+    this.retryInterval = opts.retryInterval;
   }
 }

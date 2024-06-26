@@ -19,7 +19,10 @@ const myWorkflow = createWorkflow(async function* (step) {
 
     if (Math.random() > 0.5) {
       console.log("Unlucky! Throwing error");
-      throw new RetryableError("Unlucky", { attempts: 10 });
+      throw new RetryableError("Unlucky", {
+        maxAttempts: 10,
+        retryInterval: 1000,
+      });
     }
 
     console.log("Lucky! Resolving step");

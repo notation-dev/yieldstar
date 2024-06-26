@@ -39,7 +39,10 @@ const stepRunner = {
       return result;
     } catch (err: unknown) {
       if (err instanceof RetryableError) {
-        yield new StepError(err, { attempts: err.attempts });
+        yield new StepError(err, {
+          maxAttempts: err.maxAttempts,
+          retryInterval: err.retryInterval,
+        });
       } else {
         yield new StepError(err);
       }
@@ -47,12 +50,12 @@ const stepRunner = {
       throw err;
     }
   },
-  async *delay(interval: number): AsyncGenerator<any, void, StepDelay> {
+  async *delay(retryInterval: number): AsyncGenerator<any, void, StepDelay> {
     const cached = yield new StepCacheCheck();
     if (cached) {
       yield new StepDelay(cached.resumeAt);
     } else {
-      yield new StepDelay(Date.now() + interval);
+      yield new StepDelay(Date.now() + retryInterval);
     }
   },
 };
@@ -129,6 +132,7 @@ export function createWorkflow<T>(
         console.log("[ERR] Steps must be yielded using yield*\n");
         stepResponse = new StepInvalid();
       } else if (!(stepResponse instanceof StepResponse)) {
+        // todo: not throwing here causes a critical error
         console.log(
           `[ERR] Iterators should yield a StepResponse. Got ${JSON.stringify(
             stepResponse
@@ -140,7 +144,7 @@ export function createWorkflow<T>(
       // 7. Determine if step needs to be retried
       const needsRetry =
         stepResponse instanceof StepError &&
-        stepResponse.attempts > stepAttempt;
+        stepResponse.maxAttempts > stepAttempt;
 
       // 8. If this step attempt is not already cached, cache it
       if (!cached) {
@@ -169,7 +173,7 @@ export function createWorkflow<T>(
       //    and continue to the next iteration.
       if (stepResponse instanceof StepError) {
         if (needsRetry) {
-          yield new StepDelay(stepResponse.timeout);
+          yield new StepDelay(Date.now() + stepResponse.retryInterval);
         } else {
           nextIteratorResult = await workflowIterator.throw(stepResponse.err);
         }
