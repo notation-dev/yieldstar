@@ -8,11 +8,11 @@ export abstract class Connector {
   abstract onEnd(): Promise<void>;
   abstract onBeforeRun(params: {
     executionId: string;
-    stepIndex: number;
+    stepKey: string;
   }): Promise<CacheResponse | null>;
   abstract onAfterRun(params: {
     executionId: string;
-    stepIndex: number;
+    stepKey: string;
     stepAttempt: number;
     stepDone: boolean;
     stepResponseJson: string;

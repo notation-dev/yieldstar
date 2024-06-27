@@ -2,6 +2,11 @@ export abstract class StepResponse {
   abstract type: string;
 }
 
+export class StepKey extends StepResponse {
+  type = "step-key";
+  value = null;
+}
+
 export class StepCacheCheck extends StepResponse {
   type = "cache-check";
 }
