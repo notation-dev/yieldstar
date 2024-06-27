@@ -122,12 +122,11 @@ export function createWorkflow<T>(
     const workflowIterator = workflowFn(stepRunner);
     const { executionId, connector } = params;
 
-    let stepIndex = -1;
+    let keylessStepIndex = -1;
     let iteratorResult: IteratorResult<any> | null = null;
     let nextIteratorResult: IteratorResult<any> | null = null;
 
     while (true) {
-      stepIndex++;
       let stepAttempt = 0;
       let stepKey: string;
 
@@ -152,10 +151,13 @@ export function createWorkflow<T>(
        */
       if (iteratorResult.done) {
         stepKey = "$$workflow-result$$";
-      } else if (iteratorResult.value instanceof StepKey) {
-        stepKey = iteratorResult.value.key || `${stepIndex}`;
-      } else {
+      } else if (!(iteratorResult.value instanceof StepKey)) {
         throw new Error("Step runners must yield a StepKey object");
+      } else if (iteratorResult.value.key) {
+        stepKey = iteratorResult.value.key;
+      } else {
+        keylessStepIndex++;
+        stepKey = `$$step-index-${keylessStepIndex}$$`;
       }
 
       /**
@@ -166,13 +168,6 @@ export function createWorkflow<T>(
         executionId,
         stepKey,
       });
-
-      /**
-       * Check if this is the first time workflow has ever been run
-       */
-      if (stepIndex === 0 && !cached) {
-        connector.onStart();
-      }
 
       /**
        * Increment attempt counter. We'll save this after execution.
