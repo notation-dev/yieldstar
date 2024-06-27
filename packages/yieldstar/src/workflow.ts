@@ -39,7 +39,10 @@ const stepRunner = {
       return result;
     } catch (err: unknown) {
       if (err instanceof RetryableError) {
-        yield new StepError(err, { attempts: err.attempts });
+        yield new StepError(err, {
+          maxAttempts: err.maxAttempts,
+          retryInterval: err.retryInterval,
+        });
       } else {
         yield new StepError(err);
       }
@@ -47,12 +50,12 @@ const stepRunner = {
       throw err;
     }
   },
-  async *delay(interval: number): AsyncGenerator<any, void, StepDelay> {
+  async *delay(retryInterval: number): AsyncGenerator<any, void, StepDelay> {
     const cached = yield new StepCacheCheck();
     if (cached) {
       yield new StepDelay(cached.resumeAt);
     } else {
-      yield new StepDelay(Date.now() + interval);
+      yield new StepDelay(Date.now() + retryInterval);
     }
   },
 };
@@ -93,13 +96,17 @@ export function createWorkflow<T>(
         connector.onStart();
       }
 
-      // 2. If the step needs to be retried, don't use cached value, and increment attempt counter
-      if (cached?.meta && cached.meta.done === false) {
+      // 2. Increment attempt counter. We'll save this after execution.
+      if (cached?.meta) {
         stepAttempt = cached.meta.attempt + 1;
+      }
+
+      // 3. If the step needs to be retried, don't use cached value
+      if (cached?.meta.done === false) {
         cached = null;
       }
 
-      // 3. Advance workflow.
+      // 4. Advance workflow.
       //    If we already have the next iterator result from a previous iteration, use that
       if (nextIteratorResult) {
         iteratorResult = nextIteratorResult;
@@ -110,7 +117,7 @@ export function createWorkflow<T>(
 
       let stepResponse: StepResponse = iteratorResult.value;
 
-      // 4. If the first yielded value is a cache check, advance to actual step, passing it the cached value
+      // 5. If the first yielded value is a cache check, advance to actual step, passing it the cached value
       if (stepResponse instanceof StepCacheCheck) {
         const cachedResponse = cached
           ? deserialize(cached.stepResponseJson)
@@ -119,16 +126,17 @@ export function createWorkflow<T>(
         stepResponse = iteratorResult.value;
       }
 
-      // 5. When the workflow returns, wrap the return value in a result type
+      // 6. When the workflow returns, wrap the return value in a result type
       if (iteratorResult.done) {
         stepResponse = new WorkflowResult(iteratorResult.value);
       }
 
-      // 6. Check for invalid iterators
+      // 7. Check for invalid iterators
       if (isIterable(stepResponse)) {
         console.log("[ERR] Steps must be yielded using yield*\n");
         stepResponse = new StepInvalid();
       } else if (!(stepResponse instanceof StepResponse)) {
+        // todo: not throwing here causes a critical error
         console.log(
           `[ERR] Iterators should yield a StepResponse. Got ${JSON.stringify(
             stepResponse
@@ -137,12 +145,14 @@ export function createWorkflow<T>(
         stepResponse = new StepInvalid();
       }
 
-      // 7. Determine if step needs to be retried
+      // 8 Determine if step needs to be retried
       const needsRetry =
+        !cached?.meta.done &&
         stepResponse instanceof StepError &&
-        stepResponse.attempts > stepAttempt;
+        // 1-indexed vs 0-indexed
+        stepResponse.maxAttempts > stepAttempt + 1;
 
-      // 8. If this step attempt is not already cached, cache it
+      // 9. If this step attempt is not already cached, cache it
       if (!cached) {
         await connector.onAfterRun({
           executionId,
@@ -153,36 +163,38 @@ export function createWorkflow<T>(
         });
       }
 
-      // 9. Once the WorkflowResult is cached, return the WorkflowResult to the worker
+      // 10. Once the WorkflowResult is cached, return the WorkflowResult to the worker
       if (stepResponse instanceof WorkflowResult) {
         return stepResponse;
       }
 
-      // 10. Once invalid iterator steps have been cached, stop workflow execution
+      // 11. Once invalid iterator steps have been cached, stop workflow execution
       if (stepResponse instanceof StepInvalid) {
         break;
       }
 
-      // 11. If step runner yielded a step error, throw the error back
-      //    into step runner generator for the user to handle.
-      //    This also advances the workflow, so store the next iterator result,
-      //    and continue to the next iteration.
+      // 12. If step runner yielded a step error, either throw the error back for user to handle,
+      //     or yield to worker, if it should be retried
       if (stepResponse instanceof StepError) {
         if (needsRetry) {
-          yield new StepDelay(stepResponse.timeout);
-        } else {
+          yield new StepDelay(Date.now() + stepResponse.retryInterval);
+        }
+        // Throwing also advances the workflow, so store the next iterator result,
+        // and continue to the next iteration.
+        else {
           nextIteratorResult = await workflowIterator.throw(stepResponse.err);
+          continue;
         }
       }
 
-      // 12. If delay has elapsed, continue now to next step
+      // 13. If delay has elapsed, continue now to next step
       if (stepResponse instanceof StepDelay) {
         if (stepResponse.resumeAt <= Date.now()) {
           continue;
         }
       }
 
-      // 13. Yield control back to worker if step is not a result i.e. async work is required.
+      // 14. Yield control back to worker if step is not a result i.e. async work is required.
       //    (Whenever we receive a StepResult, it's always possible to continue straight to the next step).
       if (!(stepResponse instanceof StepResult)) {
         yield stepResponse;

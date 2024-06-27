@@ -7,7 +7,8 @@ const examplesDir = path.resolve(__dirname, "../examples");
 function listFiles(dir: string): string[] {
   return fs
     .readdirSync(dir)
-    .filter((file) => fs.statSync(path.join(dir, file)).isFile());
+    .filter((file) => fs.statSync(path.join(dir, file)).isFile())
+    .sort();
 }
 
 async function selectFile(files: string[]): Promise<string> {

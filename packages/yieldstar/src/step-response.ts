@@ -38,21 +38,21 @@ export class WorkflowRestart extends StepResponse {
 export class StepError extends StepResponse {
   type = "step-error";
   err: any;
-  attempts: number;
-  timeout: number;
+  maxAttempts: number;
+  retryInterval: number;
   backOffStrategy: "linear" | "decay";
   constructor(
     err: any,
     opts?: {
-      attempts: number;
-      timeout?: number;
+      maxAttempts: number;
+      retryInterval?: number;
       backoffStrategy?: "linear" | "decay";
     }
   ) {
     super();
     this.err = err;
-    this.attempts = opts?.attempts ? opts.attempts : 1;
-    this.timeout = opts?.timeout ? opts.timeout : 60000;
+    this.maxAttempts = opts?.maxAttempts ? opts.maxAttempts : 1;
+    this.retryInterval = opts?.retryInterval ? opts.retryInterval : 60000;
     this.backOffStrategy = opts?.backoffStrategy
       ? opts.backoffStrategy
       : "decay";
