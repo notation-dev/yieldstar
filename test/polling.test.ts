@@ -18,9 +18,7 @@ test("poll retries when predicate fails", async () => {
         runs++;
         return false;
       });
-    } catch {
-      expect(runs).toBe(10);
-    }
+    } catch {}
   });
 
   await runToCompletion({
@@ -28,6 +26,8 @@ test("poll retries when predicate fails", async () => {
     connector: sqliteConnector,
     executionId: "abc:123",
   });
+
+  expect(runs).toBe(10);
 });
 
 test("poll resolves when predicate passes", async () => {
@@ -38,6 +38,27 @@ test("poll resolves when predicate passes", async () => {
       runs++;
       return true;
     });
+  });
+
+  await runToCompletion({
+    workflow: myWorkflow,
+    connector: sqliteConnector,
+    executionId: "abc:123",
+  });
+
+  expect(runs).toBe(1);
+});
+
+test("poll fails if a regular error is thrown", async () => {
+  let runs: number = 0;
+
+  const myWorkflow = createWorkflow(async function* (step) {
+    try {
+      yield* step.poll({ retryInterval: 1, maxAttempts: 10 }, () => {
+        runs++;
+        throw new Error("Step error");
+      });
+    } catch {}
   });
 
   await runToCompletion({
