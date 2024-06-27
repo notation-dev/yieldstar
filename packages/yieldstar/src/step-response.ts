@@ -4,7 +4,11 @@ export abstract class StepResponse {
 
 export class StepKey extends StepResponse {
   type = "step-key";
-  value = null;
+  key: string | null;
+  constructor(key: string | null) {
+    super();
+    this.key = key;
+  }
 }
 
 export class StepCacheCheck extends StepResponse {
