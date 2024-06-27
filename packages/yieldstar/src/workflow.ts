@@ -12,6 +12,14 @@ import {
 import { RetryableError } from "./errors";
 import { deserialize, serialize } from "./serialise";
 
+export type StepRunner = typeof stepRunner;
+export type WorkflowFn<T> = (step: StepRunner) => AsyncGenerator<any, T>;
+
+export type CompositeStepGenerator<T> = (params: {
+  executionId: string;
+  connector: Connector;
+}) => AsyncGenerator<StepResponse, WorkflowResult<T>, StepResponse>;
+
 /**
  * @description A library of step generators, each of which:
  * @yields a StepResponse to workflow consumers
@@ -58,15 +66,23 @@ const stepRunner = {
       yield new StepDelay(Date.now() + retryInterval);
     }
   },
+  async *poll(
+    opts: { maxAttempts: number; retryInterval: number },
+    predicate: () => boolean | Promise<boolean>
+  ) {
+    yield* stepRunner.run(async () => {
+      if (!(await predicate())) {
+        throw new RetryableError("Polling reached max retries", {
+          maxAttempts: opts.maxAttempts,
+          retryInterval: opts.retryInterval,
+        });
+      }
+    });
+  },
 };
 
-export type CompositeStepGenerator<T> = (params: {
-  executionId: string;
-  connector: Connector;
-}) => AsyncGenerator<StepResponse, WorkflowResult<T>, StepResponse>;
-
 export function createWorkflow<T>(
-  workflowFn: (step: typeof stepRunner) => AsyncGenerator<any, T>
+  workflowFn: WorkflowFn<T>
 ): CompositeStepGenerator<T> {
   /**
    * @description Consumes workflow steps, handling any workflow logic, and
