@@ -13,6 +13,14 @@ import {
 import { RetryableError } from "./errors";
 import { deserialize, serialize } from "./serialise";
 
+export type StepRunner = typeof stepRunner;
+export type WorkflowFn<T> = (step: StepRunner) => AsyncGenerator<any, T>;
+
+export type CompositeStepGenerator<T> = (params: {
+  executionId: string;
+  connector: Connector;
+}) => AsyncGenerator<StepResponse, WorkflowResult<T>, StepResponse>;
+
 /**
  * @description A library of step generators, each of which:
  * @yields a StepResponse to workflow consumers
@@ -21,7 +29,7 @@ import { deserialize, serialize } from "./serialise";
  * @throws any error caught when running the user-defined function,
  * once retries have been exhausted, or if there are no retry semantics
  */
-const stepRunner = { run, delay };
+const stepRunner = { run, delay, poll };
 
 function run<T extends any>(
   fn: () => T | Promise<T>
@@ -105,13 +113,22 @@ async function* delay(
   }
 }
 
-export type CompositeStepGenerator<T> = (params: {
-  executionId: string;
-  connector: Connector;
-}) => AsyncGenerator<StepResponse, WorkflowResult<T>, StepResponse>;
+async function* poll(
+  opts: { maxAttempts: number; retryInterval: number },
+  predicate: () => boolean | Promise<boolean>
+) {
+  yield* run(async () => {
+    if (!(await predicate())) {
+      throw new RetryableError("Polling reached max retries", {
+        maxAttempts: opts.maxAttempts,
+        retryInterval: opts.retryInterval,
+      });
+    }
+  });
+}
 
 export function createWorkflow<T>(
-  workflowFn: (step: typeof stepRunner) => AsyncGenerator<any, T>
+  workflowFn: WorkflowFn<T>
 ): CompositeStepGenerator<T> {
   /**
    * @description Consumes workflow steps, handling any workflow logic, and
