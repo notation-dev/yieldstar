@@ -131,6 +131,8 @@ export function createWorkflow<T>(
       /**
        * Check for invalid iterators e.g. developer didn't use yield* or didn't
        * use a step runner
+       * @todo: iterable check should be before StepKey check
+       * @todo: not throwing here causes a critical error – should workflow break?
        */
       if (isIterable(stepResponse)) {
         console.log("[ERR] Steps must be yielded using yield*\n");
@@ -143,7 +145,6 @@ export function createWorkflow<T>(
         );
         stepResponse = new StepInvalid();
       }
-      // todo: not throwing here causes a critical error – should workflow break?
 
       /**
        * Determine if step needs to be retried
