@@ -102,16 +102,42 @@ async function* delay(
   }
 }
 
+type PollOpts = { maxAttempts: number; retryInterval: number };
+type PollPredicate = () => boolean | Promise<boolean>;
+
+function poll(opts: PollOpts, predicate: PollPredicate): any;
+function poll(key: string, opts: PollOpts, predicate: PollPredicate): any;
+
 async function* poll(
-  opts: { maxAttempts: number; retryInterval: number },
-  predicate: () => boolean | Promise<boolean>
+  arg1: string | PollOpts,
+  arg2: PollOpts | PollPredicate,
+  arg3?: PollPredicate
 ) {
-  yield* run(async () => {
+  let key: string | null = null;
+  let opts: PollOpts;
+  let predicate: PollPredicate;
+
+  if (typeof arg1 === "string") {
+    key = arg1;
+    opts = arg2 as PollOpts;
+    predicate = arg3 as PollPredicate;
+  } else {
+    opts = arg1;
+    predicate = arg2 as PollPredicate;
+  }
+
+  const task = async () => {
     if (!(await predicate())) {
       throw new RetryableError("Polling reached max retries", {
         maxAttempts: opts.maxAttempts,
         retryInterval: opts.retryInterval,
       });
     }
-  });
+  };
+
+  if (key) {
+    yield* run(key, task);
+  } else {
+    yield* run(task);
+  }
 }
