@@ -5,7 +5,7 @@ import { dirname } from "path";
 
 type DbResult = {
   execution_id: string;
-  step_index: number;
+  step_key: string;
   step_attempt: number;
   step_done: 0 | 1;
   step_response: string;
@@ -32,14 +32,14 @@ export class SqliteConnector extends WorkerConnector {
     db.run(`
     CREATE TABLE IF NOT EXISTS step_responses (
       execution_id TEXT NOT NULL,
-      step_index INTEGER NOT NULL,
+      step_key TEXT NOT NULL,
       step_attempt INTEGER NOT NULL,
       step_done BOOL NOT NULL,
       step_response JSONB,
-      PRIMARY KEY (execution_id, step_index, step_attempt)
+      PRIMARY KEY (execution_id, step_key, step_attempt)
     );
     CREATE INDEX IF NOT EXISTS idx_execution_step_attempt 
-    ON step_responses(execution_id, step_index, step_attempt DESC);
+    ON step_responses(execution_id, step_key, step_attempt DESC);
     `);
     return db;
   }
@@ -62,17 +62,17 @@ export class SqliteConnector extends WorkerConnector {
     console.log("[INFO]: Workflow end");
   }
 
-  async onBeforeRun(params: { executionId: string; stepIndex: number }) {
+  async onBeforeRun(params: { executionId: string; stepKey: string }) {
     const query = this.db.query(
       `SELECT * FROM step_responses 
         WHERE execution_id = $executionId 
-        AND step_index = $stepIndex
+        AND step_key = $stepKey
         ORDER BY step_attempt DESC LIMIT 1`
     );
 
     const result = query.get({
       $executionId: params.executionId,
-      $stepIndex: params.stepIndex,
+      $stepKey: params.stepKey,
     }) as DbResult;
 
     if (!result?.step_response) {
@@ -90,18 +90,18 @@ export class SqliteConnector extends WorkerConnector {
 
   async onAfterRun(params: {
     executionId: string;
-    stepIndex: number;
+    stepKey: string;
     stepAttempt: number;
     stepDone: boolean;
     stepResponseJson: string;
   }) {
     const query = this.db.query(`
-      INSERT INTO step_responses (execution_id, step_index, step_attempt, step_done, step_response) 
-      VALUES ($executionId, $stepIndex, $stepAttempt, $stepDone, $stepResponse)`);
+      INSERT INTO step_responses (execution_id, step_key, step_attempt, step_done, step_response) 
+      VALUES ($executionId, $stepKey, $stepAttempt, $stepDone, $stepResponse)`);
 
     query.run({
       $executionId: params.executionId,
-      $stepIndex: params.stepIndex,
+      $stepKey: params.stepKey,
       $stepAttempt: params.stepAttempt,
       $stepDone: params.stepDone,
       $stepResponse: params.stepResponseJson,
