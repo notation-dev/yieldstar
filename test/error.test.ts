@@ -2,7 +2,7 @@ import { beforeEach, expect, test } from "bun:test";
 import { createWorkflow, runToCompletion } from "yieldstar";
 import { SqliteConnector } from "yieldstar-sqlite-bun";
 
-const db = await SqliteConnector.createDb("./.db/test-retries.sqlite");
+const db = await SqliteConnector.createDb("./.db/test-errors.sqlite");
 const sqliteConnector = new SqliteConnector({ db });
 
 beforeEach(() => {
@@ -10,12 +10,9 @@ beforeEach(() => {
 });
 
 test("failing steps can be caught", async () => {
-  let runs = 0;
-
   const myWorkflow = createWorkflow(async function* (step) {
     try {
       yield* step.run(async () => {
-        runs++;
         throw new Error("Step error");
       });
     } catch {
