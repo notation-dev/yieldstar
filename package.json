@@ -5,6 +5,7 @@
     "packages/*"
   ],
   "scripts": {
+    "build": "bun run --filter '*' build",
     "dev": "bun run --filter '*' build --watch & bun test --watch",
     "start": "bun scripts/run-example.ts"
   },
