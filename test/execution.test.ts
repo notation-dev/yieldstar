@@ -1,12 +1,12 @@
 import { beforeEach, expect, test } from "bun:test";
 import { createWorkflow, runToCompletion } from "yieldstar";
-import { SqliteConnector } from "yieldstar-sqlite-bun";
+import { SqlitePersister } from "yieldstar-persister-sqlite-bun";
 
-const db = await SqliteConnector.createDb("./.db/test-execution.sqlite");
-const sqliteConnector = new SqliteConnector({ db });
+const db = await SqlitePersister.createDb("./.db/test-execution.sqlite");
+const sqlitePersister = new SqlitePersister({ db });
 
 beforeEach(() => {
-  sqliteConnector.deleteAll();
+  sqlitePersister.deleteAll();
 });
 
 test("data flow between steps", async () => {
@@ -24,7 +24,7 @@ test("data flow between steps", async () => {
 
   const result = await runToCompletion({
     workflow: myWorkflow,
-    connector: sqliteConnector,
+    persister: sqlitePersister,
     executionId: "abc:123",
   });
 
@@ -47,7 +47,7 @@ test("handling async steps", async () => {
 
   const result = await runToCompletion({
     workflow: myWorkflow,
-    connector: sqliteConnector,
+    persister: sqlitePersister,
     executionId: "abc:123",
   });
 

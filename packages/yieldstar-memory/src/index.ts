@@ -1,1 +1,1 @@
-export * from "./connector-memory";
+export * from "./persister-memory";

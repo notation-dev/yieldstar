@@ -1,6 +1,6 @@
 import type { StepRunner } from "./step-runner";
 import { stepRunner } from "./step-runner";
-import { Connector } from "./connector";
+import { StepPersister } from "./step-persister.ts";
 import { isIterable } from "./utils";
 import { deserialize, serialize } from "./serialise";
 import {
@@ -18,7 +18,7 @@ export type WorkflowFn<T> = (step: StepRunner) => AsyncGenerator<any, T>;
 
 export type CompositeStepGenerator<T> = (params: {
   executionId: string;
-  connector: Connector;
+  persister: StepPersister;
 }) => AsyncGenerator<StepResponse, WorkflowResult<T>, StepResponse>;
 
 export function createWorkflow<T>(
@@ -26,12 +26,12 @@ export function createWorkflow<T>(
 ): CompositeStepGenerator<T> {
   /**
    * @description Consumes workflow steps, handling any workflow logic, and
-   * yielding control to a worker (composite step consumer) to do async work
+   * yielding control to a workflow executor to do async work
    * @yields {StepResponse}
    */
   return async function* compositeStepGenerator(params) {
     const workflowIterator = workflowFn(stepRunner);
-    const { executionId, connector } = params;
+    const { executionId, persister } = params;
 
     let keylessStepIndex = -1;
     let iteratorResult: IteratorResult<any> | null = null;
@@ -43,7 +43,7 @@ export function createWorkflow<T>(
 
       /**
        * If we already have the next iterator result from a previous iteration
-       * (e.g. it threw an error and advanced the workflow),use that, otherwise,
+       * (e.g. it threw an error and advanced the workflow), use that, otherwise,
        * advance the workflow generator
        */
       if (nextIteratorResult) {
@@ -75,7 +75,7 @@ export function createWorkflow<T>(
        * Using the StepKey, retrieve the previous response for this step from
        * the cache
        */
-      let cached = await connector.onBeforeRun({
+      let cached = await persister.readStep({
         executionId,
         stepKey,
       });
@@ -159,7 +159,7 @@ export function createWorkflow<T>(
        * If this step attempt is not already cached, cache it
        */
       if (!cached) {
-        await connector.onAfterRun({
+        await persister.writeStep({
           executionId,
           stepKey,
           stepAttempt,

@@ -1,5 +1,5 @@
 {
-  "name": "yieldstar-memory",
+  "name": "yieldstar-persister-memory",
   "type": "module",
   "main": "dist/index.js",
   "types": "src/index.ts",

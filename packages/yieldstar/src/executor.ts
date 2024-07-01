@@ -1,4 +1,4 @@
-import type { Connector } from "./connector";
+import type { StepPersister } from "./step-persister";
 import { StepDelay, WorkflowResult } from "./step-response";
 import type { CompositeStepGenerator } from "./workflow";
 
@@ -7,14 +7,16 @@ import type { CompositeStepGenerator } from "./workflow";
  */
 export async function runToCompletion<T>(params: {
   executionId: string;
-  connector: Connector;
+  persister: StepPersister;
   workflow: CompositeStepGenerator<T>;
 }): Promise<T> {
-  const { executionId, connector, workflow } = params;
+  const { executionId, persister, workflow } = params;
+
   const workflowIterator = workflow({
-    connector,
+    persister,
     executionId: executionId,
   });
+
   const iteratorResult = await workflowIterator.next();
   const stageResponse = iteratorResult.value;
 

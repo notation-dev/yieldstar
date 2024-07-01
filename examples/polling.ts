@@ -1,10 +1,10 @@
 import { createWorkflow, runToCompletion } from "yieldstar";
-import { SqliteConnector } from "yieldstar-sqlite-bun";
+import { SqlitePersister } from "yieldstar-persister-sqlite-bun";
 
-const db = await SqliteConnector.createDb("./.db/workflows.sqlite");
-const sqliteConnector = new SqliteConnector({ db });
+const db = await SqlitePersister.createDb("./.db/example-workflows.sqlite");
+const sqlitePersister = new SqlitePersister({ db });
 
-sqliteConnector.deleteAll();
+sqlitePersister.deleteAll();
 
 const myWorkflow = createWorkflow(async function* (step) {
   let num: number;
@@ -22,6 +22,6 @@ const myWorkflow = createWorkflow(async function* (step) {
 
 await runToCompletion({
   workflow: myWorkflow,
-  connector: sqliteConnector,
+  persister: sqlitePersister,
   executionId: "abc:123",
 });

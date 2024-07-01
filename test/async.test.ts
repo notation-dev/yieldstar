@@ -1,12 +1,12 @@
 import { beforeEach, expect, test, mock } from "bun:test";
 import { createWorkflow, runToCompletion } from "yieldstar";
-import { SqliteConnector } from "yieldstar-sqlite-bun";
+import { SqlitePersister } from "yieldstar-persister-sqlite-bun";
 
-const db = await SqliteConnector.createDb("./.db/test-async.sqlite");
-const sqliteConnector = new SqliteConnector({ db });
+const db = await SqlitePersister.createDb("./.db/test-async.sqlite");
+const sqlitePersister = new SqlitePersister({ db });
 
 beforeEach(() => {
-  sqliteConnector.deleteAll();
+  sqlitePersister.deleteAll();
 });
 
 test("running sync workflows to completion", async () => {
@@ -26,7 +26,7 @@ test("running sync workflows to completion", async () => {
 
   await runToCompletion({
     workflow: myWorkflow,
-    connector: sqliteConnector,
+    persister: sqlitePersister,
     executionId: "abc:123",
   });
 
@@ -52,7 +52,7 @@ test("deferring workflow execution", async () => {
 
   await runToCompletion({
     workflow: myWorkflow,
-    connector: sqliteConnector,
+    persister: sqlitePersister,
     executionId: "abc:123",
   });
 
@@ -76,7 +76,7 @@ test("resumes workflow after a set delay", async () => {
 
   const result = await runToCompletion({
     workflow: myWorkflow,
-    connector: sqliteConnector,
+    persister: sqlitePersister,
     executionId: "abc:123",
   });
 

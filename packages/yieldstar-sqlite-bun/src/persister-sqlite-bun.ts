@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite";
-import { WorkerConnector } from "yieldstar";
+import { StepPersister } from "yieldstar";
 import { mkdir } from "node:fs/promises";
 import { dirname } from "path";
 
@@ -11,7 +11,7 @@ type DbResult = {
   step_response: string;
 };
 
-export class SqliteConnector extends WorkerConnector {
+export class SqlitePersister extends StepPersister {
   db: Database;
 
   constructor(params: { db: Database }) {
@@ -23,7 +23,7 @@ export class SqliteConnector extends WorkerConnector {
     const dirPath = dirname(path);
     await mkdir(dirPath, { recursive: true });
     const db = new Database(path, { create: true });
-    SqliteConnector.setupDb(db);
+    SqlitePersister.setupDb(db);
     return db;
   }
 
@@ -54,15 +54,7 @@ export class SqliteConnector extends WorkerConnector {
     return query.run();
   }
 
-  async onStart() {
-    console.log("[INFO]: Workflow start");
-  }
-
-  async onEnd() {
-    console.log("[INFO]: Workflow end");
-  }
-
-  async onBeforeRun(params: { executionId: string; stepKey: string }) {
+  async readStep(params: { executionId: string; stepKey: string }) {
     const query = this.db.query(
       `SELECT * FROM step_responses 
         WHERE execution_id = $executionId 
@@ -88,7 +80,7 @@ export class SqliteConnector extends WorkerConnector {
     };
   }
 
-  async onAfterRun(params: {
+  async writeStep(params: {
     executionId: string;
     stepKey: string;
     stepAttempt: number;
@@ -107,11 +99,4 @@ export class SqliteConnector extends WorkerConnector {
       $stepResponse: params.stepResponseJson,
     });
   }
-
-  async onSchedule(executionId: string, timestamp: number) {
-    console.log(`[INFO]: Scheduled for ${timestamp}`);
-  }
-
-  async onFailure() {}
-  async onAbandon() {}
 }

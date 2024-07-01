@@ -1,12 +1,12 @@
 import { beforeEach, expect, test } from "bun:test";
 import { createWorkflow, runToCompletion } from "yieldstar";
-import { SqliteConnector } from "yieldstar-sqlite-bun";
+import { SqlitePersister } from "yieldstar-persister-sqlite-bun";
 
-const db = await SqliteConnector.createDb("./.db/test-persistence.sqlite");
-const sqliteConnector = new SqliteConnector({ db });
+const db = await SqlitePersister.createDb("./.db/test-persistence.sqlite");
+const sqlitePersister = new SqlitePersister({ db });
 
 beforeEach(() => {
-  sqliteConnector.deleteAll();
+  sqlitePersister.deleteAll();
 });
 
 test("retrieving previous steps from cache", async () => {
@@ -40,7 +40,7 @@ test("retrieving previous steps from cache", async () => {
 
   await runToCompletion({
     workflow: myWorkflow,
-    connector: sqliteConnector,
+    persister: sqlitePersister,
     executionId: "abc:123",
   });
 

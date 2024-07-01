@@ -1,1 +1,1 @@
-export * from "./connector-sqlite-bun";
+export * from "./persister-sqlite-bun";

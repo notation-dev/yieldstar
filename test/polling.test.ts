@@ -1,12 +1,12 @@
 import { beforeEach, expect, test } from "bun:test";
 import { createWorkflow, runToCompletion } from "yieldstar";
-import { SqliteConnector } from "yieldstar-sqlite-bun";
+import { SqlitePersister } from "yieldstar-persister-sqlite-bun";
 
-const db = await SqliteConnector.createDb("./.db/test-retries.sqlite");
-const sqliteConnector = new SqliteConnector({ db });
+const db = await SqlitePersister.createDb("./.db/test-polling.sqlite");
+const sqlitePersister = new SqlitePersister({ db });
 
 beforeEach(() => {
-  sqliteConnector.deleteAll();
+  sqlitePersister.deleteAll();
 });
 
 test("poll retries when predicate fails", async () => {
@@ -23,7 +23,7 @@ test("poll retries when predicate fails", async () => {
 
   await runToCompletion({
     workflow: myWorkflow,
-    connector: sqliteConnector,
+    persister: sqlitePersister,
     executionId: "abc:123",
   });
 
@@ -42,7 +42,7 @@ test("poll resolves when predicate passes", async () => {
 
   await runToCompletion({
     workflow: myWorkflow,
-    connector: sqliteConnector,
+    persister: sqlitePersister,
     executionId: "abc:123",
   });
 
@@ -63,7 +63,7 @@ test("poll fails if a regular error is thrown", async () => {
 
   await runToCompletion({
     workflow: myWorkflow,
-    connector: sqliteConnector,
+    persister: sqlitePersister,
     executionId: "abc:123",
   });
 

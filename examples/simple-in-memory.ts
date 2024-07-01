@@ -1,7 +1,7 @@
 import { createWorkflow, runToCompletion } from "yieldstar";
-import { MemoryConnector } from "yieldstar-memory";
+import { MemoryPersister } from "yieldstar-persister-memory";
 
-const memoryConnector = new MemoryConnector();
+const memoryPersister = new MemoryPersister();
 
 const myWorkflow = createWorkflow(async function* (step) {
   let num = yield* step.run(() => {
@@ -21,7 +21,7 @@ const myWorkflow = createWorkflow(async function* (step) {
 
 const result = await runToCompletion({
   workflow: myWorkflow,
-  connector: memoryConnector,
+  persister: memoryPersister,
   executionId: "abc:123",
 });
 
