@@ -25,7 +25,7 @@ export function createWorkflow<T>(
   workflowFn: WorkflowFn<T>
 ): CompositeStepGenerator<T> {
   /**
-   * @description Consumes workflow steps, handling any workflow logic, and
+   * @description Advances workflow steps, handling any workflow logic, and
    * yielding control to a workflow executor to do async work
    * @yields {StepResponse}
    */

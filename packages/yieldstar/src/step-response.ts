@@ -37,6 +37,15 @@ export class WorkflowResult<T extends any> extends StepResponse {
   }
 }
 
+export class WorkflowDelay extends StepResponse {
+  type = "workflow-delay";
+  resumeAt: number;
+  constructor(resumeAt: number) {
+    super();
+    this.resumeAt = resumeAt;
+  }
+}
+
 export class WorkflowRestart extends StepResponse {
   type = "workflow-restart";
   constructor() {

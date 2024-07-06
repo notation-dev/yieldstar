@@ -1,33 +1,46 @@
 import type { StepPersister } from "./step-persister";
-import { StepDelay, WorkflowResult } from "./step-response";
 import type { CompositeStepGenerator } from "./workflow";
+import { StepDelay, WorkflowDelay, WorkflowResult } from "./step-response";
 
 /**
  * @description Runs the workflow to completion, awaiting the final result
  */
-export async function runToCompletion<T>(params: {
+export async function runCompositeSteps<T>(params: {
   executionId: string;
   persister: StepPersister;
   workflow: CompositeStepGenerator<T>;
-}): Promise<T> {
+}): Promise<WorkflowResult<T> | WorkflowDelay> {
+  // does this workflow execution already exists?
+  // no: create workflow execution
   const { executionId, persister, workflow } = params;
 
-  const workflowIterator = workflow({
-    persister,
-    executionId: executionId,
-  });
+  // initialise composite step runner
+  const workflowIterator = workflow({ persister, executionId });
 
   const iteratorResult = await workflowIterator.next();
   const stageResponse = iteratorResult.value;
 
   if (iteratorResult.done) {
-    return (stageResponse as WorkflowResult<T>).result;
+    return stageResponse as WorkflowResult<T>;
   }
 
   if (stageResponse instanceof StepDelay) {
-    await Bun.sleep(stageResponse.resumeAt - Date.now());
-    return runToCompletion(params);
+    return new WorkflowDelay(stageResponse.resumeAt - Date.now());
   }
 
   throw new Error("Critical error");
+}
+
+export async function runToCompletion<T>(params: {
+  executionId: string;
+  persister: StepPersister;
+  workflow: CompositeStepGenerator<T>;
+}): Promise<T> {
+  let stageResponse = await runCompositeSteps(params);
+  if (stageResponse instanceof WorkflowDelay) {
+    const { resumeAt } = stageResponse;
+    await new Promise((resolve) => setTimeout(resolve, resumeAt));
+    return runToCompletion(params);
+  }
+  return stageResponse.result;
 }

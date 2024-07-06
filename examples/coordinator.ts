@@ -1,3 +1,4 @@
+import { sleep } from "bun";
 import type { StepRunner } from "yieldstar";
 import { createWorkflow, runToCompletion } from "yieldstar";
 import { SqlitePersister } from "yieldstar-persister-sqlite-bun";
@@ -17,7 +18,7 @@ const coordinator = async <T>(workflowFn: WorkflowFn<T>) => {
     const waitForState = async function* (expectedState: string) {
       yield* step.poll({ maxAttempts: 10, retryInterval: 1000 }, () => {
         console.log("Polling...");
-        return false;
+        return true;
       });
     };
     return yield* workflowFn(step, waitForState);
@@ -33,7 +34,7 @@ const coordinator = async <T>(workflowFn: WorkflowFn<T>) => {
 };
 
 await coordinator(async function* (step, waitForState) {
-  const a = yield* step.run(() => 1);
+  const a = yield* step.run(() => 2);
   yield* step.delay(1000);
   yield* waitForState("enabled");
   const b = yield* step.run(() => a * 3);
