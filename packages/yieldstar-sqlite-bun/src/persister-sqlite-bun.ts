@@ -1,5 +1,5 @@
+import type { StepPersister } from "yieldstar";
 import { Database } from "bun:sqlite";
-import { StepPersister } from "yieldstar";
 import { mkdir } from "node:fs/promises";
 import { dirname } from "path";
 
@@ -11,11 +11,10 @@ type DbResult = {
   step_response: string;
 };
 
-export class SqlitePersister extends StepPersister {
+export class SqlitePersister implements StepPersister {
   db: Database;
 
   constructor(params: { db: Database }) {
-    super();
     this.db = params.db;
   }
 

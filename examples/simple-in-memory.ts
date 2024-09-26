@@ -1,7 +1,12 @@
-import { createWorkflow, runToCompletion } from "yieldstar";
-import { MemoryPersister } from "yieldstar-persister-memory";
+import { createWorkflow, Executor } from "yieldstar";
+import { MemoryPersister, timeoutScheduler } from "yieldstar-local";
 
 const memoryPersister = new MemoryPersister();
+
+const executor = new Executor({
+  persister: memoryPersister,
+  scheduler: timeoutScheduler,
+});
 
 const myWorkflow = createWorkflow(async function* (step) {
   let num = yield* step.run(() => {
@@ -19,9 +24,8 @@ const myWorkflow = createWorkflow(async function* (step) {
   return num;
 });
 
-const result = await runToCompletion({
+const result = await executor.runAndAwaitResult({
   workflow: myWorkflow,
-  persister: memoryPersister,
   executionId: "abc:123",
 });
 

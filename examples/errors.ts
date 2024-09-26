@@ -1,8 +1,14 @@
-import { createWorkflow, runToCompletion, RetryableError } from "yieldstar";
+import { createWorkflow, Executor, RetryableError } from "yieldstar";
+import { timeoutScheduler } from "yieldstar-local";
 import { SqlitePersister } from "yieldstar-persister-sqlite-bun";
 
 const db = await SqlitePersister.createDb("./.db/example-workflows.sqlite");
 const sqlitePersister = new SqlitePersister({ db });
+
+const executor = new Executor({
+  persister: sqlitePersister,
+  scheduler: timeoutScheduler,
+});
 
 sqlitePersister.deleteAll();
 
@@ -32,9 +38,8 @@ const myWorkflow = createWorkflow(async function* (step) {
   return num;
 });
 
-const result = await runToCompletion({
+const result = await executor.runAndAwaitResult({
   workflow: myWorkflow,
-  persister: sqlitePersister,
   executionId: "abc:123",
 });
 

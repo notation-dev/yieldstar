@@ -1,9 +1,15 @@
 import { beforeEach, expect, test, mock } from "bun:test";
-import { createWorkflow, runToCompletion } from "yieldstar";
+import { createWorkflow, Executor } from "yieldstar";
+import { timeoutScheduler } from "yieldstar-local";
 import { SqlitePersister } from "yieldstar-persister-sqlite-bun";
 
 const db = await SqlitePersister.createDb("./.db/test-async.sqlite");
 const sqlitePersister = new SqlitePersister({ db });
+
+const executor = new Executor({
+  persister: sqlitePersister,
+  scheduler: timeoutScheduler,
+});
 
 beforeEach(() => {
   sqlitePersister.deleteAll();
@@ -24,9 +30,8 @@ test("running sync workflows to completion", async () => {
 
   const myWorkflow = createWorkflow(mockWorkflowGenerator);
 
-  await runToCompletion({
+  await executor.runAndAwaitResult({
     workflow: myWorkflow,
-    persister: sqlitePersister,
     executionId: "abc:123",
   });
 
@@ -50,9 +55,8 @@ test("deferring workflow execution", async () => {
 
   const myWorkflow = createWorkflow(mockWorkflowGenerator);
 
-  await runToCompletion({
+  await executor.runAndAwaitResult({
     workflow: myWorkflow,
-    persister: sqlitePersister,
     executionId: "abc:123",
   });
 
@@ -74,9 +78,8 @@ test("resumes workflow after a set delay", async () => {
     return { firstExecutionTime, secondExecutionTime };
   });
 
-  const result = await runToCompletion({
+  const result = await executor.runAndAwaitResult({
     workflow: myWorkflow,
-    persister: sqlitePersister,
     executionId: "abc:123",
   });
 

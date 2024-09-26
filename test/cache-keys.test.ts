@@ -1,9 +1,15 @@
 import { beforeEach, expect, test, mock } from "bun:test";
-import { createWorkflow, runToCompletion } from "yieldstar";
+import { createWorkflow, Executor } from "yieldstar";
+import { timeoutScheduler } from "yieldstar-local";
 import { SqlitePersister } from "yieldstar-persister-sqlite-bun";
 
 const db = await SqlitePersister.createDb("./.db/test-cache-keys.sqlite");
 const sqlitePersister = new SqlitePersister({ db });
+
+const executor = new Executor({
+  persister: sqlitePersister,
+  scheduler: timeoutScheduler,
+});
 
 beforeEach(() => {
   sqlitePersister.deleteAll();
@@ -25,9 +31,8 @@ test("step.run without cache keys", async () => {
     }
   });
 
-  await runToCompletion({
+  await executor.runAndAwaitResult({
     workflow: myWorkflow,
-    persister: sqlitePersister,
     executionId: "abc:123",
   });
 
@@ -51,9 +56,8 @@ test("step.run with cache keys", async () => {
     }
   });
 
-  await runToCompletion({
+  await executor.runAndAwaitResult({
     workflow: myWorkflow,
-    persister: sqlitePersister,
     executionId: "abc:123",
   });
 
@@ -75,9 +79,8 @@ test("step.delay without cache keys", async () => {
 
   let startTime = Date.now();
 
-  await runToCompletion({
+  await executor.runAndAwaitResult({
     workflow: myWorkflow,
-    persister: sqlitePersister,
     executionId: "abc:123",
   });
 
@@ -102,9 +105,8 @@ test("step.delay with cache keys", async () => {
 
   let startTime = Date.now();
 
-  await runToCompletion({
+  await executor.runAndAwaitResult({
     workflow: myWorkflow,
-    persister: sqlitePersister,
     executionId: "abc:123",
   });
 
@@ -139,9 +141,8 @@ test("interlacing cache keys and cache indexes", async () => {
     return { stableNum, volatileNum };
   });
 
-  const result = await runToCompletion({
+  const result = await executor.runAndAwaitResult({
     workflow: myWorkflow,
-    persister: sqlitePersister,
     executionId: "abc:123",
   });
 

@@ -1,7 +1,7 @@
 import type { CacheResponse } from "yieldstar";
-import { StepPersister } from "yieldstar";
+import type { StepPersister } from "yieldstar";
 
-export class MemoryPersister extends StepPersister {
+export class MemoryPersister implements StepPersister {
   cache: Record<string, CacheResponse[]> = {};
   getKey(params: { executionId: string; stepKey: string }) {
     return `${params.executionId}:${params.stepKey}`;

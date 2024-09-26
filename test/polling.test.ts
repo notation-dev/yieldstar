@@ -1,9 +1,15 @@
 import { beforeEach, expect, test } from "bun:test";
-import { createWorkflow, runToCompletion } from "yieldstar";
+import { createWorkflow, Executor } from "yieldstar";
+import { timeoutScheduler } from "yieldstar-local";
 import { SqlitePersister } from "yieldstar-persister-sqlite-bun";
 
 const db = await SqlitePersister.createDb("./.db/test-polling.sqlite");
 const sqlitePersister = new SqlitePersister({ db });
+
+const executor = new Executor({
+  persister: sqlitePersister,
+  scheduler: timeoutScheduler,
+});
 
 beforeEach(() => {
   sqlitePersister.deleteAll();
@@ -21,9 +27,8 @@ test("poll retries when predicate fails", async () => {
     } catch {}
   });
 
-  await runToCompletion({
+  await executor.runAndAwaitResult({
     workflow: myWorkflow,
-    persister: sqlitePersister,
     executionId: "abc:123",
   });
 
@@ -40,9 +45,8 @@ test("poll resolves when predicate passes", async () => {
     });
   });
 
-  await runToCompletion({
+  await executor.runAndAwaitResult({
     workflow: myWorkflow,
-    persister: sqlitePersister,
     executionId: "abc:123",
   });
 
@@ -61,9 +65,8 @@ test("poll fails if a regular error is thrown", async () => {
     } catch {}
   });
 
-  await runToCompletion({
+  await executor.runAndAwaitResult({
     workflow: myWorkflow,
-    persister: sqlitePersister,
     executionId: "abc:123",
   });
 

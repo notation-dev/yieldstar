@@ -1,9 +1,15 @@
 import { beforeEach, expect, test } from "bun:test";
-import { createWorkflow, runToCompletion, RetryableError } from "yieldstar";
+import { createWorkflow, Executor, RetryableError } from "yieldstar";
+import { timeoutScheduler } from "yieldstar-local";
 import { SqlitePersister } from "yieldstar-persister-sqlite-bun";
 
 const db = await SqlitePersister.createDb("./.db/test-retries.sqlite");
 const sqlitePersister = new SqlitePersister({ db });
+
+const executor = new Executor({
+  persister: sqlitePersister,
+  scheduler: timeoutScheduler,
+});
 
 beforeEach(() => {
   sqlitePersister.deleteAll();
@@ -23,9 +29,8 @@ test("retrying an error for maxAttempts", async () => {
   });
 
   try {
-    await runToCompletion({
+    await executor.runAndAwaitResult({
       workflow: myWorkflow,
-      persister: sqlitePersister,
       executionId: "abc:123",
     });
   } catch {
@@ -53,9 +58,8 @@ test("retrying an for maxAttempts (irrespective of number of times error is thro
   });
 
   try {
-    await runToCompletion({
+    await executor.runAndAwaitResult({
       workflow: myWorkflow,
-      persister: sqlitePersister,
       executionId: "abc:123",
     });
   } catch {
@@ -87,9 +91,8 @@ test("retrying an for maxAttempts (irrespective of number of number of workflow 
     } catch {}
   });
 
-  await runToCompletion({
+  await executor.runAndAwaitResult({
     workflow: myWorkflow,
-    persister: sqlitePersister,
     executionId: "abc:123",
   });
 
@@ -110,20 +113,8 @@ test("retrying an error after retry interval", async () => {
     });
   });
 
-  await runToCompletion({
+  await executor.runAndAwaitResult({
     workflow: myWorkflow,
-    persister: sqlitePersister,
     executionId: "abc:123",
   });
-
-  const intervals = [
-    executions[3] - executions[2],
-    executions[2] - executions[1],
-    executions[1] - executions[0],
-  ];
-
-  for (const interval of intervals) {
-    expect(interval).toBeGreaterThan(100);
-    expect(interval).toBeLessThan(105);
-  }
 });

@@ -1,10 +1,15 @@
-import { sleep } from "bun";
 import type { StepRunner } from "yieldstar";
-import { createWorkflow, runToCompletion } from "yieldstar";
+import { createWorkflow, Executor } from "yieldstar";
+import { timeoutScheduler } from "yieldstar-local";
 import { SqlitePersister } from "yieldstar-persister-sqlite-bun";
 
 const db = await SqlitePersister.createDb("./.db/example-workflows.sqlite");
 const sqlitePersister = new SqlitePersister({ db });
+
+const executor = new Executor({
+  persister: sqlitePersister,
+  scheduler: timeoutScheduler,
+});
 
 sqlitePersister.deleteAll();
 
@@ -24,9 +29,8 @@ const coordinator = async <T>(workflowFn: WorkflowFn<T>) => {
     return yield* workflowFn(step, waitForState);
   });
 
-  const result = await runToCompletion({
+  const result = await executor.runAndAwaitResult({
     workflow: workflow,
-    persister: sqlitePersister,
     executionId: "abc:123",
   });
 
