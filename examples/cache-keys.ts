@@ -1,20 +1,29 @@
 import { createWorkflow, Executor } from "yieldstar";
-import { timeoutScheduler } from "yieldstar-local";
-import { SqlitePersister } from "yieldstar-persister-sqlite-bun";
+import {
+  LocalScheduler,
+  LocalWaker,
+  LocalRuntime,
+  LocalPersister,
+} from "yieldstar-local";
 
-const db = await SqlitePersister.createDb("./.db/example-workflows.sqlite");
-const sqlitePersister = new SqlitePersister({ db });
+const localWaker = new LocalWaker();
+const localRuntime = new LocalRuntime(localWaker);
+const localPersister = new LocalPersister();
 
-const executor = new Executor({
-  persister: sqlitePersister,
-  scheduler: timeoutScheduler,
+const localScheduler = new LocalScheduler({
+  taskQueue: localRuntime.taskQueue,
+  timers: localRuntime.timers,
 });
 
-sqlitePersister.deleteAll();
+const executor = new Executor({
+  persister: localPersister,
+  scheduler: localScheduler,
+  waker: localWaker,
+});
 
 let executionIdx = -1;
 
-const myWorkflow = createWorkflow(async function* (step) {
+const workflow = createWorkflow(async function* (step) {
   executionIdx++;
   let volatileNum = 0;
   let stableNum = 0;
@@ -35,9 +44,10 @@ const myWorkflow = createWorkflow(async function* (step) {
   return { stableNum, volatileNum };
 });
 
-const result = await executor.runAndAwaitResult({
-  workflow: myWorkflow,
-  executionId: "abc:123",
-});
+localRuntime.start();
+
+const result = await executor.runAndAwaitResult(workflow);
 
 console.log(`\nWorkflow Result: ${JSON.stringify(result)}\n`);
+
+localRuntime.stop();

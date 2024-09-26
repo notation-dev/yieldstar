@@ -96,7 +96,7 @@ async function* delay(
   const cached = yield new StepCacheCheck();
 
   if (cached) {
-    yield new StepDelay(cached.resumeAt);
+    yield new StepDelay(cached.resumeIn);
   } else {
     yield new StepDelay(Date.now() + retryInterval);
   }

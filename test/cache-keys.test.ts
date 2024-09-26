@@ -1,18 +1,33 @@
-import { beforeEach, expect, test, mock } from "bun:test";
+import { beforeAll, afterAll, expect, test, mock } from "bun:test";
 import { createWorkflow, Executor } from "yieldstar";
-import { timeoutScheduler } from "yieldstar-local";
-import { SqlitePersister } from "yieldstar-persister-sqlite-bun";
+import {
+  LocalScheduler,
+  LocalWaker,
+  LocalRuntime,
+  LocalPersister,
+} from "yieldstar-local";
 
-const db = await SqlitePersister.createDb("./.db/test-cache-keys.sqlite");
-const sqlitePersister = new SqlitePersister({ db });
+const localWaker = new LocalWaker();
+const localRuntime = new LocalRuntime(localWaker);
+const localPersister = new LocalPersister();
 
-const executor = new Executor({
-  persister: sqlitePersister,
-  scheduler: timeoutScheduler,
+const localScheduler = new LocalScheduler({
+  taskQueue: localRuntime.taskQueue,
+  timers: localRuntime.timers,
 });
 
-beforeEach(() => {
-  sqlitePersister.deleteAll();
+const executor = new Executor({
+  persister: localPersister,
+  scheduler: localScheduler,
+  waker: localWaker,
+});
+
+beforeAll(() => {
+  localRuntime.start();
+});
+
+afterAll(() => {
+  localRuntime.stop();
 });
 
 test("step.run without cache keys", async () => {
@@ -21,7 +36,7 @@ test("step.run without cache keys", async () => {
 
   let executionIdx = -1;
 
-  const myWorkflow = createWorkflow(async function* (step) {
+  const workflow = createWorkflow(async function* (step) {
     executionIdx++;
     if (executionIdx === 0) {
       yield* step.run(mock1);
@@ -31,10 +46,7 @@ test("step.run without cache keys", async () => {
     }
   });
 
-  await executor.runAndAwaitResult({
-    workflow: myWorkflow,
-    executionId: "abc:123",
-  });
+  await executor.runAndAwaitResult(workflow);
 
   expect(mock1).toBeCalledTimes(1);
   expect(mock2).not.toBeCalled();
@@ -46,7 +58,7 @@ test("step.run with cache keys", async () => {
 
   let executionIdx = -1;
 
-  const myWorkflow = createWorkflow(async function* (step) {
+  const workflow = createWorkflow(async function* (step) {
     executionIdx++;
     if (executionIdx === 0) {
       yield* step.run("step 1", mock1);
@@ -56,10 +68,7 @@ test("step.run with cache keys", async () => {
     }
   });
 
-  await executor.runAndAwaitResult({
-    workflow: myWorkflow,
-    executionId: "abc:123",
-  });
+  await executor.runAndAwaitResult(workflow);
 
   expect(mock1).toBeCalledTimes(1);
   expect(mock2).toBeCalledTimes(1);
@@ -68,7 +77,7 @@ test("step.run with cache keys", async () => {
 test("step.delay without cache keys", async () => {
   let executionIdx = -1;
 
-  const myWorkflow = createWorkflow(async function* (step) {
+  const workflow = createWorkflow(async function* (step) {
     executionIdx++;
     if (executionIdx < 1) {
       yield* step.delay(10);
@@ -79,10 +88,7 @@ test("step.delay without cache keys", async () => {
 
   let startTime = Date.now();
 
-  await executor.runAndAwaitResult({
-    workflow: myWorkflow,
-    executionId: "abc:123",
-  });
+  await executor.runAndAwaitResult(workflow);
 
   let duration = Date.now() - startTime;
 
@@ -94,7 +100,7 @@ test("step.delay without cache keys", async () => {
 test("step.delay with cache keys", async () => {
   let executionIdx = -1;
 
-  const myWorkflow = createWorkflow(async function* (step) {
+  const workflow = createWorkflow(async function* (step) {
     executionIdx++;
     if (executionIdx < 1) {
       yield* step.delay("step 1", 10);
@@ -105,10 +111,7 @@ test("step.delay with cache keys", async () => {
 
   let startTime = Date.now();
 
-  await executor.runAndAwaitResult({
-    workflow: myWorkflow,
-    executionId: "abc:123",
-  });
+  await executor.runAndAwaitResult(workflow);
 
   let duration = Date.now() - startTime;
 
@@ -120,7 +123,7 @@ test("step.delay with cache keys", async () => {
 test("interlacing cache keys and cache indexes", async () => {
   let executionIdx = -1;
 
-  const myWorkflow = createWorkflow(async function* (step) {
+  const workflow = createWorkflow(async function* (step) {
     executionIdx++;
     let volatileNum = 0;
     let stableNum = 0;
@@ -141,10 +144,7 @@ test("interlacing cache keys and cache indexes", async () => {
     return { stableNum, volatileNum };
   });
 
-  const result = await executor.runAndAwaitResult({
-    workflow: myWorkflow,
-    executionId: "abc:123",
-  });
+  const result = await executor.runAndAwaitResult(workflow);
 
   expect(result.stableNum).toBe(2);
   expect(result.volatileNum).toBe(1);

@@ -33,7 +33,7 @@ export function deserialize(jsonString: string): StepResponse {
       const { err, ...params } = stepResponse;
       return new StepError(stepResponse.err, params);
     case "step-delay":
-      return new StepDelay(stepResponse.resumeAt);
+      return new StepDelay(stepResponse.resumeIn);
     case "step-result":
       return new StepResult(stepResponse.result);
     case "workflow-result":

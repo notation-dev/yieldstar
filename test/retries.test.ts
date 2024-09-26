@@ -1,24 +1,39 @@
-import { beforeEach, expect, test } from "bun:test";
+import { beforeAll, afterAll, expect, test } from "bun:test";
 import { createWorkflow, Executor, RetryableError } from "yieldstar";
-import { timeoutScheduler } from "yieldstar-local";
-import { SqlitePersister } from "yieldstar-persister-sqlite-bun";
+import {
+  LocalScheduler,
+  LocalWaker,
+  LocalRuntime,
+  LocalPersister,
+} from "yieldstar-local";
 
-const db = await SqlitePersister.createDb("./.db/test-retries.sqlite");
-const sqlitePersister = new SqlitePersister({ db });
+const localWaker = new LocalWaker();
+const localRuntime = new LocalRuntime(localWaker);
+const localPersister = new LocalPersister();
 
-const executor = new Executor({
-  persister: sqlitePersister,
-  scheduler: timeoutScheduler,
+const localScheduler = new LocalScheduler({
+  taskQueue: localRuntime.taskQueue,
+  timers: localRuntime.timers,
 });
 
-beforeEach(() => {
-  sqlitePersister.deleteAll();
+const executor = new Executor({
+  persister: localPersister,
+  scheduler: localScheduler,
+  waker: localWaker,
+});
+
+beforeAll(() => {
+  localRuntime.start();
+});
+
+afterAll(() => {
+  localRuntime.stop();
 });
 
 test("retrying an error for maxAttempts", async () => {
   let runs = 0;
 
-  const myWorkflow = createWorkflow(async function* (step) {
+  const workflow = createWorkflow(async function* (step) {
     yield* step.run(async () => {
       runs++;
       throw new RetryableError("Step error", {
@@ -29,10 +44,7 @@ test("retrying an error for maxAttempts", async () => {
   });
 
   try {
-    await executor.runAndAwaitResult({
-      workflow: myWorkflow,
-      executionId: "abc:123",
-    });
+    await executor.runAndAwaitResult(workflow);
   } catch {
     expect(runs).toEqual(10);
   }
@@ -41,7 +53,7 @@ test("retrying an error for maxAttempts", async () => {
 test("retrying an for maxAttempts (irrespective of number of times error is thrown)", async () => {
   let runs = 0;
 
-  const myWorkflow = createWorkflow(async function* (step) {
+  const workflow = createWorkflow(async function* (step) {
     yield* step.run(async () => {
       runs++;
       if (runs === 5) {
@@ -58,10 +70,7 @@ test("retrying an for maxAttempts (irrespective of number of times error is thro
   });
 
   try {
-    await executor.runAndAwaitResult({
-      workflow: myWorkflow,
-      executionId: "abc:123",
-    });
+    await executor.runAndAwaitResult(workflow);
   } catch {
     expect(runs).toEqual(5);
   }
@@ -70,7 +79,7 @@ test("retrying an for maxAttempts (irrespective of number of times error is thro
 test("retrying an for maxAttempts (irrespective of number of number of workflow executions)", async () => {
   let runs = 0;
 
-  const myWorkflow = createWorkflow(async function* (step) {
+  const workflow = createWorkflow(async function* (step) {
     try {
       yield* step.run(async () => {
         runs++;
@@ -91,10 +100,7 @@ test("retrying an for maxAttempts (irrespective of number of number of workflow 
     } catch {}
   });
 
-  await executor.runAndAwaitResult({
-    workflow: myWorkflow,
-    executionId: "abc:123",
-  });
+  await executor.runAndAwaitResult(workflow);
 
   expect(runs).toEqual(6);
 });
@@ -102,7 +108,7 @@ test("retrying an for maxAttempts (irrespective of number of number of workflow 
 test("retrying an error after retry interval", async () => {
   const executions: number[] = [];
 
-  const myWorkflow = createWorkflow(async function* (step) {
+  const workflow = createWorkflow(async function* (step) {
     yield* step.run(async () => {
       executions.push(Date.now());
       if (executions.length > 3) return;
@@ -113,8 +119,5 @@ test("retrying an error after retry interval", async () => {
     });
   });
 
-  await executor.runAndAwaitResult({
-    workflow: myWorkflow,
-    executionId: "abc:123",
-  });
+  await executor.runAndAwaitResult(workflow);
 });

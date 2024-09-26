@@ -1,18 +1,27 @@
 import { createWorkflow, Executor } from "yieldstar";
-import { timeoutScheduler } from "yieldstar-local";
-import { SqlitePersister } from "yieldstar-persister-sqlite-bun";
+import {
+  LocalScheduler,
+  LocalWaker,
+  LocalRuntime,
+  LocalPersister,
+} from "yieldstar-local";
 
-const db = await SqlitePersister.createDb("./.db/example-workflows.sqlite");
-const sqlitePersister = new SqlitePersister({ db });
+const localWaker = new LocalWaker();
+const localRuntime = new LocalRuntime(localWaker);
+const localPersister = new LocalPersister();
 
-const executor = new Executor({
-  persister: sqlitePersister,
-  scheduler: timeoutScheduler,
+const localScheduler = new LocalScheduler({
+  taskQueue: localRuntime.taskQueue,
+  timers: localRuntime.timers,
 });
 
-sqlitePersister.deleteAll();
+const executor = new Executor({
+  persister: localPersister,
+  scheduler: localScheduler,
+  waker: localWaker,
+});
 
-const myWorkflow = createWorkflow(async function* (step) {
+const workflow = createWorkflow(async function* (step) {
   let num: number;
 
   yield* step.poll({ retryInterval: 1000, maxAttempts: 10 }, () => {
@@ -26,7 +35,8 @@ const myWorkflow = createWorkflow(async function* (step) {
   });
 });
 
-await executor.runAndAwaitResult({
-  workflow: myWorkflow,
-  executionId: "abc:123",
-});
+localRuntime.start();
+
+await executor.runAndAwaitResult(workflow);
+
+localRuntime.stop();

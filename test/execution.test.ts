@@ -1,22 +1,36 @@
-import { beforeEach, expect, test } from "bun:test";
+import { beforeAll, afterAll, expect, test } from "bun:test";
 import { createWorkflow, Executor } from "yieldstar";
-import { timeoutScheduler } from "yieldstar-local";
-import { SqlitePersister } from "yieldstar-persister-sqlite-bun";
+import {
+  LocalScheduler,
+  LocalWaker,
+  LocalRuntime,
+  LocalPersister,
+} from "yieldstar-local";
 
-const db = await SqlitePersister.createDb("./.db/test-execution.sqlite");
-const sqlitePersister = new SqlitePersister({ db });
+const localWaker = new LocalWaker();
+const localRuntime = new LocalRuntime(localWaker);
+const localPersister = new LocalPersister();
+
+const localScheduler = new LocalScheduler({
+  taskQueue: localRuntime.taskQueue,
+  timers: localRuntime.timers,
+});
 
 const executor = new Executor({
-  persister: sqlitePersister,
-  scheduler: timeoutScheduler,
+  persister: localPersister,
+  scheduler: localScheduler,
+  waker: localWaker,
 });
 
-beforeEach(() => {
-  sqlitePersister.deleteAll();
+beforeAll(() => {
+  localRuntime.start();
 });
 
+afterAll(() => {
+  localRuntime.stop();
+});
 test("data flow between steps", async () => {
-  const myWorkflow = createWorkflow(async function* (step) {
+  const workflow = createWorkflow(async function* (step) {
     let num = yield* step.run(() => {
       return 1;
     });
@@ -28,16 +42,13 @@ test("data flow between steps", async () => {
     return num;
   });
 
-  const result = await executor.runAndAwaitResult({
-    workflow: myWorkflow,
-    executionId: "abc:123",
-  });
+  const result = await executor.runAndAwaitResult(workflow);
 
   expect(result).toBe(2);
 });
 
 test("handling async steps", async () => {
-  const myWorkflow = createWorkflow(async function* (step) {
+  const workflow = createWorkflow(async function* (step) {
     let num = yield* step.run(() => {
       return 1;
     });
@@ -50,10 +61,7 @@ test("handling async steps", async () => {
     return num;
   });
 
-  const result = await executor.runAndAwaitResult({
-    workflow: myWorkflow,
-    executionId: "abc:123",
-  });
+  const result = await executor.runAndAwaitResult(workflow);
 
   expect(result).toBe(2);
 });

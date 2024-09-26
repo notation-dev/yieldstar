@@ -1,22 +1,37 @@
-import { beforeEach, expect, test } from "bun:test";
+import { beforeAll, afterAll, expect, test } from "bun:test";
 import { createWorkflow, Executor } from "yieldstar";
-import { timeoutScheduler } from "yieldstar-local";
-import { SqlitePersister } from "yieldstar-persister-sqlite-bun";
+import {
+  LocalScheduler,
+  LocalWaker,
+  LocalRuntime,
+  LocalPersister,
+} from "yieldstar-local";
 
-const db = await SqlitePersister.createDb("./.db/test-error.sqlite");
-const sqlitePersister = new SqlitePersister({ db });
+const localWaker = new LocalWaker();
+const localRuntime = new LocalRuntime(localWaker);
+const localPersister = new LocalPersister();
 
-const executor = new Executor({
-  persister: sqlitePersister,
-  scheduler: timeoutScheduler,
+const localScheduler = new LocalScheduler({
+  taskQueue: localRuntime.taskQueue,
+  timers: localRuntime.timers,
 });
 
-beforeEach(() => {
-  sqlitePersister.deleteAll();
+const executor = new Executor({
+  persister: localPersister,
+  scheduler: localScheduler,
+  waker: localWaker,
+});
+
+beforeAll(() => {
+  localRuntime.start();
+});
+
+afterAll(() => {
+  localRuntime.stop();
 });
 
 test("failing steps can be caught", async () => {
-  const myWorkflow = createWorkflow(async function* (step) {
+  const workflow = createWorkflow(async function* (step) {
     try {
       yield* step.run(async () => {
         throw new Error("Step error");
@@ -26,10 +41,7 @@ test("failing steps can be caught", async () => {
     }
   });
 
-  const result = await executor.runAndAwaitResult({
-    workflow: myWorkflow,
-    executionId: "abc:123",
-  });
+  const result = await executor.runAndAwaitResult(workflow);
 
   expect(result).toBe(true);
 });

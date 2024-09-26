@@ -1,17 +1,25 @@
-import type { StepRunner } from "yieldstar";
 import { createWorkflow, Executor } from "yieldstar";
-import { timeoutScheduler } from "yieldstar-local";
-import { SqlitePersister } from "yieldstar-persister-sqlite-bun";
+import {
+  LocalScheduler,
+  LocalWaker,
+  LocalRuntime,
+  LocalPersister,
+} from "yieldstar-local";
 
-const db = await SqlitePersister.createDb("./.db/example-workflows.sqlite");
-const sqlitePersister = new SqlitePersister({ db });
+const localWaker = new LocalWaker();
+const localRuntime = new LocalRuntime(localWaker);
+const localPersister = new LocalPersister();
 
-const executor = new Executor({
-  persister: sqlitePersister,
-  scheduler: timeoutScheduler,
+const localScheduler = new LocalScheduler({
+  taskQueue: localRuntime.taskQueue,
+  timers: localRuntime.timers,
 });
 
-sqlitePersister.deleteAll();
+const executor = new Executor({
+  persister: localPersister,
+  scheduler: localScheduler,
+  waker: localWaker,
+});
 
 type WorkflowFn<T> = (
   step: StepRunner,
@@ -29,13 +37,12 @@ const coordinator = async <T>(workflowFn: WorkflowFn<T>) => {
     return yield* workflowFn(step, waitForState);
   });
 
-  const result = await executor.runAndAwaitResult({
-    workflow: workflow,
-    executionId: "abc:123",
-  });
+  const result = await executor.runAndAwaitResult(workflow);
 
   console.log(`\nWorkflow Result: ${result}\n`);
 };
+
+localRuntime.start();
 
 await coordinator(async function* (step, waitForState) {
   const a = yield* step.run(() => 2);
@@ -44,3 +51,5 @@ await coordinator(async function* (step, waitForState) {
   const b = yield* step.run(() => a * 3);
   return b;
 });
+
+localRuntime.stop();

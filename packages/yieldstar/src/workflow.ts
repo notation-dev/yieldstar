@@ -16,7 +16,7 @@ import {
 
 export type WorkflowFn<T> = (step: StepRunner) => AsyncGenerator<any, T>;
 
-export type CompositeStepGenerator<T> = (params: {
+export type CompositeStepGenerator<T = any> = (params: {
   executionId: string;
   persister: StepPersister;
 }) => AsyncGenerator<StepResponse, WorkflowResult<T>, StepResponse>;
@@ -202,7 +202,7 @@ export function createWorkflow<T>(
        * If the delay has already elapsed, continue straight to next step
        */
       if (stepResponse instanceof StepDelay) {
-        if (stepResponse.resumeAt <= Date.now()) {
+        if (stepResponse.resumeIn <= Date.now()) {
           continue;
         }
       }

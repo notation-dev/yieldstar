@@ -1,14 +1,27 @@
 import { createWorkflow, Executor } from "yieldstar";
-import { MemoryPersister, timeoutScheduler } from "yieldstar-local";
+import {
+  LocalScheduler,
+  LocalWaker,
+  LocalRuntime,
+  LocalPersister,
+} from "yieldstar-local";
 
-const memoryPersister = new MemoryPersister();
+const localWaker = new LocalWaker();
+const localRuntime = new LocalRuntime(localWaker);
+const localPersister = new LocalPersister();
 
-const executor = new Executor({
-  persister: memoryPersister,
-  scheduler: timeoutScheduler,
+const localScheduler = new LocalScheduler({
+  taskQueue: localRuntime.taskQueue,
+  timers: localRuntime.timers,
 });
 
-const myWorkflow = createWorkflow(async function* (step) {
+const executor = new Executor({
+  persister: localPersister,
+  scheduler: localScheduler,
+  waker: localWaker,
+});
+
+const workflow = createWorkflow(async function* (step) {
   let num = yield* step.run(() => {
     console.log("In step 1");
     return 1;
@@ -24,9 +37,9 @@ const myWorkflow = createWorkflow(async function* (step) {
   return num;
 });
 
-const result = await executor.runAndAwaitResult({
-  workflow: myWorkflow,
-  executionId: "abc:123",
-});
+localRuntime.start();
 
+const result = await executor.runAndAwaitResult(workflow);
 console.log(`\nWorkflow Result: ${result}\n`);
+
+localRuntime.stop();

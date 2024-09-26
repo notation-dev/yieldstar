@@ -1,16 +1,19 @@
 import type { CacheResponse } from "yieldstar";
 import type { StepPersister } from "yieldstar";
 
-export class MemoryPersister implements StepPersister {
+export class LocalPersister implements StepPersister {
   cache: Record<string, CacheResponse[]> = {};
+
   getKey(params: { executionId: string; stepKey: string }) {
     return `${params.executionId}:${params.stepKey}`;
   }
+
   async readStep(params: { executionId: string; stepKey: string }) {
     const attempts = this.cache[this.getKey(params)];
     if (!attempts) return null;
     return attempts[0];
   }
+
   async writeStep(params: {
     executionId: string;
     stepKey: string;
