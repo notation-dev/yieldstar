@@ -1,63 +1,27 @@
 import type { StepPersister } from "yieldstar";
 import { Database } from "bun:sqlite";
-
-class DbResult {
-  execution_id!: string;
-  step_key!: string;
-  step_attempt!: number;
-  step_done!: 0 | 1;
-  step_response!: string;
-}
+import { StepResponsesDao } from "./dao/step-response-dao";
 
 export class SqlitePersister implements StepPersister {
-  db: Database;
+  private stepResponsesDao: StepResponsesDao;
 
   constructor(params: { db: Database }) {
-    this.db = params.db;
-    this.setupDb(params.db);
-  }
-
-  setupDb(db: Database) {
-    db.exec("PRAGMA journal_mode = WAL;");
-    db.run(`
-    CREATE TABLE IF NOT EXISTS step_responses (
-      execution_id TEXT NOT NULL,
-      step_key TEXT NOT NULL,
-      step_attempt INTEGER NOT NULL,
-      step_done BOOL NOT NULL,
-      step_response JSONB,
-      PRIMARY KEY (execution_id, step_key, step_attempt)
-    );
-    CREATE INDEX IF NOT EXISTS idx_execution_step_attempt 
-    ON step_responses(execution_id, step_key, step_attempt DESC);
-    `);
-    return db;
+    this.stepResponsesDao = new StepResponsesDao(params.db);
   }
 
   async getAllSteps() {
-    const query = this.db.query(`SELECT * FROM step_responses`);
-    return query.all();
+    return this.stepResponsesDao.getAllSteps();
   }
 
   async deleteAll() {
-    const query = this.db.query(`DELETE FROM step_responses`);
-    return query.run();
+    return this.stepResponsesDao.deleteAll();
   }
 
   async readStep(params: { executionId: string; stepKey: string }) {
-    const query = this.db
-      .query(
-        `SELECT * FROM step_responses 
-        WHERE execution_id = $executionId 
-        AND step_key = $stepKey
-        ORDER BY step_attempt DESC LIMIT 1`
-      )
-      .as(DbResult);
-
-    const result = query.get({
-      $executionId: params.executionId,
-      $stepKey: params.stepKey,
-    });
+    const result = this.stepResponsesDao.getLatestStepResponse(
+      params.executionId,
+      params.stepKey
+    );
 
     if (!result?.step_response) {
       return null;
@@ -79,16 +43,12 @@ export class SqlitePersister implements StepPersister {
     stepDone: boolean;
     stepResponseJson: string;
   }) {
-    const query = this.db.query(`
-      INSERT INTO step_responses (execution_id, step_key, step_attempt, step_done, step_response) 
-      VALUES ($executionId, $stepKey, $stepAttempt, $stepDone, $stepResponse)`);
-
-    query.run({
-      $executionId: params.executionId,
-      $stepKey: params.stepKey,
-      $stepAttempt: params.stepAttempt,
-      $stepDone: params.stepDone,
-      $stepResponse: params.stepResponseJson,
-    });
+    this.stepResponsesDao.insertStepResponse(
+      params.executionId,
+      params.stepKey,
+      params.stepAttempt,
+      params.stepDone,
+      params.stepResponseJson
+    );
   }
 }

@@ -1,56 +1,25 @@
 import { Database } from "bun:sqlite";
 import type { Task } from "yieldstar";
-
-class DbTask {
-  id!: number;
-  workflow_id!: string;
-  execution_id!: string;
-}
-
-class DbCount {
-  count!: number;
-}
+import { TaskQueueDao } from "./dao/task-queue-dao";
 
 export class SqliteTaskQueue {
-  private db: Database;
+  private taskQueueDao: TaskQueueDao;
 
   constructor(db: Database) {
-    this.db = db;
-    this.setupDb();
-  }
-
-  private setupDb() {
-    this.db.run(`
-      CREATE TABLE IF NOT EXISTS task_queue (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        workflow_id TEXT NOT NULL,
-        execution_id TEXT NOT NULL
-      );
-    `);
+    this.taskQueueDao = new TaskQueueDao(db);
+    this.taskQueueDao.setupDb();
   }
 
   add(task: Task) {
-    const query = this.db.query(`
-      INSERT INTO task_queue (workflow_id, execution_id) 
-      VALUES ($workflowId, $executionId)
-    `);
-
-    query.run({
-      $workflowId: task.workflowId,
-      $executionId: task.executionId,
-    });
+    this.taskQueueDao.insertTask(task);
   }
 
   remove() {
-    const query = this.db
-      .query(`SELECT * FROM task_queue ORDER BY id LIMIT 1`)
-      .as(DbTask);
-
-    const row = query.get();
+    const row = this.taskQueueDao.getNextTask();
 
     if (!row) return undefined;
 
-    this.db.query(`DELETE FROM task_queue WHERE id = $id`).run({ $id: row.id });
+    this.taskQueueDao.deleteTaskById(row.id);
 
     return {
       workflowId: row.workflow_id,
@@ -59,11 +28,6 @@ export class SqliteTaskQueue {
   }
 
   get isEmpty(): boolean {
-    const query = this.db
-      .query(`SELECT COUNT(*) as count FROM task_queue`)
-      .as(DbCount);
-
-    const count = query.get()!;
-    return count.count === 0;
+    return this.taskQueueDao.getTaskCount() === 0;
   }
 }
