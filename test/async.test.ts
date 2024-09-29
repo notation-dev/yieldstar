@@ -1,14 +1,8 @@
 import { beforeAll, afterAll, expect, test, mock } from "bun:test";
 import { createWorkflow, Executor } from "yieldstar";
-import {
-  LocalScheduler,
-  LocalWaker,
-  LocalRuntime,
-  LocalPersister,
-} from "yieldstar-local";
+import { LocalScheduler, LocalRuntime, LocalPersister } from "yieldstar-local";
 
-const localWaker = new LocalWaker();
-const localRuntime = new LocalRuntime(localWaker);
+const localRuntime = new LocalRuntime();
 const localPersister = new LocalPersister();
 
 const localScheduler = new LocalScheduler({
@@ -19,7 +13,7 @@ const localScheduler = new LocalScheduler({
 const executor = new Executor({
   persister: localPersister,
   scheduler: localScheduler,
-  waker: localWaker,
+  waker: localRuntime.waker,
 });
 
 beforeAll(() => {

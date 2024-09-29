@@ -1,22 +1,26 @@
 import { createWorkflow, Executor } from "yieldstar";
-import { LocalScheduler, LocalWaker, LocalRuntime } from "yieldstar-local";
-import { SqlitePersister } from "yieldstar-persister-sqlite-bun";
+import {
+  SqliteScheduler,
+  SqliteRuntime,
+  SqlitePersister,
+  createSqliteDb,
+} from "yieldstar-sqlite-bun";
 
-const localWaker = new LocalWaker();
-const localRuntime = new LocalRuntime(localWaker);
+const db = await createSqliteDb("./.db/example-workflows.sqlite");
 
-const localScheduler = new LocalScheduler({
-  taskQueue: localRuntime.taskQueue,
-  timers: localRuntime.timers,
+const sqliteRuntime = new SqliteRuntime(db);
+
+const sqliteScheduler = new SqliteScheduler({
+  taskQueue: sqliteRuntime.taskQueue,
+  timers: sqliteRuntime.timers,
 });
 
-const db = await SqlitePersister.createDb("./.db/example-workflows.sqlite");
 const sqlitePersister = new SqlitePersister({ db });
 
 const executor = new Executor({
   persister: sqlitePersister,
-  scheduler: localScheduler,
-  waker: localWaker,
+  scheduler: sqliteScheduler,
+  waker: sqliteRuntime.waker,
 });
 
 sqlitePersister.deleteAll();
@@ -37,9 +41,9 @@ const workflow = createWorkflow(async function* (step) {
   return num;
 });
 
-localRuntime.start();
+sqliteRuntime.start();
 
 const result = await executor.runAndAwaitResult(workflow);
 console.log(`\nWorkflow Result: ${result}\n`);
 
-localRuntime.stop();
+sqliteRuntime.stop();

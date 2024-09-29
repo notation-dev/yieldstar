@@ -1,14 +1,8 @@
 import { createWorkflow, Executor } from "yieldstar";
-import {
-  LocalScheduler,
-  LocalWaker,
-  LocalRuntime,
-  LocalPersister,
-} from "yieldstar-local";
+import { LocalScheduler, LocalRuntime, LocalPersister } from "yieldstar-local";
 import { RetryableError } from "yieldstar/dist";
 
-const localWaker = new LocalWaker();
-const localRuntime = new LocalRuntime(localWaker);
+const localRuntime = new LocalRuntime();
 const localPersister = new LocalPersister();
 
 const localScheduler = new LocalScheduler({
@@ -19,7 +13,7 @@ const localScheduler = new LocalScheduler({
 const executor = new Executor({
   persister: localPersister,
   scheduler: localScheduler,
-  waker: localWaker,
+  waker: localRuntime.waker,
 });
 const workflow = createWorkflow(async function* (step) {
   let num = yield* step.run(() => {

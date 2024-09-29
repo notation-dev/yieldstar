@@ -1,14 +1,13 @@
-import type { Task, Waker } from "yieldstar";
-import type { LocalWaker } from "./local-waker";
+import type { Task, Waker, WakeUpHandler } from "yieldstar";
 
 export class LocalRuntime {
-  private waker: LocalWaker;
+  private eventLoop: LocalEventLoop;
   taskQueue: LocalTaskQueue;
   timers: LocalTimers;
-  private eventLoop: LocalEventLoop;
+  waker: LocalWaker;
 
-  constructor(waker: LocalWaker) {
-    this.waker = waker;
+  constructor() {
+    this.waker = new LocalWaker();
     this.taskQueue = new LocalTaskQueue();
     this.timers = new LocalTimers({ taskQueue: this.taskQueue });
     this.eventLoop = new LocalEventLoop({
@@ -23,6 +22,20 @@ export class LocalRuntime {
 
   stop() {
     this.eventLoop.stop();
+  }
+}
+
+export class LocalWaker implements Waker {
+  private subscribers: WakeUpHandler[] = [];
+
+  onWakeUp(subscriber: WakeUpHandler) {
+    this.subscribers.push(subscriber);
+  }
+
+  wakeUp(task: Task) {
+    for (const subscriber of this.subscribers) {
+      subscriber(task);
+    }
   }
 }
 
