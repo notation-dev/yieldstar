@@ -1,18 +1,22 @@
 import { createWorkflow, Executor } from "yieldstar";
-import { LocalScheduler, LocalRuntime, LocalPersister } from "yieldstar-local";
+import {
+  LocalScheduler,
+  LocalEventLoop,
+  LocalPersister,
+} from "yieldstar-local";
 
-const localRuntime = new LocalRuntime();
+const localEventLoop = new LocalEventLoop();
 const localPersister = new LocalPersister();
 
 const localScheduler = new LocalScheduler({
-  taskQueue: localRuntime.taskQueue,
-  timers: localRuntime.timers,
+  taskQueue: localEventLoop.taskQueue,
+  timers: localEventLoop.timers,
 });
 
 const executor = new Executor({
   persister: localPersister,
   scheduler: localScheduler,
-  waker: localRuntime.waker,
+  waker: localEventLoop.waker,
 });
 
 let executionIdx = -1;
@@ -38,9 +42,9 @@ const workflow = createWorkflow(async function* (step) {
   return { stableNum, volatileNum };
 });
 
-localRuntime.start();
+localEventLoop.start();
 
 const result = await executor.runAndAwaitResult(workflow);
 console.log(`\nWorkflow Result: ${JSON.stringify(result)}\n`);
 
-localRuntime.stop();
+localEventLoop.stop();

@@ -1,19 +1,23 @@
 import type { StepRunner } from "yieldstar";
 import { createWorkflow, Executor } from "yieldstar";
-import { LocalScheduler, LocalRuntime, LocalPersister } from "yieldstar-local";
+import {
+  LocalScheduler,
+  LocalEventLoop,
+  LocalPersister,
+} from "yieldstar-local";
 
-const localRuntime = new LocalRuntime();
+const localEventLoop = new LocalEventLoop();
 const localPersister = new LocalPersister();
 
 const localScheduler = new LocalScheduler({
-  taskQueue: localRuntime.taskQueue,
-  timers: localRuntime.timers,
+  taskQueue: localEventLoop.taskQueue,
+  timers: localEventLoop.timers,
 });
 
 const executor = new Executor({
   persister: localPersister,
   scheduler: localScheduler,
-  waker: localRuntime.waker,
+  waker: localEventLoop.waker,
 });
 
 type WorkflowFn<T> = (
@@ -37,7 +41,7 @@ const coordinator = async <T>(workflowFn: WorkflowFn<T>) => {
   console.log(`\nWorkflow Result: ${result}\n`);
 };
 
-localRuntime.start();
+localEventLoop.start();
 
 await coordinator(async function* (step, waitForState) {
   const a = yield* step.run(() => 2);
@@ -47,4 +51,4 @@ await coordinator(async function* (step, waitForState) {
   return b;
 });
 
-localRuntime.stop();
+localEventLoop.stop();

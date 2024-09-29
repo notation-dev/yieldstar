@@ -5,8 +5,8 @@ import { StepResponsesDao } from "./dao/step-response-dao";
 export class SqlitePersister implements StepPersister {
   private stepResponsesDao: StepResponsesDao;
 
-  constructor(params: { db: Database }) {
-    this.stepResponsesDao = new StepResponsesDao(params.db);
+  constructor(db: Database) {
+    this.stepResponsesDao = new StepResponsesDao(db);
   }
 
   async getAllSteps() {

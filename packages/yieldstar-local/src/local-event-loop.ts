@@ -1,7 +1,7 @@
 import type { Task, Waker, WakeUpHandler } from "yieldstar";
 
-export class LocalRuntime {
-  private eventLoop: LocalEventLoop;
+export class LocalEventLoop {
+  private isRunning: boolean = false;
   taskQueue: LocalTaskQueue;
   timers: LocalTimers;
   waker: LocalWaker;
@@ -10,18 +10,26 @@ export class LocalRuntime {
     this.waker = new LocalWaker();
     this.taskQueue = new LocalTaskQueue();
     this.timers = new LocalTimers({ taskQueue: this.taskQueue });
-    this.eventLoop = new LocalEventLoop({
-      taskQueue: this.taskQueue,
-      waker: this.waker,
-    });
   }
 
   start() {
-    this.eventLoop.start();
+    this.isRunning = true;
+    this.loop();
   }
 
   stop() {
-    this.eventLoop.stop();
+    this.isRunning = false;
+  }
+
+  private loop() {
+    if (!this.isRunning) return;
+    while (!this.taskQueue.isEmpty) {
+      const task = this.taskQueue.remove();
+      if (task) {
+        this.waker.wakeUp(task);
+      }
+    }
+    setImmediate(() => this.loop());
   }
 }
 
@@ -36,37 +44,6 @@ export class LocalWaker implements Waker {
     for (const subscriber of this.subscribers) {
       subscriber(task);
     }
-  }
-}
-
-export class LocalEventLoop {
-  private taskQueue: LocalTaskQueue;
-  private waker: LocalWaker;
-  private isRunning: boolean = false;
-
-  constructor(params: { taskQueue: LocalTaskQueue; waker: LocalWaker }) {
-    this.taskQueue = params.taskQueue;
-    this.waker = params.waker;
-  }
-
-  start() {
-    this.isRunning = true;
-    this.loop();
-  }
-
-  private loop() {
-    if (!this.isRunning) return;
-    while (!this.taskQueue.isEmpty) {
-      const task = this.taskQueue.remove();
-      if (task) {
-        this.waker.wakeUp(task);
-      }
-    }
-    setImmediate(() => this.loop());
-  }
-
-  stop() {
-    this.isRunning = false;
   }
 }
 

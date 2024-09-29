@@ -1,4 +1,4 @@
 export { SqlitePersister } from "./sqlite-persister";
 export { SqliteScheduler } from "./sqlite-scheduler";
-export { SqliteRuntime, SqliteEventLoop } from "./sqlite-runtime";
+export { SqliteEventLoop } from "./sqlite-event-loop";
 export { createSqliteDb } from "./sqlite-db";

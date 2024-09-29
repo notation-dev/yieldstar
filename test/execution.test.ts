@@ -1,27 +1,31 @@
 import { beforeAll, afterAll, expect, test } from "bun:test";
 import { createWorkflow, Executor } from "yieldstar";
-import { LocalScheduler, LocalRuntime, LocalPersister } from "yieldstar-local";
+import {
+  LocalScheduler,
+  LocalEventLoop,
+  LocalPersister,
+} from "yieldstar-local";
 
-const localRuntime = new LocalRuntime();
+const localEventLoop = new LocalEventLoop();
 const localPersister = new LocalPersister();
 
 const localScheduler = new LocalScheduler({
-  taskQueue: localRuntime.taskQueue,
-  timers: localRuntime.timers,
+  taskQueue: localEventLoop.taskQueue,
+  timers: localEventLoop.timers,
 });
 
 const executor = new Executor({
   persister: localPersister,
   scheduler: localScheduler,
-  waker: localRuntime.waker,
+  waker: localEventLoop.waker,
 });
 
 beforeAll(() => {
-  localRuntime.start();
+  localEventLoop.start();
 });
 
 afterAll(() => {
-  localRuntime.stop();
+  localEventLoop.stop();
 });
 test("data flow between steps", async () => {
   const workflow = createWorkflow(async function* (step) {
