@@ -1,32 +1,23 @@
 import type { StepPersister } from "yieldstar";
 import { Database } from "bun:sqlite";
-import { mkdir } from "node:fs/promises";
-import { dirname } from "path";
 
-type DbResult = {
-  execution_id: string;
-  step_key: string;
-  step_attempt: number;
-  step_done: 0 | 1;
-  step_response: string;
-};
+class DbResult {
+  execution_id!: string;
+  step_key!: string;
+  step_attempt!: number;
+  step_done!: 0 | 1;
+  step_response!: string;
+}
 
 export class SqlitePersister implements StepPersister {
   db: Database;
 
   constructor(params: { db: Database }) {
     this.db = params.db;
+    this.setupDb(params.db);
   }
 
-  static async createDb(path: string) {
-    const dirPath = dirname(path);
-    await mkdir(dirPath, { recursive: true });
-    const db = new Database(path, { create: true });
-    SqlitePersister.setupDb(db);
-    return db;
-  }
-
-  static setupDb(db: Database) {
+  setupDb(db: Database) {
     db.exec("PRAGMA journal_mode = WAL;");
     db.run(`
     CREATE TABLE IF NOT EXISTS step_responses (
@@ -54,17 +45,19 @@ export class SqlitePersister implements StepPersister {
   }
 
   async readStep(params: { executionId: string; stepKey: string }) {
-    const query = this.db.query(
-      `SELECT * FROM step_responses 
+    const query = this.db
+      .query(
+        `SELECT * FROM step_responses 
         WHERE execution_id = $executionId 
         AND step_key = $stepKey
         ORDER BY step_attempt DESC LIMIT 1`
-    );
+      )
+      .as(DbResult);
 
     const result = query.get({
       $executionId: params.executionId,
       $stepKey: params.stepKey,
-    }) as DbResult;
+    });
 
     if (!result?.step_response) {
       return null;

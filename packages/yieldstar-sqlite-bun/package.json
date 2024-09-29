@@ -1,5 +1,5 @@
 {
-  "name": "yieldstar-persister-sqlite-bun",
+  "name": "yieldstar-sqlite-bun",
   "type": "module",
   "main": "dist/index.js",
   "types": "src/index.ts",
@@ -8,5 +8,8 @@
   },
   "dependencies": {
     "yieldstar": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
   }
 }
