@@ -43,7 +43,7 @@ export class LocalEventLoop {
 
   private loop() {
     if (!this.isRunning) return;
-    while (!this.taskQueue.isEmpty()) {
+    while (!this.taskQueue.isEmpty) {
       const task = this.taskQueue.remove();
       if (task) {
         this.waker.wakeUp(task);
@@ -59,9 +59,11 @@ export class LocalEventLoop {
 
 export class LocalTimers {
   private taskQueue: LocalTaskQueue;
+  private timers: Set<Timer>;
 
   constructor(params: { taskQueue: LocalTaskQueue }) {
     this.taskQueue = params.taskQueue;
+    this.timers = new Set();
   }
 
   startTimer(params: {
@@ -70,9 +72,16 @@ export class LocalTimers {
     executionId: string;
   }) {
     const { duration, ...task } = params;
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       this.taskQueue.add(task);
+      this.timers.delete(timer);
     }, duration);
+    this.timers.add(timer);
+  }
+
+  get isEmpty(): boolean {
+    console.log(this.timers.size);
+    return this.timers.size === 0;
   }
 }
 
@@ -87,7 +96,7 @@ export class LocalTaskQueue {
     return this.queue.shift();
   }
 
-  isEmpty(): boolean {
+  get isEmpty(): boolean {
     return this.queue.length === 0;
   }
 }

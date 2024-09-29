@@ -60,9 +60,9 @@ export class Executor {
   ): Promise<T> {
     const { executionId } = await this.trigger(workflow);
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject("Timer expired"), timeout);
+      const timeoutTimer = setTimeout(() => reject("Timer expired"), timeout);
       this.onWorkflowEnd(executionId, (err, result) => {
-        clearTimeout(timer);
+        clearTimeout(timeoutTimer);
         if (err) {
           reject(err);
         } else {

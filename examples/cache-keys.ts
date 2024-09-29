@@ -47,7 +47,6 @@ const workflow = createWorkflow(async function* (step) {
 localRuntime.start();
 
 const result = await executor.runAndAwaitResult(workflow);
-
 console.log(`\nWorkflow Result: ${JSON.stringify(result)}\n`);
 
 localRuntime.stop();
