@@ -23,27 +23,32 @@ export class LocalEventLoop {
 
   private loop() {
     if (!this.isRunning) return;
-    while (!this.taskQueue.isEmpty) {
-      const task = this.taskQueue.remove();
+    while (this.waker.hasSubscriber && !this.taskQueue.isEmpty) {
+      const task = this.taskQueue.process();
       if (task) {
-        this.waker.wakeUp(task);
+        this.waker.wakeUp(task, () => {
+          this.taskQueue.remove(task.taskId);
+        });
       }
     }
-    setImmediate(() => this.loop());
+    setTimeout(() => this.loop(), 0);
   }
 }
 
 export class LocalWaker implements Waker {
-  private subscribers: WakeUpHandler[] = [];
+  private subscriber: WakeUpHandler | null = null;
 
   onWakeUp(subscriber: WakeUpHandler) {
-    this.subscribers.push(subscriber);
+    this.subscriber = subscriber;
   }
 
-  wakeUp(task: Task) {
-    for (const subscriber of this.subscribers) {
-      subscriber(task);
-    }
+  get hasSubscriber() {
+    return !!this.subscriber;
+  }
+
+  async wakeUp(task: Task, done: () => void) {
+    if (!this.subscriber) return;
+    this.subscriber(task, done);
   }
 }
 
@@ -70,23 +75,51 @@ export class LocalTimers {
   }
 
   get isEmpty(): boolean {
-    console.log(this.timers.size);
     return this.timers.size === 0;
   }
 }
 
+const VISIBILITY_WINDOW = 300000;
+
 export class LocalTaskQueue {
-  private queue: Task[] = [];
+  private queue: (Task & { taskId: number; visibleFrom: number })[] = [];
+  private nextTaskId: number = 0;
 
   add(task: Task) {
-    this.queue.push(task);
+    this.queue.push({
+      taskId: this.nextTaskId++,
+      visibleFrom: Date.now(),
+      ...task,
+    });
   }
 
-  remove(): Task | undefined {
-    return this.queue.shift();
+  process() {
+    const now = Date.now();
+    const task = this.queue.find((task) => task.visibleFrom <= now);
+
+    if (!task) return undefined;
+
+    task.visibleFrom = now + VISIBILITY_WINDOW;
+
+    return task;
   }
 
-  get isEmpty(): boolean {
-    return this.queue.length === 0;
+  remove(taskId: number) {
+    this.queue = this.queue.filter((task) => task.taskId !== taskId);
+  }
+
+  makeVisible(taskId: number) {
+    const task = this.queue.find((task) => task.taskId === taskId);
+    if (task) {
+      task.visibleFrom = Date.now();
+    }
+  }
+
+  private get visibleQueue() {
+    return this.queue.filter((t) => t.visibleFrom < Date.now());
+  }
+
+  get isEmpty() {
+    return this.visibleQueue.length === 0;
   }
 }

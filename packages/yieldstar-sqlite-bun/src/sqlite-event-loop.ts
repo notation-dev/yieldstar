@@ -26,26 +26,33 @@ export class SqliteEventLoop {
 
   private loop() {
     if (!this.isRunning) return;
-    while (!this.taskQueue.isEmpty) {
-      const task = this.taskQueue.remove();
+
+    while (this.waker.hasSubscriber && !this.taskQueue.isEmpty) {
+      const task = this.taskQueue.process();
       if (task) {
-        this.waker.wakeUp(task);
+        this.waker.wakeUp(task, () => {
+          this.taskQueue.remove(task.taskId);
+        });
       }
     }
-    setImmediate(() => this.loop());
+
+    setTimeout(() => this.loop(), 10);
   }
 }
 
 export class SqliteWaker implements Waker {
-  private subscribers: WakeUpHandler[] = [];
+  private subscriber: WakeUpHandler | null = null;
 
   onWakeUp(subscriber: WakeUpHandler) {
-    this.subscribers.push(subscriber);
+    this.subscriber = subscriber;
   }
 
-  wakeUp(task: Task) {
-    for (const subscriber of this.subscribers) {
-      subscriber(task);
-    }
+  get hasSubscriber() {
+    return !!this.subscriber;
+  }
+
+  async wakeUp(task: Task, done: () => void) {
+    if (!this.subscriber) return;
+    this.subscriber(task, done);
   }
 }

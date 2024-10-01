@@ -1,5 +1,5 @@
 import type { StepRunner } from "yieldstar";
-import { createWorkflow, Executor } from "yieldstar";
+import { createWorkflow, WorkflowEngine } from "yieldstar";
 import {
   LocalScheduler,
   LocalEventLoop,
@@ -14,41 +14,44 @@ const localScheduler = new LocalScheduler({
   timers: localEventLoop.timers,
 });
 
-const executor = new Executor({
-  persister: localPersister,
-  scheduler: localScheduler,
-  waker: localEventLoop.waker,
-});
-
 type WorkflowFn<T> = (
   step: StepRunner,
   waitForState: (s: string) => AsyncGenerator
 ) => AsyncGenerator<any, T>;
 
-const coordinator = async <T>(workflowFn: WorkflowFn<T>) => {
-  const workflow = createWorkflow(async function* (step) {
-    const waitForState = async function* (expectedState: string) {
-      yield* step.poll({ maxAttempts: 10, retryInterval: 1000 }, () => {
-        console.log("Polling...");
-        return true;
-      });
-    };
+// essentially a custom step
+const waitForStateFactory = (step: any) =>
+  async function* (state: string) {
+    yield* step.poll({ maxAttempts: 10, retryInterval: 1000 }, () => {
+      console.log("Polling...");
+      // check state matches
+      return true;
+    });
+  };
+
+const workflowFactory = (workflowFn: WorkflowFn<any>) => {
+  return createWorkflow(async function* (step) {
+    const waitForState = waitForStateFactory(step);
     return yield* workflowFn(step, waitForState);
   });
-
-  const result = await executor.runAndAwaitResult(workflow);
-
-  console.log(`\nWorkflow Result: ${result}\n`);
 };
+
+const workflow = workflowFactory(async function* (step, waitForState) {
+  const a = yield* step.run(() => 2);
+  yield* waitForState("enabled");
+  return yield* step.run(() => a * 3);
+});
+
+const engine = new WorkflowEngine({
+  persister: localPersister,
+  scheduler: localScheduler,
+  waker: localEventLoop.waker,
+  router: { "workflow-1": workflow },
+});
 
 localEventLoop.start();
 
-await coordinator(async function* (step, waitForState) {
-  const a = yield* step.run(() => 2);
-  yield* step.delay(1000);
-  yield* waitForState("enabled");
-  const b = yield* step.run(() => a * 3);
-  return b;
-});
+const result = await engine.triggerAndWait("workflow-1");
+console.log(result);
 
 localEventLoop.stop();

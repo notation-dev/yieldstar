@@ -1,4 +1,4 @@
-import { createWorkflow, Executor } from "yieldstar";
+import { createWorkflow, WorkflowEngine } from "yieldstar";
 import {
   LocalScheduler,
   LocalEventLoop,
@@ -14,11 +14,6 @@ const localScheduler = new LocalScheduler({
   timers: localEventLoop.timers,
 });
 
-const executor = new Executor({
-  persister: localPersister,
-  scheduler: localScheduler,
-  waker: localEventLoop.waker,
-});
 const workflow = createWorkflow(async function* (step) {
   let num = yield* step.run(() => {
     console.log("In step 1");
@@ -30,12 +25,9 @@ const workflow = createWorkflow(async function* (step) {
   num = yield* step.run(async () => {
     console.log("In step 2. Rolling dice...");
 
-    if (Math.random() > 0.5) {
+    if (Math.random() > 0.25) {
       console.log("Unlucky! Throwing error");
-      throw new RetryableError("Unlucky", {
-        maxAttempts: 10,
-        retryInterval: 1000,
-      });
+      throw new Error("Unlucky");
     }
 
     console.log("Lucky! Resolving step");
@@ -45,9 +37,18 @@ const workflow = createWorkflow(async function* (step) {
   return num;
 });
 
+const engine = new WorkflowEngine({
+  persister: localPersister,
+  scheduler: localScheduler,
+  waker: localEventLoop.waker,
+  router: { "workflow-1": workflow },
+});
+
 localEventLoop.start();
 
-const result = await executor.runAndAwaitResult(workflow);
-console.log(`\nWorkflow Result: ${result}\n`);
-
-localEventLoop.stop();
+try {
+  const result = await engine.triggerAndWait("workflow-1");
+  console.log(`\nWorkflow Result: ${result}\n`);
+} finally {
+  localEventLoop.stop();
+}

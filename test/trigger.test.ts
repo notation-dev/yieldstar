@@ -1,6 +1,7 @@
+import type { CompositeStepGenerator, WorkflowFn } from "yieldstar";
 import { sleep } from "bun";
 import { beforeAll, afterAll, expect, test, mock } from "bun:test";
-import { createWorkflow, Executor } from "yieldstar";
+import { createWorkflow, WorkflowEngine } from "yieldstar";
 import {
   LocalScheduler,
   LocalEventLoop,
@@ -15,11 +16,13 @@ const localScheduler = new LocalScheduler({
   timers: localEventLoop.timers,
 });
 
-const executor = new Executor({
-  persister: localPersister,
-  scheduler: localScheduler,
-  waker: localEventLoop.waker,
-});
+const createEngine = (workflow: CompositeStepGenerator) =>
+  new WorkflowEngine({
+    persister: localPersister,
+    scheduler: localScheduler,
+    waker: localEventLoop.waker,
+    router: { "test-workflow": workflow },
+  });
 
 beforeAll(() => {
   localEventLoop.start();
@@ -30,12 +33,14 @@ afterAll(() => {
 });
 
 test("triggering a workflow", async () => {
-  const mockWorkflowGenerator = mock(async function* (step: any) {
+  const mockWorkflowGenerator = mock<WorkflowFn<any>>(async function* (step) {
     yield* step.run(() => 1);
   });
 
   const workflow = createWorkflow(mockWorkflowGenerator);
-  const { executionId } = await executor.trigger(workflow);
+  const engine = createEngine(workflow);
+
+  const { executionId } = await engine.trigger("test-workflow");
 
   await sleep(1);
 

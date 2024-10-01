@@ -1,4 +1,4 @@
-import { createWorkflow, Executor } from "yieldstar";
+import { createWorkflow, WorkflowEngine } from "yieldstar";
 import {
   SqliteScheduler,
   SqliteEventLoop,
@@ -17,14 +17,6 @@ const sqliteScheduler = new SqliteScheduler({
 
 const sqlitePersister = new SqlitePersister(db);
 
-const executor = new Executor({
-  persister: sqlitePersister,
-  scheduler: sqliteScheduler,
-  waker: sqliteEventLoop.waker,
-});
-
-sqlitePersister.deleteAll();
-
 const workflow = createWorkflow(async function* (step) {
   let num = yield* step.run(() => {
     console.log("In step 1");
@@ -41,9 +33,17 @@ const workflow = createWorkflow(async function* (step) {
   return num;
 });
 
+sqlitePersister.deleteAll();
 sqliteEventLoop.start();
 
-const result = await executor.runAndAwaitResult(workflow);
+const engine = new WorkflowEngine({
+  persister: sqlitePersister,
+  scheduler: sqliteScheduler,
+  waker: sqliteEventLoop.waker,
+  router: { "workflow-1": workflow },
+});
+
+const result = await engine.triggerAndWait("workflow-1");
 console.log(`\nWorkflow Result: ${result}\n`);
 
 sqliteEventLoop.stop();

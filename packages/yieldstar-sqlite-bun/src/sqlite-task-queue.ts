@@ -2,6 +2,8 @@ import { Database } from "bun:sqlite";
 import type { Task } from "yieldstar";
 import { TaskQueueDao } from "./dao/task-queue-dao";
 
+const VISIBILITY_WINDOW = 300000;
+
 export class SqliteTaskQueue {
   private taskQueueDao: TaskQueueDao;
 
@@ -14,17 +16,30 @@ export class SqliteTaskQueue {
     this.taskQueueDao.insertTask(task);
   }
 
-  remove() {
+  process() {
     const row = this.taskQueueDao.getNextTask();
 
     if (!row) return undefined;
 
-    this.taskQueueDao.deleteTaskById(row.id);
+    const now = Date.now();
+    const visibilityTimeout = now + VISIBILITY_WINDOW;
+
+    this.taskQueueDao.updateTaskVisibility(row.task_id, visibilityTimeout);
 
     return {
+      taskId: row.task_id,
       workflowId: row.workflow_id,
       executionId: row.execution_id,
+      visibilityTimeout,
     };
+  }
+
+  remove(taskId: number) {
+    this.taskQueueDao.deleteTaskById(taskId);
+  }
+
+  makeVisible(taskId: number) {
+    this.taskQueueDao.updateTaskVisibility(taskId, 0);
   }
 
   get isEmpty(): boolean {

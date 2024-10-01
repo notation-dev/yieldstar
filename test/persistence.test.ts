@@ -1,5 +1,6 @@
+import type { CompositeStepGenerator } from "yieldstar";
 import { beforeAll, afterAll, expect, test } from "bun:test";
-import { createWorkflow, Executor } from "yieldstar";
+import { createWorkflow, WorkflowEngine } from "yieldstar";
 import {
   LocalScheduler,
   LocalEventLoop,
@@ -14,11 +15,13 @@ const localScheduler = new LocalScheduler({
   timers: localEventLoop.timers,
 });
 
-const executor = new Executor({
-  persister: localPersister,
-  scheduler: localScheduler,
-  waker: localEventLoop.waker,
-});
+const createEngine = (workflow: CompositeStepGenerator) =>
+  new WorkflowEngine({
+    persister: localPersister,
+    scheduler: localScheduler,
+    waker: localEventLoop.waker,
+    router: { "test-workflow": workflow },
+  });
 
 beforeAll(() => {
   localEventLoop.start();
@@ -57,7 +60,8 @@ test("retrieving previous steps from cache", async () => {
     return num;
   });
 
-  await executor.runAndAwaitResult(workflow);
+  const engine = createEngine(workflow);
+  await engine.triggerAndWait("test-workflow");
 
   expect(returnedValues).toEqual([1, 2]);
   expect(yieldedValues).toEqual([1, 1, 2, 1, 2]);

@@ -1,4 +1,4 @@
-import { createWorkflow, Executor } from "yieldstar";
+import { createWorkflow, WorkflowEngine } from "yieldstar";
 import {
   LocalScheduler,
   LocalEventLoop,
@@ -11,12 +11,6 @@ const localPersister = new LocalPersister();
 const localScheduler = new LocalScheduler({
   taskQueue: localEventLoop.taskQueue,
   timers: localEventLoop.timers,
-});
-
-const executor = new Executor({
-  persister: localPersister,
-  scheduler: localScheduler,
-  waker: localEventLoop.waker,
 });
 
 const workflow = createWorkflow(async function* (step) {
@@ -33,8 +27,15 @@ const workflow = createWorkflow(async function* (step) {
   });
 });
 
+const engine = new WorkflowEngine({
+  persister: localPersister,
+  scheduler: localScheduler,
+  waker: localEventLoop.waker,
+  router: { "workflow-1": workflow },
+});
+
 localEventLoop.start();
 
-await executor.runAndAwaitResult(workflow);
+await engine.triggerAndWait("workflow-1");
 
 localEventLoop.stop();

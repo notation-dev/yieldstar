@@ -1,5 +1,6 @@
+import type { CompositeStepGenerator } from "yieldstar";
 import { beforeAll, afterAll, expect, test } from "bun:test";
-import { createWorkflow, Executor, RetryableError } from "yieldstar";
+import { createWorkflow, WorkflowEngine, RetryableError } from "yieldstar";
 import {
   LocalScheduler,
   LocalEventLoop,
@@ -14,11 +15,13 @@ const localScheduler = new LocalScheduler({
   timers: localEventLoop.timers,
 });
 
-const executor = new Executor({
-  persister: localPersister,
-  scheduler: localScheduler,
-  waker: localEventLoop.waker,
-});
+const createEngine = (workflow: CompositeStepGenerator) =>
+  new WorkflowEngine({
+    persister: localPersister,
+    scheduler: localScheduler,
+    waker: localEventLoop.waker,
+    router: { "test-workflow": workflow },
+  });
 
 beforeAll(() => {
   localEventLoop.start();
@@ -42,7 +45,8 @@ test("retrying an error for maxAttempts", async () => {
   });
 
   try {
-    await executor.runAndAwaitResult(workflow);
+    const engine = createEngine(workflow);
+    await engine.triggerAndWait("test-workflow");
   } catch {
     expect(runs).toEqual(10);
   }
@@ -68,7 +72,8 @@ test("retrying an for maxAttempts (irrespective of number of times error is thro
   });
 
   try {
-    await executor.runAndAwaitResult(workflow);
+    const engine = createEngine(workflow);
+    await engine.triggerAndWait("test-workflow");
   } catch {
     expect(runs).toEqual(5);
   }
@@ -98,7 +103,8 @@ test("retrying an for maxAttempts (irrespective of number of number of workflow 
     } catch {}
   });
 
-  await executor.runAndAwaitResult(workflow);
+  const engine = createEngine(workflow);
+  await engine.triggerAndWait("test-workflow");
 
   expect(runs).toEqual(6);
 });
@@ -117,5 +123,6 @@ test("retrying an error after retry interval", async () => {
     });
   });
 
-  await executor.runAndAwaitResult(workflow);
+  const engine = createEngine(workflow);
+  await engine.triggerAndWait("test-workflow");
 });

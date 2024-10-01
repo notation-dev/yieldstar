@@ -1,5 +1,6 @@
+import type { CompositeStepGenerator } from "yieldstar";
 import { beforeAll, afterAll, expect, test } from "bun:test";
-import { createWorkflow, Executor } from "yieldstar";
+import { createWorkflow, WorkflowEngine } from "yieldstar";
 import {
   LocalScheduler,
   LocalEventLoop,
@@ -14,11 +15,13 @@ const localScheduler = new LocalScheduler({
   timers: localEventLoop.timers,
 });
 
-const executor = new Executor({
-  persister: localPersister,
-  scheduler: localScheduler,
-  waker: localEventLoop.waker,
-});
+const createEngine = (workflow: CompositeStepGenerator) =>
+  new WorkflowEngine({
+    persister: localPersister,
+    scheduler: localScheduler,
+    waker: localEventLoop.waker,
+    router: { "test-workflow": workflow },
+  });
 
 beforeAll(() => {
   localEventLoop.start();
@@ -40,7 +43,8 @@ test("poll retries when predicate fails", async () => {
     } catch {}
   });
 
-  await executor.runAndAwaitResult(workflow);
+  const engine = createEngine(workflow);
+  await engine.triggerAndWait("test-workflow");
 
   expect(runs).toBe(10);
 });
@@ -55,7 +59,8 @@ test("poll resolves when predicate passes", async () => {
     });
   });
 
-  await executor.runAndAwaitResult(workflow);
+  const engine = createEngine(workflow);
+  await engine.triggerAndWait("test-workflow");
 
   expect(runs).toBe(1);
 });
@@ -72,7 +77,8 @@ test("poll fails if a regular error is thrown", async () => {
     } catch {}
   });
 
-  await executor.runAndAwaitResult(workflow);
+  const engine = createEngine(workflow);
+  await engine.triggerAndWait("test-workflow");
 
   expect(runs).toBe(1);
 });
