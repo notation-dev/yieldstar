@@ -1,18 +1,10 @@
 {
   "name": "yieldstar",
   "type": "module",
-  "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "types": "./src/index.ts"
-    }
-  },
-  "files": [
-    "dist",
-    "src"
-  ],
+  "main": "dist/index.js",
+  "types": "src/index.ts",
   "scripts": {
-    "build": "bun build src/index.ts --outfile dist/index.js"
+    "build": "bun build src/index.ts --outfile dist/index.js --target bun --external yieldstar* --external pino"
   },
   "devDependencies": {
     "@types/bun": "latest"
