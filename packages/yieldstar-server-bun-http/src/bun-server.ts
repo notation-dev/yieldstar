@@ -1,5 +1,4 @@
 import type { Logger } from "pino";
-import { randomUUID } from "node:crypto";
 import type { Task, WorkflowManager } from "yieldstar";
 
 export function createWorkflowHttpServer(params: {
@@ -37,20 +36,19 @@ export function createWorkflowHttpServer(params: {
 
           if (url.pathname === "/trigger") {
             try {
-              const { workflowId, params } = (await req.json()) as Omit<
-                Task,
-                "executionId"
-              >;
-              const executionId = randomUUID();
-              manager.execute({ executionId, workflowId, params });
-              return Response.json({ executionId });
+              const task = (await req.json()) as Task;
+              await manager.execute(task);
+              return Response.json(
+                { executionId: task.executionId },
+                { status: 202 }
+              );
             } catch (error) {
               logger.error(error);
               return new Response("Invalid JSON", { status: 400 });
             }
           }
 
-          return new Response("404!");
+          return new Response("Not Found", { status: 404 });
         },
       });
     },

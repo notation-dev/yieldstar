@@ -12,11 +12,15 @@ export function createLocalSdk<W extends WorkflowRouter>(
   return {
     async trigger<K extends keyof W>(
       workflowId: K,
-      workflowParams?: Parameters<W[K]>[0] extends never
-        ? never
-        : Parameters<W[K]>[0]
+      opts?: {
+        executionId?: string;
+        workflowParams?: Parameters<W[K]>[0] extends never
+          ? never
+          : Parameters<W[K]>[0];
+      }
     ) {
-      const executionId = randomUUID();
+      const { workflowParams } = opts ?? {};
+      const executionId = opts?.executionId ?? randomUUID();
       await manager.execute({
         executionId,
         workflowId: workflowId as string,
@@ -26,12 +30,22 @@ export function createLocalSdk<W extends WorkflowRouter>(
     },
     async triggerAndWait<K extends keyof W>(
       workflowId: K,
-      workflowParams?: Parameters<W[K]>[0]
-    ): Promise<CompositeStepGeneratorReturnType<W[K]>> {
-      const { executionId } = await this.trigger(workflowId, workflowParams);
-      return new Promise((resolve) => {
+      opts?: {
+        executionId?: string;
+        workflowParams?: Parameters<W[K]>[0] extends never
+          ? never
+          : Parameters<W[K]>[0];
+      }
+    ) {
+      const { workflowParams } = opts ?? {};
+      const executionId = opts?.executionId ?? randomUUID();
+      const workflowCompletePromise = new Promise((resolve) => {
         manager.taskProcessedEmitter.once(executionId, resolve);
       });
+      await this.trigger(workflowId, { executionId, workflowParams });
+      return workflowCompletePromise as Promise<
+        CompositeStepGeneratorReturnType<W[K]>
+      >;
     },
   };
 }
