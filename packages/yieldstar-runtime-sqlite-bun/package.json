@@ -1,5 +1,5 @@
 {
-  "name": "yieldstar-sqlite-bun",
+  "name": "yieldstar-runtime-sqlite-bun",
   "type": "module",
   "main": "dist/index.js",
   "types": "src/index.ts",

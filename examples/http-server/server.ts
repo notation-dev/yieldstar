@@ -2,7 +2,7 @@ import pino from "pino";
 import {
   createWorkflowManager,
   createWorkflowHttpServer,
-} from "yieldstar-bun-server";
+} from "yieldstar-server-bun";
 import { sqliteEventLoop } from "./runtime";
 
 const logger = pino();

@@ -1,5 +1,5 @@
 import type { Scheduler } from "yieldstar";
-import type { LocalTaskQueue, LocalTimers } from "./local-event-loop";
+import type { LocalTaskQueue, LocalTimers } from "./memory-event-loop";
 
 export class LocalScheduler implements Scheduler {
   private taskQueue: LocalTaskQueue;

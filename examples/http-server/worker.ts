@@ -5,10 +5,10 @@ import {
   SqliteScheduler,
   SqlitePersister,
   SqliteTaskQueueClient,
-} from "yieldstar-sqlite-bun";
+  SqliteTimersClient,
+} from "yieldstar-runtime-sqlite-bun";
 import { workflowRouter } from "./router";
 import { runtimeDb } from "./runtime";
-import { SqliteTimersClient } from "yieldstar-sqlite-bun/src/sqlite-timers";
 
 const workflowRunner = new WorkflowRunner({
   persister: new SqlitePersister(runtimeDb),

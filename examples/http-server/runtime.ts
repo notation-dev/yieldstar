@@ -1,4 +1,4 @@
-import { SqliteEventLoop, createSqliteDb } from "yieldstar-sqlite-bun";
+import { SqliteEventLoop, createSqliteDb } from "yieldstar-runtime-sqlite-bun";
 
 export const runtimeDb = await createSqliteDb("./.db/http-server.sqlite");
 

@@ -1,5 +1,5 @@
 {
-  "name": "yieldstar-local",
+  "name": "yieldstar-runtime-memory",
   "type": "module",
   "main": "dist/index.js",
   "types": "src/index.ts",
