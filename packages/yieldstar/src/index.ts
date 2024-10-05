@@ -1,4 +1,5 @@
-export { createHttpSdkFactory } from "./core/http-sdk";
+export { createLocalSdk } from "./core/sdk-local";
+export { createHttpSdkFactory } from "./core/sdk-http";
 export { createWorkflow } from "./core/workflow";
 export { createWorkflowRouter } from "./core/router";
 export { RetryableError } from "./core/errors";

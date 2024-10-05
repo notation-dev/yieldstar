@@ -1,13 +1,14 @@
-import type { StepPersister } from "../base/step-persister";
-import type { Task, CompositeStepGenerator } from "../types";
+import type {
+  CompositeStepGenerator,
+  StepPersister,
+  TaskProcessor,
+} from "../types";
 import {
   StepDelay,
   WorkflowDelay,
   WorkflowResult,
 } from "../base/step-response";
 import type { Scheduler } from "../base/scheduler";
-
-export type TaskProcessor = <T = any>(task: Task) => Promise<void | T>;
 
 export class WorkflowRunner<
   Router extends Record<string, CompositeStepGenerator<any>>

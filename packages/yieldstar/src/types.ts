@@ -2,12 +2,14 @@ import type { StepPersister } from "./base/step-persister";
 import type { StepResponse, WorkflowResult } from "./base/step-response";
 import type { StepRunner } from "./core/step-runner";
 
-export type Task = { workflowId: string; executionId: string; params?: any };
+// Base types
+export type * from "./base/manager";
+export type * from "./base/runtime";
+export type * from "./base/scheduler";
+export type * from "./base/step-persister";
+export type * from "./base/step-response";
 
-export type WorkflowRouter = Record<string, CompositeStepGenerator>;
-
-export type WorkflowFn<T> = (step: StepRunner) => AsyncGenerator<any, T>;
-
+// Derived Types
 export type CompositeStepGenerator<T = any> = (params: {
   executionId: string;
   persister: StepPersister;
@@ -16,7 +18,8 @@ export type CompositeStepGenerator<T = any> = (params: {
 export type CompositeStepGeneratorReturnType<CG> =
   CG extends CompositeStepGenerator<infer T> ? T : never;
 
-export type { TaskProcessor } from "./core/workflow-runner";
-export type { CacheResponse, StepPersister } from "./base/step-persister";
+export type WorkflowRouter = Record<string, CompositeStepGenerator>;
+
+export type WorkflowFn<T> = (step: StepRunner) => AsyncGenerator<any, T>;
+
 export type { StepRunner } from "./core/step-runner";
-export type { Scheduler } from "./base/scheduler";

@@ -1,13 +1,11 @@
 import type { Logger } from "pino";
-import type { Task } from "yieldstar";
+import type { Task, WorkflowManager } from "yieldstar";
 import { EventEmitter } from "node:events";
-
-export type WorkflowManager = ReturnType<typeof createWorkflowManager>;
 
 export function createWorkflowManager(params: {
   workerPath: string;
   logger: Logger;
-}) {
+}): WorkflowManager {
   const taskProcessedEmitter = new EventEmitter();
   const { logger, workerPath } = params;
   return {
