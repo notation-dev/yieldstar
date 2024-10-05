@@ -46,3 +46,13 @@ export class SqliteTaskQueue {
     return this.taskQueueDao.getTaskCount() === 0;
   }
 }
+
+export class SqliteTaskQueueClient {
+  private taskQueueDao: TaskQueueDao;
+  constructor(db: Database) {
+    this.taskQueueDao = new TaskQueueDao(db);
+  }
+  add(task: Task) {
+    this.taskQueueDao.insertTask(task);
+  }
+}

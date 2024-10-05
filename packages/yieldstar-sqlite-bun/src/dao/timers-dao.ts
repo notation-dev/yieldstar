@@ -2,10 +2,14 @@ import { Database } from "bun:sqlite";
 
 class TimerRow {
   id!: string;
-  duration!: number;
+  delay!: number;
   workflow_id!: string;
   execution_id!: string;
   created_at!: number;
+}
+
+class CountRow {
+  count!: number;
 }
 
 export class TimersDao {
@@ -18,9 +22,9 @@ export class TimersDao {
 
   private setupDb() {
     this.db.run(`
-      CREATE TABLE IF NOT EXISTS timers (
+      CREATE TABLE IF NOT EXISTS scheduled_tasks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        duration INTEGER NOT NULL,
+        delay INTEGER NOT NULL,
         workflow_id TEXT NOT NULL,
         execution_id TEXT NOT NULL,
         created_at INTEGER NOT NULL
@@ -28,28 +32,40 @@ export class TimersDao {
     `);
   }
 
-  getAllTimers(): TimerRow[] {
+  getExpiredTimers(): TimerRow[] {
     const query = this.db
       .query(
-        `SELECT id, duration, workflow_id, execution_id, created_at FROM timers`
+        `SELECT id, delay, workflow_id, execution_id, created_at 
+        FROM scheduled_tasks 
+        WHERE (created_at + delay) < $currentTime`
       )
       .as(TimerRow);
 
-    return query.all();
+    return query.all({ $currentTime: Date.now() });
   }
 
-  insertTimer(
-    duration: number,
-    workflowId: string,
-    executionId: string,
-    createdAt: number
-  ) {
+  getTaskCount() {
+    const query = this.db
+      .query(
+        `SELECT COUNT(*) as count 
+        FROM scheduled_tasks 
+        WHERE (created_at + delay) < $currentTime`
+      )
+      .as(CountRow);
+
+    const count = query.get({ $currentTime: Date.now() })!;
+    return count.count;
+  }
+
+  insertTimer(delay: number, workflowId: string, executionId: string) {
+    const createdAt = Date.now();
+
     const query = this.db.query(
-      `INSERT INTO timers (duration, workflow_id, execution_id, created_at) 
-        VALUES ($duration, $workflowId, $executionId, $createdAt)`
+      `INSERT INTO scheduled_tasks (delay, workflow_id, execution_id, created_at) 
+        VALUES ($delay, $workflowId, $executionId, $createdAt)`
     );
     query.run({
-      $duration: duration,
+      $delay: delay,
       $workflowId: workflowId,
       $executionId: executionId,
       $createdAt: createdAt,
@@ -57,14 +73,7 @@ export class TimersDao {
   }
 
   deleteTimerById(id: string) {
-    const query = this.db.query(`DELETE FROM timers WHERE id = $id`);
+    const query = this.db.query(`DELETE FROM scheduled_tasks WHERE id = $id`);
     query.run({ $id: id });
-  }
-
-  deleteTimerByWorkflowAndExecution(workflowId: string, executionId: string) {
-    const query = this.db.query(
-      `DELETE FROM timers WHERE workflow_id = $workflowId AND execution_id = $executionId`
-    );
-    query.run({ $workflowId: workflowId, $executionId: executionId });
   }
 }

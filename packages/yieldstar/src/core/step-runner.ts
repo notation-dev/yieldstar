@@ -5,7 +5,7 @@ import {
   StepResult,
   StepDelay,
   StepCacheCheck,
-} from "./step-response";
+} from "../base/step-response";
 import { RetryableError } from "./errors";
 
 /**

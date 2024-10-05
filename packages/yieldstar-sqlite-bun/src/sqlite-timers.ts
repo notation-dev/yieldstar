@@ -9,56 +9,36 @@ export class SqliteTimers {
   constructor(params: { db: Database; taskQueue: SqliteTaskQueue }) {
     this.timersDao = new TimersDao(params.db);
     this.taskQueue = params.taskQueue;
-    this.restoreTimers(); // Restore timers on startup
   }
 
-  private async restoreTimers() {
-    const timers = this.timersDao.getAllTimers();
-    const now = Date.now();
-
+  processTimers() {
+    const timers = this.timersDao.getExpiredTimers();
     for (const timer of timers) {
-      const remainingTime = timer.duration - (now - timer.created_at);
-      if (remainingTime > 0) {
-        setTimeout(async () => {
-          this.taskQueue.add({
-            workflowId: timer.workflow_id,
-            executionId: timer.execution_id,
-          });
-          this.timersDao.deleteTimerById(timer.id);
-        }, remainingTime);
-      } else {
-        this.taskQueue.add({
-          workflowId: timer.workflow_id,
-          executionId: timer.execution_id,
-        });
-        this.timersDao.deleteTimerById(timer.id);
-      }
+      this.timersDao.deleteTimerById(timer.id);
+      this.taskQueue.add({
+        workflowId: timer.workflow_id,
+        executionId: timer.execution_id,
+      });
     }
   }
+}
 
-  async startTimer(params: {
-    duration: number;
+export class SqliteTimersClient {
+  private timersDao: TimersDao;
+
+  constructor(db: Database) {
+    this.timersDao = new TimersDao(db);
+  }
+
+  createTimer(params: {
+    delay: number;
     workflowId: string;
     executionId: string;
   }) {
-    const createdAt = Date.now();
-
     this.timersDao.insertTimer(
-      params.duration,
+      params.delay,
       params.workflowId,
-      params.executionId,
-      createdAt
+      params.executionId
     );
-
-    setTimeout(async () => {
-      this.taskQueue.add({
-        workflowId: params.workflowId,
-        executionId: params.executionId,
-      });
-      this.timersDao.deleteTimerByWorkflowAndExecution(
-        params.workflowId,
-        params.executionId
-      );
-    }, params.duration);
   }
 }

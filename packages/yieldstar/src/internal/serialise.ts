@@ -5,7 +5,7 @@ import {
   StepResult,
   StepResponse,
   WorkflowResult,
-} from "./step-response";
+} from "../base/step-response";
 
 export function serialize(data: StepResponse): string {
   const replaceErrors = (key: string, value: any) => {

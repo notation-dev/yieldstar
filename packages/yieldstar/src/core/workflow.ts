@@ -1,8 +1,6 @@
-import type { StepRunner } from "./step-runner";
-import { stepRunner } from "./step-runner";
-import { StepPersister } from "./step-persister.ts";
-import { isIterable } from "./utils";
-import { deserialize, serialize } from "./serialise";
+import type { CompositeStepGenerator, WorkflowFn } from "../types";
+import { isIterable } from "../internal/utils";
+import { deserialize, serialize } from "../internal/serialise";
 import {
   StepResponse,
   StepKey,
@@ -12,14 +10,8 @@ import {
   StepCacheCheck,
   StepInvalid,
   WorkflowResult,
-} from "./step-response";
-
-export type WorkflowFn<T> = (step: StepRunner) => AsyncGenerator<any, T>;
-
-export type CompositeStepGenerator<T = any> = (params: {
-  executionId: string;
-  persister: StepPersister;
-}) => AsyncGenerator<StepResponse, WorkflowResult<T>, StepResponse>;
+} from "../base/step-response";
+import { stepRunner } from "./step-runner";
 
 export function createWorkflow<T>(
   workflowFn: WorkflowFn<T>

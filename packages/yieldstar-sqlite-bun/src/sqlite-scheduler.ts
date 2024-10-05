@@ -1,14 +1,17 @@
 import type { Scheduler } from "yieldstar";
-import { SqliteTaskQueue } from "./sqlite-task-queue";
-import { SqliteTimers } from "./sqlite-timers";
+import { SqliteTaskQueueClient } from "./sqlite-task-queue";
+import { SqliteTimersClient } from "./sqlite-timers";
 
 export class SqliteScheduler implements Scheduler {
-  private taskQueue: SqliteTaskQueue;
-  private timers: SqliteTimers;
+  private taskQueue: SqliteTaskQueueClient;
+  private timersClient: SqliteTimersClient;
 
-  constructor(params: { taskQueue: SqliteTaskQueue; timers: SqliteTimers }) {
-    this.taskQueue = params.taskQueue;
-    this.timers = params.timers;
+  constructor(params: {
+    taskQueueClient: SqliteTaskQueueClient;
+    timersClient: SqliteTimersClient;
+  }) {
+    this.taskQueue = params.taskQueueClient;
+    this.timersClient = params.timersClient;
   }
 
   async requestWakeUp(params: {
@@ -17,14 +20,14 @@ export class SqliteScheduler implements Scheduler {
     resumeIn?: number;
   }) {
     const { resumeIn, ...task } = params;
-    if (!resumeIn) {
-      await this.taskQueue.add(task);
-      return;
+    if (resumeIn) {
+      this.timersClient.createTimer({
+        delay: resumeIn,
+        workflowId: params.workflowId,
+        executionId: params.executionId,
+      });
+    } else {
+      this.taskQueue.add(task);
     }
-    await this.timers.startTimer({
-      duration: resumeIn,
-      workflowId: params.workflowId,
-      executionId: params.executionId,
-    });
   }
 }
