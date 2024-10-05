@@ -1,10 +1,10 @@
 {
-  "name": "yieldstar-runtime-memory",
+  "name": "yieldstar-test-runtime",
   "type": "module",
   "main": "dist/index.js",
   "types": "src/index.ts",
   "scripts": {
-    "build": "bun build src/index.ts --outfile dist/index.js"
+    "build": "bun build src/index.ts --outfile dist/index.js --target bun --external yieldstar*"
   },
   "dependencies": {
     "yieldstar": "workspace:*"

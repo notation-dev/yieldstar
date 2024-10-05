@@ -1,13 +1,15 @@
 import type { Scheduler } from "yieldstar";
-import type { LocalTaskQueue, LocalTimers } from "./memory-event-loop";
+import type { MemoryTaskQueue } from "./memory-task-queue";
+import type { MemoryTimers } from "./memory-timers";
+import type { MemoryEventLoop } from "./memory-event-loop";
 
-export class LocalScheduler implements Scheduler {
-  private taskQueue: LocalTaskQueue;
-  private timers: LocalTimers;
+export class MemoryScheduler implements Scheduler {
+  private taskQueue: MemoryTaskQueue;
+  private timers: MemoryTimers;
 
-  constructor(params: { taskQueue: LocalTaskQueue; timers: LocalTimers }) {
-    this.taskQueue = params.taskQueue;
-    this.timers = params.timers;
+  constructor(eventLoop: MemoryEventLoop) {
+    this.taskQueue = eventLoop.taskQueue;
+    this.timers = eventLoop.timers;
   }
 
   async requestWakeUp(params: {

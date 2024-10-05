@@ -1,35 +1,8 @@
-import type { CompositeStepGenerator } from "yieldstar";
-import { beforeAll, afterAll, expect, test, mock } from "bun:test";
-import { createWorkflow, WorkflowEngine } from "yieldstar";
-import {
-  LocalScheduler,
-  LocalEventLoop,
-  LocalPersister,
-} from "yieldstar-local";
+import { expect, test, mock } from "bun:test";
+import { createWorkflow } from "yieldstar";
+import { createWorkflowTestRunner } from "yieldstar-test-utils";
 
-const localEventLoop = new LocalEventLoop();
-const localPersister = new LocalPersister();
-
-const localScheduler = new LocalScheduler({
-  taskQueue: localEventLoop.taskQueue,
-  timers: localEventLoop.timers,
-});
-
-const createEngine = (workflow: CompositeStepGenerator) =>
-  new WorkflowEngine({
-    persister: localPersister,
-    scheduler: localScheduler,
-    waker: localEventLoop.waker,
-    router: { "test-workflow": workflow },
-  });
-
-beforeAll(() => {
-  localEventLoop.start();
-});
-
-afterAll(() => {
-  localEventLoop.stop();
-});
+const runner = createWorkflowTestRunner();
 
 test("step.run without cache keys", async () => {
   const mock1 = mock(() => 1);
@@ -47,8 +20,7 @@ test("step.run without cache keys", async () => {
     }
   });
 
-  const engine = createEngine(workflow);
-  await engine.triggerAndWait("test-workflow");
+  await runner.triggerAndWait(workflow);
 
   expect(mock1).toBeCalledTimes(1);
   expect(mock2).not.toBeCalled();
@@ -70,8 +42,7 @@ test("step.run with cache keys", async () => {
     }
   });
 
-  const engine = createEngine(workflow);
-  await engine.triggerAndWait("test-workflow");
+  await runner.triggerAndWait(workflow);
 
   expect(mock1).toBeCalledTimes(1);
   expect(mock2).toBeCalledTimes(1);
@@ -91,8 +62,7 @@ test("step.delay without cache keys", async () => {
 
   let startTime = Date.now();
 
-  const engine = createEngine(workflow);
-  await engine.triggerAndWait("test-workflow");
+  await runner.triggerAndWait(workflow);
 
   let duration = Date.now() - startTime;
 
@@ -115,8 +85,7 @@ test("step.delay with cache keys", async () => {
 
   let startTime = Date.now();
 
-  const engine = createEngine(workflow);
-  await engine.triggerAndWait("test-workflow");
+  await runner.triggerAndWait(workflow);
 
   let duration = Date.now() - startTime;
 
@@ -149,8 +118,7 @@ test("interlacing cache keys and cache indexes", async () => {
     return { stableNum, volatileNum };
   });
 
-  const engine = createEngine(workflow);
-  const result = await engine.triggerAndWait("test-workflow");
+  const result = await runner.triggerAndWait(workflow);
 
   expect(result.stableNum).toBe(2);
   expect(result.volatileNum).toBe(1);

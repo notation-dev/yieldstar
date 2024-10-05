@@ -1,0 +1,14 @@
+{
+  "name": "yieldstar-test-utils",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "bun build src/index.ts --outfile dist/index.js --target bun --external yieldstar* --external pino"
+  },
+  "dependencies": {
+    "yieldstar": "workspace:*",
+    "yieldstar-test-manager": "workspace:*",
+    "yieldstar-test-runtime": "workspace:*"
+  }
+}

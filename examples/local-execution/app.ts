@@ -4,6 +4,9 @@ import { manager } from "./manager";
 
 sqliteEventLoop.start({ onNewTask: manager.execute });
 
-const result = await sdk.triggerAndWait("simple-workflow");
-
-console.log(result);
+try {
+  const result = await sdk.triggerAndWait("simple-workflow");
+  console.log(result);
+} finally {
+  sqliteEventLoop.stop();
+}

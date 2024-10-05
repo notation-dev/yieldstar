@@ -1,35 +1,10 @@
-import type { CompositeStepGenerator } from "yieldstar";
-import { beforeAll, afterAll, expect, test } from "bun:test";
-import { createWorkflow, WorkflowEngine, RetryableError } from "yieldstar";
-import {
-  LocalScheduler,
-  LocalEventLoop,
-  LocalPersister,
-} from "yieldstar-local";
+import { expect, test } from "bun:test";
+import { createWorkflow, RetryableError } from "yieldstar";
+import { createWorkflowTestRunner } from "yieldstar-test-utils";
+import { pino } from "pino";
 
-const localEventLoop = new LocalEventLoop();
-const localPersister = new LocalPersister();
-
-const localScheduler = new LocalScheduler({
-  taskQueue: localEventLoop.taskQueue,
-  timers: localEventLoop.timers,
-});
-
-const createEngine = (workflow: CompositeStepGenerator) =>
-  new WorkflowEngine({
-    persister: localPersister,
-    scheduler: localScheduler,
-    waker: localEventLoop.waker,
-    router: { "test-workflow": workflow },
-  });
-
-beforeAll(() => {
-  localEventLoop.start();
-});
-
-afterAll(() => {
-  localEventLoop.stop();
-});
+const logger = pino({ level: "fatal" });
+const runner = createWorkflowTestRunner({ logger });
 
 test("retrying an error for maxAttempts", async () => {
   let runs = 0;
@@ -45,8 +20,7 @@ test("retrying an error for maxAttempts", async () => {
   });
 
   try {
-    const engine = createEngine(workflow);
-    await engine.triggerAndWait("test-workflow");
+    await runner.triggerAndWait(workflow);
   } catch {
     expect(runs).toEqual(10);
   }
@@ -72,8 +46,7 @@ test("retrying an for maxAttempts (irrespective of number of times error is thro
   });
 
   try {
-    const engine = createEngine(workflow);
-    await engine.triggerAndWait("test-workflow");
+    await runner.triggerAndWait(workflow);
   } catch {
     expect(runs).toEqual(5);
   }
@@ -103,8 +76,7 @@ test("retrying an for maxAttempts (irrespective of number of number of workflow 
     } catch {}
   });
 
-  const engine = createEngine(workflow);
-  await engine.triggerAndWait("test-workflow");
+  await runner.triggerAndWait(workflow);
 
   expect(runs).toEqual(6);
 });
@@ -123,6 +95,5 @@ test("retrying an error after retry interval", async () => {
     });
   });
 
-  const engine = createEngine(workflow);
-  await engine.triggerAndWait("test-workflow");
+  await runner.triggerAndWait(workflow);
 });

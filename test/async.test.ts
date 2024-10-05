@@ -1,35 +1,9 @@
-import type { CompositeStepGenerator, WorkflowFn } from "yieldstar";
-import { beforeAll, afterAll, expect, test, mock } from "bun:test";
-import { createWorkflow, WorkflowEngine } from "yieldstar";
-import {
-  LocalScheduler,
-  LocalEventLoop,
-  LocalPersister,
-} from "yieldstar-local";
+import type { WorkflowFn } from "yieldstar";
+import { expect, test, mock } from "bun:test";
+import { createWorkflow } from "yieldstar";
+import { createWorkflowTestRunner } from "yieldstar-test-utils";
 
-const localEventLoop = new LocalEventLoop();
-const localPersister = new LocalPersister();
-
-const localScheduler = new LocalScheduler({
-  taskQueue: localEventLoop.taskQueue,
-  timers: localEventLoop.timers,
-});
-
-const createEngine = (workflow: CompositeStepGenerator) =>
-  new WorkflowEngine({
-    persister: localPersister,
-    scheduler: localScheduler,
-    waker: localEventLoop.waker,
-    router: { "test-workflow": workflow },
-  });
-
-beforeAll(() => {
-  localEventLoop.start();
-});
-
-afterAll(() => {
-  localEventLoop.stop();
-});
+const runner = createWorkflowTestRunner();
 
 test("running sync workflows to completion", async () => {
   const mockWorkflowGenerator = mock<WorkflowFn<any>>(async function* (step) {
@@ -45,9 +19,8 @@ test("running sync workflows to completion", async () => {
   });
 
   const workflow = createWorkflow(mockWorkflowGenerator);
-  const engine = createEngine(workflow);
 
-  await engine.triggerAndWait("test-workflow");
+  await runner.triggerAndWait(workflow);
 
   expect(mockWorkflowGenerator).toBeCalledTimes(1);
 });
@@ -68,9 +41,8 @@ test("deferring workflow execution", async () => {
   });
 
   const workflow = createWorkflow(mockWorkflowGenerator);
-  const engine = createEngine(workflow);
 
-  await engine.triggerAndWait("test-workflow");
+  await runner.triggerAndWait(workflow);
 
   expect(mockWorkflowGenerator).toBeCalledTimes(2);
 });
@@ -90,8 +62,7 @@ test("resumes workflow after a set delay", async () => {
     return { firstExecutionTime, secondExecutionTime };
   });
 
-  const engine = createEngine(workflow);
-  const result = await engine.triggerAndWait("test-workflow");
+  const result = await runner.triggerAndWait(workflow);
 
   const delay = result.secondExecutionTime - result.firstExecutionTime;
 
