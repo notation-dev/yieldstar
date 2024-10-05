@@ -1,18 +1,5 @@
 import type { StepRunner } from "yieldstar";
-import { createWorkflow, WorkflowEngine } from "yieldstar";
-import {
-  LocalScheduler,
-  LocalEventLoop,
-  LocalPersister,
-} from "yieldstar-local";
-
-const localEventLoop = new LocalEventLoop();
-const localPersister = new LocalPersister();
-
-const localScheduler = new LocalScheduler({
-  taskQueue: localEventLoop.taskQueue,
-  timers: localEventLoop.timers,
-});
+import { createWorkflow } from "yieldstar";
 
 type WorkflowFn<T> = (
   step: StepRunner,
@@ -36,22 +23,11 @@ const workflowFactory = (workflowFn: WorkflowFn<any>) => {
   });
 };
 
-const workflow = workflowFactory(async function* (step, waitForState) {
+export const coordinatorWorkflow = workflowFactory(async function* (
+  step,
+  waitForState
+) {
   const a = yield* step.run(() => 2);
   yield* waitForState("enabled");
   return yield* step.run(() => a * 3);
 });
-
-const engine = new WorkflowEngine({
-  persister: localPersister,
-  scheduler: localScheduler,
-  waker: localEventLoop.waker,
-  router: { "workflow-1": workflow },
-});
-
-localEventLoop.start();
-
-const result = await engine.triggerAndWait("workflow-1");
-console.log(result);
-
-localEventLoop.stop();
