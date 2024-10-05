@@ -1,11 +1,10 @@
 import type { Logger } from "pino";
-import type { Task, WorkflowRouter } from "yieldstar";
-import { WorkflowRunner } from "yieldstar";
+import type { Task, WorkflowRunner } from "yieldstar";
 
 declare var self: Worker;
 
-export function createWorkflowWorker<T extends WorkflowRouter>(
-  workflowRunner: WorkflowRunner<T>,
+export function createWorkflowWorker(
+  workflowRunner: WorkflowRunner<any>,
   logger: Logger
 ) {
   return {
@@ -14,8 +13,8 @@ export function createWorkflowWorker<T extends WorkflowRouter>(
         const task = event.data;
         try {
           // todo: pass logger in here
-          const result = await workflowRunner.run(task);
-          self.postMessage({ status: "completed", result });
+          const response = await workflowRunner.run(task);
+          self.postMessage({ status: "completed", response });
         } catch (error: any) {
           self.postMessage({ status: "error", error });
         }

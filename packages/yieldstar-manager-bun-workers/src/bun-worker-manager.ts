@@ -10,17 +10,17 @@ export function createWorkflowManager(params: {
   const { logger, workerPath } = params;
   return {
     taskProcessedEmitter,
-    async execute(message: Task) {
-      const { executionId } = message;
+    async execute(task: Task) {
+      const { executionId } = task;
       logger.info({ executionId }, "Starting worker");
       const worker = new Worker(workerPath);
-      worker.postMessage(message);
+      worker.postMessage(task);
       worker.onmessage = (event) => {
         switch (event.data.status) {
           case "completed":
-            const result = event.data.result;
-            if (result) {
-              taskProcessedEmitter.emit(executionId, result);
+            const response = event.data.response;
+            if (response) {
+              taskProcessedEmitter.emit(executionId, response.result);
             }
             break;
           case "error":

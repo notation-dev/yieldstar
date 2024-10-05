@@ -40,7 +40,7 @@ export class WorkflowRunner<
 
       switch (response.type) {
         case "workflow-result":
-          return response.result;
+          return response;
 
         case "workflow-delay":
           this.scheduler.requestWakeUp({
@@ -78,6 +78,6 @@ export class WorkflowRunner<
       return new WorkflowDelay(stageResponse.resumeIn - Date.now());
     }
 
-    throw new Error("Critical error");
+    throw new Error("Workflow runner critical error");
   }
 }
