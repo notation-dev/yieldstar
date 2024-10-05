@@ -1,7 +1,6 @@
 import type { Logger } from "pino";
 import { randomUUID } from "node:crypto";
-import type { WorkflowManager } from "./bun-manager";
-import type { Task } from "yieldstar";
+import type { Task, WorkflowManager } from "yieldstar";
 
 export function createWorkflowHttpServer(params: {
   port: number;

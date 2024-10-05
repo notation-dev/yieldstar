@@ -1,5 +1,5 @@
 {
-  "name": "yieldstar-server-bun",
+  "name": "yieldstar-manager-bun-workers",
   "type": "module",
   "main": "dist/index.js",
   "types": "src/index.ts",
