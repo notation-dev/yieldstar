@@ -60,7 +60,7 @@ export function createHttpSdkFactory<W extends WorkflowRouter>(
           throw deserializeError(json);
         }
 
-        return result.json() as Promise<CompositeStepGeneratorReturnType<W[K]>>;
+        return json as Promise<CompositeStepGeneratorReturnType<W[K]>>;
       },
     };
   };
