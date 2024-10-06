@@ -3,7 +3,7 @@ import type { StepResponse, WorkflowResult } from "./base/step-response";
 import type { StepRunner } from "./core/step-runner";
 
 // Base types
-export type * from "./base/manager";
+export type * from "./base/invoker";
 export type * from "./base/runtime";
 export type * from "./base/scheduler";
 export type * from "./base/step-persister";

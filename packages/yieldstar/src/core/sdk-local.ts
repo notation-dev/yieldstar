@@ -1,13 +1,13 @@
 import type {
   WorkflowRouter,
   CompositeStepGeneratorReturnType,
-  WorkflowManager,
+  WorkflowInvoker,
 } from "../types";
 import { randomUUID } from "node:crypto";
 
 export function createLocalSdk<W extends WorkflowRouter>(
   workflowRouter: W,
-  manager: WorkflowManager
+  invoker: WorkflowInvoker
 ) {
   return {
     async trigger<K extends keyof W>(
@@ -21,7 +21,7 @@ export function createLocalSdk<W extends WorkflowRouter>(
     ) {
       const { workflowParams } = opts ?? {};
       const executionId = opts?.executionId ?? randomUUID();
-      await manager.execute({
+      await invoker.execute({
         executionId,
         workflowId: workflowId as string,
         params: workflowParams,
@@ -40,7 +40,7 @@ export function createLocalSdk<W extends WorkflowRouter>(
       const { workflowParams } = opts ?? {};
       const executionId = opts?.executionId ?? randomUUID();
       const workflowCompletePromise = new Promise((resolve) => {
-        manager.workflowEndEmitter.once(executionId, resolve);
+        invoker.workflowEndEmitter.once(executionId, resolve);
       });
       await this.trigger(workflowId, { executionId, workflowParams });
       return workflowCompletePromise as Promise<

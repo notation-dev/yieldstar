@@ -8,7 +8,7 @@
   },
   "dependencies": {
     "yieldstar": "workspace:*",
-    "yieldstar-test-manager": "workspace:*",
+    "yieldstar-test-invoker": "workspace:*",
     "yieldstar-test-runtime": "workspace:*"
   }
 }

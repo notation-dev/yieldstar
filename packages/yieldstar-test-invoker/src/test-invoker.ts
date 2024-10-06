@@ -1,11 +1,11 @@
 import type { Logger } from "pino";
-import type { Task, WorkflowManager, WorkflowRunner } from "yieldstar";
+import type { Task, WorkflowInvoker, WorkflowRunner } from "yieldstar";
 import { EventEmitter } from "node:events";
 
-export function createWorkflowManager(params: {
+export function createWorkflowInvoker(params: {
   logger: Logger;
   runner: WorkflowRunner<any>;
-}): WorkflowManager {
+}): WorkflowInvoker {
   const workflowEndEmitter = new EventEmitter();
   const { logger, runner } = params;
   return {

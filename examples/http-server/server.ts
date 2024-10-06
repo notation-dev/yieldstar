@@ -1,12 +1,12 @@
 import pino from "pino";
 import { createWorkflowHttpServer } from "yieldstar-server-bun-http";
-import { createWorkflowManager } from "yieldstar-manager-bun-workers";
+import { createWorkflowInvoker } from "../../packages/yieldstar-invoker-bun-workers/src";
 import { sqliteEventLoop } from "./shared";
 
 const logger = pino();
 const workerPath = new URL("worker.ts", import.meta.url).href;
 
-const manager = createWorkflowManager({
+const invoker = createWorkflowInvoker({
   workerPath,
   logger,
 });
@@ -14,8 +14,8 @@ const manager = createWorkflowManager({
 const server = createWorkflowHttpServer({
   port: 8080,
   logger,
-  manager,
+  invoker,
 });
 
-sqliteEventLoop.start({ onNewTask: manager.execute });
+sqliteEventLoop.start({ onNewTask: invoker.execute });
 server.serve();

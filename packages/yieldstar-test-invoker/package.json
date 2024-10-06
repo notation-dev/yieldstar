@@ -1,5 +1,5 @@
 {
-  "name": "yieldstar-test-manager",
+  "name": "yieldstar-test-invoker",
   "type": "module",
   "main": "dist/index.js",
   "types": "src/index.ts",

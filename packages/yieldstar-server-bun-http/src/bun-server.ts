@@ -1,13 +1,13 @@
 import type { Logger } from "pino";
-import type { Task, WorkflowManager } from "yieldstar";
+import type { Task, WorkflowInvoker } from "yieldstar";
 import { serializeError } from "serialize-error";
 
 export function createWorkflowHttpServer(params: {
   port: number;
-  manager: WorkflowManager;
+  invoker: WorkflowInvoker;
   logger: Logger;
 }) {
-  const { logger, port, manager } = params;
+  const { logger, port, invoker } = params;
   return {
     serve() {
       return Bun.serve({
@@ -25,7 +25,7 @@ export function createWorkflowHttpServer(params: {
             }
 
             const result = await new Promise((resolve) => {
-              manager.workflowEndEmitter.once(executionId, resolve);
+              invoker.workflowEndEmitter.once(executionId, resolve);
             });
 
             if (result instanceof Error) {
@@ -38,7 +38,7 @@ export function createWorkflowHttpServer(params: {
           if (url.pathname === "/trigger") {
             try {
               const task = (await req.json()) as Task;
-              await manager.execute(task);
+              await invoker.execute(task);
               return Response.json(
                 { executionId: task.executionId },
                 { status: 202 }

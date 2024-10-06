@@ -1,15 +1,15 @@
 import pino from "pino";
-import { createWorkflowManager } from "yieldstar-manager-bun-workers";
+import { createWorkflowInvoker } from "../../packages/yieldstar-invoker-bun-workers/src";
 import { createLocalSdk } from "yieldstar";
 import { sqliteEventLoop, workflowRouter } from "./shared";
 
 const logger = pino();
 const workerPath = new URL("worker.ts", import.meta.url).href;
 
-export const manager = createWorkflowManager({ workerPath, logger });
-export const sdk = createLocalSdk(workflowRouter, manager);
+export const invoker = createWorkflowInvoker({ workerPath, logger });
+export const sdk = createLocalSdk(workflowRouter, invoker);
 
-sqliteEventLoop.start({ onNewTask: manager.execute });
+sqliteEventLoop.start({ onNewTask: invoker.execute });
 
 try {
   const result = await sdk.triggerAndWait("simple-workflow");

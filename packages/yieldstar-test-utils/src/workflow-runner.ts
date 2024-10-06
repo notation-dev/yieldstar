@@ -2,7 +2,7 @@ import type { CompositeStepGenerator } from "yieldstar";
 import type { Logger } from "pino";
 import pino from "pino";
 import { WorkflowRunner } from "yieldstar";
-import { createWorkflowManager } from "yieldstar-test-manager";
+import { createWorkflowInvoker } from "yieldstar-test-invoker";
 import {
   MemoryEventLoop,
   MemoryScheduler,
@@ -24,14 +24,14 @@ export function createWorkflowTestRunner(params?: { logger?: Logger }) {
         router: workflowRouter,
       });
 
-      const manager = createWorkflowManager({
+      const invoker = createWorkflowInvoker({
         runner: workflowRunner,
         logger,
       });
 
-      memoryEventLoop.start({ onNewTask: manager.execute });
+      memoryEventLoop.start({ onNewTask: invoker.execute });
 
-      const sdk = createLocalSdk(workflowRouter, manager);
+      const sdk = createLocalSdk(workflowRouter, invoker);
       const result = await sdk.triggerAndWait("workflow");
 
       memoryEventLoop.stop();
