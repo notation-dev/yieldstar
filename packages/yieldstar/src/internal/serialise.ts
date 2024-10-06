@@ -1,4 +1,4 @@
-import { serializeError, deserializeError } from "serialize-error";
+import { serializeError, deserializeError, isErrorLike } from "serialize-error";
 import {
   StepDelay,
   StepError,
@@ -20,7 +20,7 @@ export function serialize(data: StepResponse): string {
 
 export function deserialize(jsonString: string): StepResponse {
   const reviveErrors = (key: string, value: any) => {
-    if (value && value.name && value.message && value.stack) {
+    if (isErrorLike(value)) {
       return deserializeError(value);
     }
     return value;

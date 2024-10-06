@@ -2,6 +2,7 @@ import type {
   WorkflowRouter,
   CompositeStepGeneratorReturnType,
 } from "../types";
+import { deserializeError, isErrorLike } from "serialize-error";
 import { randomUUID } from "node:crypto";
 
 export function createHttpSdkFactory<W extends WorkflowRouter>(
@@ -52,13 +53,14 @@ export function createHttpSdkFactory<W extends WorkflowRouter>(
           method: "POST",
           body: JSON.stringify({ executionId }),
         });
-        if (result.ok) {
-          return result.json() as Promise<
-            CompositeStepGeneratorReturnType<W[K]>
-          >;
-        } else {
-          throw result.statusText;
+
+        const json = await result.json();
+
+        if (isErrorLike(json)) {
+          throw deserializeError(json);
         }
+
+        return result.json() as Promise<CompositeStepGeneratorReturnType<W[K]>>;
       },
     };
   };

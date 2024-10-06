@@ -4,6 +4,9 @@ import { workflowRouter } from "./shared";
 export const createSdk = createHttpSdkFactory(workflowRouter);
 const sdk = createSdk({ host: "localhost", port: 8080 });
 
-const result = await sdk.triggerAndWait("dynamic-workflow");
-
-console.log(result);
+try {
+  const result = await sdk.triggerAndWait("dynamic-workflow");
+  console.log(result);
+} catch (err) {
+  console.error(err);
+}

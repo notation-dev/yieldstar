@@ -4,6 +4,7 @@ const workflowPlan = [
   { type: "get-number" },
   { type: "delay", duration: 1000 },
   { type: "log" },
+  { type: "fail" },
 ] as const;
 
 export const dynamicWorkflow = createWorkflow(async function* (step) {
@@ -20,6 +21,9 @@ export const dynamicWorkflow = createWorkflow(async function* (step) {
         yield* step.run(() => {
           console.log("Logging: ", lastResult);
         });
+        break;
+      case "fail":
+        throw new Error("Workflow failure");
     }
   }
 });

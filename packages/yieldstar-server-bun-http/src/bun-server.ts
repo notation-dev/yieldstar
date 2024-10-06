@@ -1,5 +1,6 @@
 import type { Logger } from "pino";
 import type { Task, WorkflowManager } from "yieldstar";
+import { serializeError } from "serialize-error";
 
 export function createWorkflowHttpServer(params: {
   port: number;
@@ -23,15 +24,15 @@ export function createWorkflowHttpServer(params: {
               return new Response("Missing executionId", { status: 400 });
             }
 
-            try {
-              const result = await new Promise((resolve) => {
-                manager.workflowEndEmitter.once(executionId, resolve);
-              });
-              return Response.json(result);
-            } catch (err: any) {
-              logger.error(err);
-              return new Response("Workflow failure", { status: 500 });
+            const result = await new Promise((resolve) => {
+              manager.workflowEndEmitter.once(executionId, resolve);
+            });
+
+            if (result instanceof Error) {
+              return Response.json(serializeError(result));
             }
+
+            return Response.json(result);
           }
 
           if (url.pathname === "/trigger") {
@@ -42,9 +43,9 @@ export function createWorkflowHttpServer(params: {
                 { executionId: task.executionId },
                 { status: 202 }
               );
-            } catch (error) {
-              logger.error(error);
-              return new Response("Invalid JSON", { status: 400 });
+            } catch (err: any) {
+              logger.error(err);
+              return Response.json(err.message, { status: 400 });
             }
           }
 
