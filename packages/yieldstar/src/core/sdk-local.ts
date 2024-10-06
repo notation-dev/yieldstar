@@ -40,7 +40,7 @@ export function createLocalSdk<W extends WorkflowRouter>(
       const { workflowParams } = opts ?? {};
       const executionId = opts?.executionId ?? randomUUID();
       const workflowCompletePromise = new Promise((resolve) => {
-        manager.taskProcessedEmitter.once(executionId, resolve);
+        manager.workflowEndEmitter.once(executionId, resolve);
       });
       await this.trigger(workflowId, { executionId, workflowParams });
       return workflowCompletePromise as Promise<

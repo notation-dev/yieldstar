@@ -25,7 +25,7 @@ export function createWorkflowHttpServer(params: {
 
             try {
               const result = await new Promise((resolve) => {
-                manager.taskProcessedEmitter.once(executionId, resolve);
+                manager.workflowEndEmitter.once(executionId, resolve);
               });
               return Response.json(result);
             } catch (err: any) {
