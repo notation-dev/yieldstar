@@ -1,9 +1,11 @@
 import { createWorkflowRouter } from "yieldstar";
-import { simpleWorkflow } from "../workflows/simple";
 import { SqliteEventLoop, createSqliteDb } from "yieldstar-runtime-bun-sqlite";
+import { simpleWorkflow } from "../workflows/simple";
+import { dynamicWorkflow } from "../workflows/dynamic";
 
 export const workflowRouter = createWorkflowRouter({
   "simple-workflow": simpleWorkflow,
+  "dynamic-workflow": dynamicWorkflow,
 });
 
 export const runtimeDb = await createSqliteDb("./.db/http-server.sqlite");
