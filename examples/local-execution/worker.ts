@@ -7,8 +7,7 @@ import {
   SqliteTaskQueueClient,
   SqliteTimersClient,
 } from "yieldstar-runtime-bun-sqlite";
-import { workflowRouter } from "./router";
-import { runtimeDb } from "./runtime";
+import { runtimeDb, workflowRouter } from "./shared";
 
 const workflowRunner = new WorkflowRunner({
   persister: new SqlitePersister(runtimeDb),

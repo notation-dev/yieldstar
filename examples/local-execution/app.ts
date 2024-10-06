@@ -1,6 +1,13 @@
-import { sqliteEventLoop } from "./runtime";
-import { sdk } from "./sdk";
-import { manager } from "./manager";
+import pino from "pino";
+import { createWorkflowManager } from "yieldstar-manager-bun-workers";
+import { createLocalSdk } from "yieldstar";
+import { sqliteEventLoop, workflowRouter } from "./shared";
+
+const logger = pino();
+const workerPath = new URL("worker.ts", import.meta.url).href;
+
+export const manager = createWorkflowManager({ workerPath, logger });
+export const sdk = createLocalSdk(workflowRouter, manager);
 
 sqliteEventLoop.start({ onNewTask: manager.execute });
 

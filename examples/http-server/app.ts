@@ -1,6 +1,8 @@
-import { createSdk } from "./sdk";
+import { createHttpSdkFactory } from "yieldstar";
+import { workflowRouter } from "./shared";
 
-const sdk = createSdk({ host: "localhost", port: 8080 });
+export const createSdk = createHttpSdkFactory(workflowRouter);
+const sdk = createSdk({ host: "localhost", port: 80 });
 
 const result = await sdk.triggerAndWait("simple-workflow");
 

@@ -1,7 +1,7 @@
 import pino from "pino";
 import { createWorkflowHttpServer } from "yieldstar-server-bun-http";
 import { createWorkflowManager } from "yieldstar-manager-bun-workers";
-import { sqliteEventLoop } from "./runtime";
+import { sqliteEventLoop } from "./shared";
 
 const logger = pino();
 const workerPath = new URL("worker.ts", import.meta.url).href;
