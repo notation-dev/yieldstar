@@ -1,18 +1,13 @@
-import { beforeEach, expect, test } from "bun:test";
-import { createWorkflow, runToCompletion } from "yieldstar";
-import { SqliteConnector } from "yieldstar-sqlite-bun";
+import { expect, test } from "bun:test";
+import { createWorkflow } from "yieldstar";
+import { createWorkflowTestRunner } from "@yieldstar/test-utils";
 
-const db = await SqliteConnector.createDb("./.db/test-retries.sqlite");
-const sqliteConnector = new SqliteConnector({ db });
-
-beforeEach(() => {
-  sqliteConnector.deleteAll();
-});
+const runner = createWorkflowTestRunner();
 
 test("poll retries when predicate fails", async () => {
   let runs: number = 0;
 
-  const myWorkflow = createWorkflow(async function* (step) {
+  const workflow = createWorkflow(async function* (step) {
     try {
       yield* step.poll({ retryInterval: 1, maxAttempts: 10 }, () => {
         runs++;
@@ -21,11 +16,7 @@ test("poll retries when predicate fails", async () => {
     } catch {}
   });
 
-  await runToCompletion({
-    workflow: myWorkflow,
-    connector: sqliteConnector,
-    executionId: "abc:123",
-  });
+  await runner.triggerAndWait(workflow);
 
   expect(runs).toBe(10);
 });
@@ -33,18 +24,14 @@ test("poll retries when predicate fails", async () => {
 test("poll resolves when predicate passes", async () => {
   let runs: number = 0;
 
-  const myWorkflow = createWorkflow(async function* (step) {
+  const workflow = createWorkflow(async function* (step) {
     yield* step.poll({ retryInterval: 1, maxAttempts: 10 }, () => {
       runs++;
       return true;
     });
   });
 
-  await runToCompletion({
-    workflow: myWorkflow,
-    connector: sqliteConnector,
-    executionId: "abc:123",
-  });
+  await runner.triggerAndWait(workflow);
 
   expect(runs).toBe(1);
 });
@@ -52,7 +39,7 @@ test("poll resolves when predicate passes", async () => {
 test("poll fails if a regular error is thrown", async () => {
   let runs: number = 0;
 
-  const myWorkflow = createWorkflow(async function* (step) {
+  const workflow = createWorkflow(async function* (step) {
     try {
       yield* step.poll({ retryInterval: 1, maxAttempts: 10 }, () => {
         runs++;
@@ -61,11 +48,7 @@ test("poll fails if a regular error is thrown", async () => {
     } catch {}
   });
 
-  await runToCompletion({
-    workflow: myWorkflow,
-    connector: sqliteConnector,
-    executionId: "abc:123",
-  });
+  await runner.triggerAndWait(workflow);
 
   expect(runs).toBe(1);
 });

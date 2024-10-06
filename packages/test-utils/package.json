@@ -1,0 +1,15 @@
+{
+  "name": "@yieldstar/test-utils",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "bun build src/index.ts --outfile dist/index.js --packages=external"
+  },
+  "dependencies": {
+    "yieldstar": "workspace:*",
+    "@yieldstar/core": "workspace:*",
+    "@yieldstar/test-invoker": "workspace:*",
+    "@yieldstar/test-runtime": "workspace:*"
+  }
+}

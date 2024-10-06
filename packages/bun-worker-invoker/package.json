@@ -1,15 +1,13 @@
 {
-  "name": "yieldstar",
+  "name": "@yieldstar/bun-worker-invoker",
   "type": "module",
   "main": "dist/index.js",
   "types": "src/index.ts",
   "scripts": {
     "build": "bun build src/index.ts --outfile dist/index.js --target bun --packages=external"
   },
-  "dependencies": {
-    "serialize-error": "^11.0.3"
-  },
   "devDependencies": {
+    "pino": "^9.4.0",
     "@types/bun": "latest",
     "@yieldstar/core": "workspace:*"
   }

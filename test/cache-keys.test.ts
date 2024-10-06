@@ -1,13 +1,8 @@
-import { beforeEach, expect, test, mock } from "bun:test";
-import { createWorkflow, runToCompletion } from "yieldstar";
-import { SqliteConnector } from "yieldstar-sqlite-bun";
+import { expect, test, mock } from "bun:test";
+import { createWorkflow } from "yieldstar";
+import { createWorkflowTestRunner } from "@yieldstar/test-utils";
 
-const db = await SqliteConnector.createDb("./.db/test-cache-keys.sqlite");
-const sqliteConnector = new SqliteConnector({ db });
-
-beforeEach(() => {
-  sqliteConnector.deleteAll();
-});
+const runner = createWorkflowTestRunner();
 
 test("step.run without cache keys", async () => {
   const mock1 = mock(() => 1);
@@ -15,7 +10,7 @@ test("step.run without cache keys", async () => {
 
   let executionIdx = -1;
 
-  const myWorkflow = createWorkflow(async function* (step) {
+  const workflow = createWorkflow(async function* (step) {
     executionIdx++;
     if (executionIdx === 0) {
       yield* step.run(mock1);
@@ -25,11 +20,7 @@ test("step.run without cache keys", async () => {
     }
   });
 
-  await runToCompletion({
-    workflow: myWorkflow,
-    connector: sqliteConnector,
-    executionId: "abc:123",
-  });
+  await runner.triggerAndWait(workflow);
 
   expect(mock1).toBeCalledTimes(1);
   expect(mock2).not.toBeCalled();
@@ -41,7 +32,7 @@ test("step.run with cache keys", async () => {
 
   let executionIdx = -1;
 
-  const myWorkflow = createWorkflow(async function* (step) {
+  const workflow = createWorkflow(async function* (step) {
     executionIdx++;
     if (executionIdx === 0) {
       yield* step.run("step 1", mock1);
@@ -51,11 +42,7 @@ test("step.run with cache keys", async () => {
     }
   });
 
-  await runToCompletion({
-    workflow: myWorkflow,
-    connector: sqliteConnector,
-    executionId: "abc:123",
-  });
+  await runner.triggerAndWait(workflow);
 
   expect(mock1).toBeCalledTimes(1);
   expect(mock2).toBeCalledTimes(1);
@@ -64,7 +51,7 @@ test("step.run with cache keys", async () => {
 test("step.delay without cache keys", async () => {
   let executionIdx = -1;
 
-  const myWorkflow = createWorkflow(async function* (step) {
+  const workflow = createWorkflow(async function* (step) {
     executionIdx++;
     if (executionIdx < 1) {
       yield* step.delay(10);
@@ -75,11 +62,7 @@ test("step.delay without cache keys", async () => {
 
   let startTime = Date.now();
 
-  await runToCompletion({
-    workflow: myWorkflow,
-    connector: sqliteConnector,
-    executionId: "abc:123",
-  });
+  await runner.triggerAndWait(workflow);
 
   let duration = Date.now() - startTime;
 
@@ -91,7 +74,7 @@ test("step.delay without cache keys", async () => {
 test("step.delay with cache keys", async () => {
   let executionIdx = -1;
 
-  const myWorkflow = createWorkflow(async function* (step) {
+  const workflow = createWorkflow(async function* (step) {
     executionIdx++;
     if (executionIdx < 1) {
       yield* step.delay("step 1", 10);
@@ -102,11 +85,7 @@ test("step.delay with cache keys", async () => {
 
   let startTime = Date.now();
 
-  await runToCompletion({
-    workflow: myWorkflow,
-    connector: sqliteConnector,
-    executionId: "abc:123",
-  });
+  await runner.triggerAndWait(workflow);
 
   let duration = Date.now() - startTime;
 
@@ -118,7 +97,7 @@ test("step.delay with cache keys", async () => {
 test("interlacing cache keys and cache indexes", async () => {
   let executionIdx = -1;
 
-  const myWorkflow = createWorkflow(async function* (step) {
+  const workflow = createWorkflow(async function* (step) {
     executionIdx++;
     let volatileNum = 0;
     let stableNum = 0;
@@ -139,11 +118,7 @@ test("interlacing cache keys and cache indexes", async () => {
     return { stableNum, volatileNum };
   });
 
-  const result = await runToCompletion({
-    workflow: myWorkflow,
-    connector: sqliteConnector,
-    executionId: "abc:123",
-  });
+  const result = await runner.triggerAndWait(workflow);
 
   expect(result.stableNum).toBe(2);
   expect(result.volatileNum).toBe(1);

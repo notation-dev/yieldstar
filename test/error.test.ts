@@ -1,16 +1,11 @@
-import { beforeEach, expect, test } from "bun:test";
-import { createWorkflow, runToCompletion } from "yieldstar";
-import { SqliteConnector } from "yieldstar-sqlite-bun";
+import { expect, test } from "bun:test";
+import { createWorkflow } from "yieldstar";
+import { createWorkflowTestRunner } from "@yieldstar/test-utils";
 
-const db = await SqliteConnector.createDb("./.db/test-errors.sqlite");
-const sqliteConnector = new SqliteConnector({ db });
-
-beforeEach(() => {
-  sqliteConnector.deleteAll();
-});
+const runner = createWorkflowTestRunner();
 
 test("failing steps can be caught", async () => {
-  const myWorkflow = createWorkflow(async function* (step) {
+  const workflow = createWorkflow(async function* (step) {
     try {
       yield* step.run(async () => {
         throw new Error("Step error");
@@ -20,11 +15,7 @@ test("failing steps can be caught", async () => {
     }
   });
 
-  const result = await runToCompletion({
-    workflow: myWorkflow,
-    connector: sqliteConnector,
-    executionId: "abc:123",
-  });
+  const result = await runner.triggerAndWait(workflow);
 
   expect(result).toBe(true);
 });

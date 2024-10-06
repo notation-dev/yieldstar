@@ -6,7 +6,8 @@
   ],
   "scripts": {
     "build": "bun run --filter '*' build",
-    "dev": "bun run --filter '*' build --watch & bun test --watch",
+    "build:watch": "bun run build --watch",
+    "dev": "bun run build --watch & bun test --watch",
     "start": "bun scripts/run-example.ts"
   },
   "devDependencies": {

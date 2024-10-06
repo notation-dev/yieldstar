@@ -1,16 +1,12 @@
-import { beforeEach, expect, test, mock } from "bun:test";
-import { createWorkflow, runToCompletion } from "yieldstar";
-import { SqliteConnector } from "yieldstar-sqlite-bun";
+import type { WorkflowFn } from "yieldstar";
+import { expect, test, mock } from "bun:test";
+import { createWorkflow } from "yieldstar";
+import { createWorkflowTestRunner } from "@yieldstar/test-utils";
 
-const db = await SqliteConnector.createDb("./.db/test-async.sqlite");
-const sqliteConnector = new SqliteConnector({ db });
-
-beforeEach(() => {
-  sqliteConnector.deleteAll();
-});
+const runner = createWorkflowTestRunner();
 
 test("running sync workflows to completion", async () => {
-  const mockWorkflowGenerator = mock(async function* (step: any) {
+  const mockWorkflowGenerator = mock<WorkflowFn<any>>(async function* (step) {
     let num = yield* step.run(() => {
       return 1;
     });
@@ -22,13 +18,9 @@ test("running sync workflows to completion", async () => {
     return num;
   });
 
-  const myWorkflow = createWorkflow(mockWorkflowGenerator);
+  const workflow = createWorkflow(mockWorkflowGenerator);
 
-  await runToCompletion({
-    workflow: myWorkflow,
-    connector: sqliteConnector,
-    executionId: "abc:123",
-  });
+  await runner.triggerAndWait(workflow);
 
   expect(mockWorkflowGenerator).toBeCalledTimes(1);
 });
@@ -48,19 +40,15 @@ test("deferring workflow execution", async () => {
     return num;
   });
 
-  const myWorkflow = createWorkflow(mockWorkflowGenerator);
+  const workflow = createWorkflow(mockWorkflowGenerator);
 
-  await runToCompletion({
-    workflow: myWorkflow,
-    connector: sqliteConnector,
-    executionId: "abc:123",
-  });
+  await runner.triggerAndWait(workflow);
 
   expect(mockWorkflowGenerator).toBeCalledTimes(2);
 });
 
 test("resumes workflow after a set delay", async () => {
-  const myWorkflow = createWorkflow(async function* (step: any) {
+  const workflow = createWorkflow(async function* (step: any) {
     const firstExecutionTime = yield* step.run(() => {
       return Date.now();
     });
@@ -74,11 +62,7 @@ test("resumes workflow after a set delay", async () => {
     return { firstExecutionTime, secondExecutionTime };
   });
 
-  const result = await runToCompletion({
-    workflow: myWorkflow,
-    connector: sqliteConnector,
-    executionId: "abc:123",
-  });
+  const result = await runner.triggerAndWait(workflow);
 
   const delay = result.secondExecutionTime - result.firstExecutionTime;
 

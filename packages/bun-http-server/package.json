@@ -1,5 +1,5 @@
 {
-  "name": "yieldstar",
+  "name": "@yieldstar/bun-http-server",
   "type": "module",
   "main": "dist/index.js",
   "types": "src/index.ts",
@@ -10,6 +10,7 @@
     "serialize-error": "^11.0.3"
   },
   "devDependencies": {
+    "pino": "^9.4.0",
     "@types/bun": "latest",
     "@yieldstar/core": "workspace:*"
   }
