@@ -2,12 +2,12 @@ import type { CompositeStepGenerator } from "yieldstar";
 import type { Logger } from "pino";
 import pino from "pino";
 import { WorkflowRunner } from "yieldstar";
-import { createWorkflowInvoker } from "yieldstar-test-invoker";
+import { createWorkflowInvoker } from "@yieldstar/test-invoker";
 import {
   MemoryEventLoop,
   MemoryScheduler,
   MemoryPersister,
-} from "yieldstar-test-runtime";
+} from "@yieldstar/test-runtime";
 import { createLocalSdk } from "yieldstar";
 
 export function createWorkflowTestRunner(params?: { logger?: Logger }) {

@@ -1,12 +1,12 @@
 import pino from "pino";
 import { WorkflowRunner } from "yieldstar";
-import { createWorkflowWorker } from "../../packages/yieldstar-invoker-bun-workers/src";
+import { createWorkflowWorker } from "../../packages/@yieldstar/bun-workers-invokers/src";
 import {
   SqliteScheduler,
   SqlitePersister,
   SqliteTaskQueueClient,
   SqliteTimersClient,
-} from "yieldstar-runtime-bun-sqlite";
+} from "@yieldstar/bun-sqlite-runtime";
 import { runtimeDb, workflowRouter } from "./shared";
 
 const workflowRunner = new WorkflowRunner({

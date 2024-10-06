@@ -2,7 +2,7 @@ import type { WorkflowFn } from "yieldstar";
 import { sleep } from "bun";
 import { expect, test, mock } from "bun:test";
 import { createWorkflow } from "yieldstar";
-import { createWorkflowTestRunner } from "yieldstar-test-utils";
+import { createWorkflowTestRunner } from "@yieldstar/test-utils";
 
 const runner = createWorkflowTestRunner();
 

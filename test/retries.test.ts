@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { createWorkflow, RetryableError } from "yieldstar";
-import { createWorkflowTestRunner } from "yieldstar-test-utils";
+import { createWorkflowTestRunner } from "@yieldstar/test-utils";
 import { pino } from "pino";
 
 const logger = pino({ level: "fatal" });

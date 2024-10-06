@@ -1,5 +1,5 @@
 {
-  "name": "yieldstar-invoker-bun-workers",
+  "name": "@yieldstar/test-invoker",
   "type": "module",
   "main": "dist/index.js",
   "types": "src/index.ts",

@@ -1,5 +1,5 @@
 {
-  "name": "yieldstar-test-runtime",
+  "name": "@yieldstar/test-runtime",
   "type": "module",
   "main": "dist/index.js",
   "types": "src/index.ts",

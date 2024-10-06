@@ -1,5 +1,5 @@
 {
-  "name": "yieldstar-server-bun-http",
+  "name": "@yieldstar/bun-http-server",
   "type": "module",
   "main": "dist/index.js",
   "types": "src/index.ts",
@@ -7,8 +7,9 @@
     "build": "bun build src/index.ts --outfile dist/index.js --target bun --external yieldstar* --external pino"
   },
   "dependencies": {
-    "yieldstar": "workspace:*",
-    "pino": "^9.4.0"
+    "pino": "^9.4.0",
+    "serialize-error": "^11.0.3",
+    "yieldstar": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "latest"
