@@ -1,8 +1,8 @@
 import type {
   WorkflowRouter,
-  CompositeStepGeneratorReturnType,
+  WorkflowGeneratorReturnType,
   WorkflowInvoker,
-} from "../types";
+} from "@yieldstar/core";
 import { randomUUID } from "node:crypto";
 
 export function createLocalSdk<W extends WorkflowRouter>(
@@ -44,7 +44,7 @@ export function createLocalSdk<W extends WorkflowRouter>(
       });
       await this.trigger(workflowId, { executionId, workflowParams });
       return workflowCompletePromise as Promise<
-        CompositeStepGeneratorReturnType<W[K]>
+        WorkflowGeneratorReturnType<W[K]>
       >;
     },
   };

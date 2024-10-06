@@ -1,8 +1,7 @@
-import type { CacheResponse } from "yieldstar";
-import type { StepPersister } from "yieldstar";
+import type { HeapRecord, HeapClient } from "@yieldstar/core";
 
-export class MemoryPersister implements StepPersister {
-  cache: Record<string, CacheResponse[]> = {};
+export class MemoryHeapClient implements HeapClient {
+  cache: Record<string, HeapRecord[]> = {};
 
   getKey(params: { executionId: string; stepKey: string }) {
     return `${params.executionId}:${params.stepKey}`;

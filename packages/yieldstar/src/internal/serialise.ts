@@ -5,7 +5,7 @@ import {
   StepResult,
   StepResponse,
   WorkflowResult,
-} from "../base/step-response";
+} from "@yieldstar/core";
 
 export function serialize(data: StepResponse): string {
   const replaceErrors = (key: string, value: any) => {

@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite";
-import type { Task } from "yieldstar";
+import type { Task } from "@yieldstar/core";
 import { TaskQueueDao } from "./dao/task-queue-dao";
 
 const VISIBILITY_WINDOW = 300000;

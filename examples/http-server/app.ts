@@ -8,6 +8,5 @@ try {
   const result = await sdk.triggerAndWait("simple-workflow");
   console.log(result);
 } catch (err) {
-  console.log("here");
   console.error(err);
 }

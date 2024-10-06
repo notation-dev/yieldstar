@@ -1,5 +1,5 @@
 import type { Logger } from "pino";
-import type { Task, WorkflowRunner } from "yieldstar";
+import type { Task, WorkflowRunner } from "@yieldstar/core";
 
 declare var self: Worker;
 

@@ -1,8 +1,6 @@
-export { createLocalSdk } from "./core/sdk-local";
-export { createHttpSdkFactory } from "./core/sdk-http";
-export { createWorkflow } from "./core/workflow";
-export { createWorkflowRouter } from "./core/router";
-export { RetryableError } from "./core/errors";
-export { WorkflowRunner } from "./core/workflow-runner";
-
-export type * from "./types";
+export { createLocalSdk } from "./exports/sdk-local";
+export { createHttpSdkFactory } from "./exports/sdk-http";
+export { createWorkflowRouter } from "./exports/router";
+export { RetryableError } from "./exports/errors";
+export { createWorkflow } from "./exports/workflow";
+export type { WorkflowFn } from "./exports/workflow";

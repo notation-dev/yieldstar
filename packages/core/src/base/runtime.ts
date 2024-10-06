@@ -1,4 +1,4 @@
-import type { WorkflowResult } from "./step-response";
+import type { WorkflowResult } from "./step";
 
 export type Task = { workflowId: string; executionId: string; params?: any };
 

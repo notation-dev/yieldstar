@@ -1,4 +1,4 @@
-import type { Task } from "yieldstar";
+import type { Task } from "@yieldstar/core";
 
 const VISIBILITY_WINDOW = 300000;
 

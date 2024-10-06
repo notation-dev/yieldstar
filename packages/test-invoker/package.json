@@ -4,13 +4,11 @@
   "main": "dist/index.js",
   "types": "src/index.ts",
   "scripts": {
-    "build": "bun build src/index.ts --outfile dist/index.js --target bun --external yieldstar* --external pino"
-  },
-  "dependencies": {
-    "yieldstar": "workspace:*",
-    "pino": "^9.4.0"
+    "build": "bun build src/index.ts --outfile dist/index.js --target bun --packages=external"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "pino": "^9.4.0",
+    "@types/bun": "latest",
+    "@yieldstar/core": "workspace:*"
   }
 }

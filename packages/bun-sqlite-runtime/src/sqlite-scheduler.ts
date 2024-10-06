@@ -1,8 +1,8 @@
-import type { Scheduler } from "yieldstar";
+import type { SchedulerClient } from "@yieldstar/core";
 import { SqliteTaskQueueClient } from "./sqlite-task-queue";
 import { SqliteTimersClient } from "./sqlite-timers";
 
-export class SqliteScheduler implements Scheduler {
+export class SqliteSchedulerClient implements SchedulerClient {
   private taskQueue: SqliteTaskQueueClient;
   private timersClient: SqliteTimersClient;
 

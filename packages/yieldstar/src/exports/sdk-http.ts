@@ -1,7 +1,7 @@
 import type {
   WorkflowRouter,
-  CompositeStepGeneratorReturnType,
-} from "../types";
+  WorkflowGeneratorReturnType,
+} from "@yieldstar/core";
 import { deserializeError, isErrorLike } from "serialize-error";
 import { randomUUID } from "node:crypto";
 
@@ -60,7 +60,7 @@ export function createHttpSdkFactory<W extends WorkflowRouter>(
           throw deserializeError(json);
         }
 
-        return json as Promise<CompositeStepGeneratorReturnType<W[K]>>;
+        return json as Promise<WorkflowGeneratorReturnType<W[K]>>;
       },
     };
   };

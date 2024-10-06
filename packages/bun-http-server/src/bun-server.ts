@@ -1,5 +1,5 @@
 import type { Logger } from "pino";
-import type { Task, WorkflowInvoker } from "yieldstar";
+import type { Task, WorkflowInvoker } from "@yieldstar/core";
 import { serializeError } from "serialize-error";
 
 export function createWorkflowHttpServer(params: {

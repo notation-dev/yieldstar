@@ -1,4 +1,4 @@
-export interface Scheduler {
+export interface SchedulerClient {
   requestWakeUp(params: {
     workflowId: string;
     executionId: string;

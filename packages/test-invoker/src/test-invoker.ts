@@ -1,5 +1,5 @@
 import type { Logger } from "pino";
-import type { Task, WorkflowInvoker, WorkflowRunner } from "yieldstar";
+import type { Task, WorkflowInvoker, WorkflowRunner } from "@yieldstar/core";
 import { EventEmitter } from "node:events";
 
 export function createWorkflowInvoker(params: {

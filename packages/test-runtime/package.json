@@ -4,9 +4,10 @@
   "main": "dist/index.js",
   "types": "src/index.ts",
   "scripts": {
-    "build": "bun build src/index.ts --outfile dist/index.js --target bun --external yieldstar*"
+    "build": "bun build src/index.ts --outfile dist/index.js --target bun --packages=external"
   },
-  "dependencies": {
-    "yieldstar": "workspace:*"
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@yieldstar/core": "workspace:*"
   }
 }

@@ -1,4 +1,4 @@
-import type { TaskProcessor } from "yieldstar";
+import type { TaskProcessor } from "@yieldstar/core";
 import { MemoryTaskQueue } from "./memory-task-queue";
 import { MemoryTimers } from "./memory-timers";
 

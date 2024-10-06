@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite";
-import type { Task } from "yieldstar";
+import type { Task } from "@yieldstar/core";
 
 class TaskRow {
   task_id!: number;

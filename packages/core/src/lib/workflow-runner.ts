@@ -1,29 +1,25 @@
 import type {
-  CompositeStepGenerator,
-  StepPersister,
+  WorkflowGenerator,
+  HeapClient,
+  SchedulerClient,
   TaskProcessor,
-} from "../types";
-import {
-  StepDelay,
-  WorkflowDelay,
-  WorkflowResult,
-} from "../base/step-response";
-import type { Scheduler } from "../base/scheduler";
+} from "..";
+import { StepDelay, WorkflowDelay, WorkflowResult } from "..";
 
 export class WorkflowRunner<
-  Router extends Record<string, CompositeStepGenerator<any>>
+  Router extends Record<string, WorkflowGenerator<any>>
 > {
-  private persister: StepPersister;
-  private scheduler: Scheduler;
+  private heapClient: HeapClient;
+  private schedulerClient: SchedulerClient;
   private router: Router;
 
   constructor(params: {
-    persister: StepPersister;
-    scheduler: Scheduler;
+    heapClient: HeapClient;
+    schedulerClient: SchedulerClient;
     router: Router;
   }) {
-    this.persister = params.persister;
-    this.scheduler = params.scheduler;
+    this.heapClient = params.heapClient;
+    this.schedulerClient = params.schedulerClient;
     this.router = params.router;
   }
 
@@ -36,14 +32,14 @@ export class WorkflowRunner<
     }
 
     try {
-      const response = await this.runCompositeSteps({ executionId, workflow });
+      const response = await this.runWorkflows({ executionId, workflow });
 
       switch (response.type) {
         case "workflow-result":
           return response;
 
         case "workflow-delay":
-          this.scheduler.requestWakeUp({
+          this.schedulerClient.requestWakeUp({
             workflowId,
             executionId,
             resumeIn: response.resumeIn,
@@ -56,14 +52,14 @@ export class WorkflowRunner<
     }
   };
 
-  private async runCompositeSteps<T>(params: {
+  private async runWorkflows<T>(params: {
     executionId: string;
-    workflow: CompositeStepGenerator<T>;
+    workflow: WorkflowGenerator<T>;
   }): Promise<WorkflowResult<T> | WorkflowDelay> {
     const { executionId, workflow } = params;
 
     const workflowIterator = workflow({
-      persister: this.persister,
+      heapClient: this.heapClient,
       executionId,
     });
 

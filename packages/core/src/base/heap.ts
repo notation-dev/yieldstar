@@ -1,13 +1,13 @@
-export type CacheResponse = {
+export type HeapRecord = {
   stepResponseJson: string;
   meta: { attempt: number; done: boolean };
 };
 
-export abstract class StepPersister {
+export abstract class HeapClient {
   abstract readStep(params: {
     executionId: string;
     stepKey: string;
-  }): Promise<CacheResponse | null>;
+  }): Promise<HeapRecord | null>;
   abstract writeStep(params: {
     executionId: string;
     stepKey: string;

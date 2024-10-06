@@ -1,5 +1,5 @@
 {
-  "name": "@yieldstar/bun-sqlite-runtime",
+  "name": "@yieldstar/core",
   "type": "module",
   "main": "dist/index.js",
   "types": "src/index.ts",
@@ -7,7 +7,9 @@
     "build": "bun build src/index.ts --outfile dist/index.js --target bun --packages=external"
   },
   "devDependencies": {
-    "@types/bun": "latest",
-    "@yieldstar/core": "workspace:*"
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
   }
 }

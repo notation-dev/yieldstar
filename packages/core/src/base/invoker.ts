@@ -3,5 +3,5 @@ import type { Task } from "./runtime";
 
 export type WorkflowInvoker = {
   workflowEndEmitter: EventEmitter;
-  execute(message: Task): Promise<void>;
+  execute(task: Task): Promise<void>;
 };

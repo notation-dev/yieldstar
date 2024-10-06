@@ -1,5 +1,5 @@
 import type { Logger } from "pino";
-import type { Task, WorkflowInvoker } from "yieldstar";
+import type { Task, WorkflowInvoker } from "@yieldstar/core";
 import { EventEmitter } from "node:events";
 
 export function createWorkflowInvoker(params: {
@@ -12,9 +12,16 @@ export function createWorkflowInvoker(params: {
     workflowEndEmitter,
     async execute(task: Task) {
       const { executionId } = task;
-      logger.info({ executionId }, "Starting worker");
       const worker = new Worker(workerPath);
+
+      logger.info({ executionId }, "Starting worker");
+
+      worker.onerror = (event) => {
+        logger.error(event.message);
+      };
+
       worker.postMessage(task);
+
       worker.onmessage = (event) => {
         switch (event.data.status) {
           case "completed":
@@ -28,6 +35,7 @@ export function createWorkflowInvoker(params: {
             logger.error(event.data.error);
             workflowEndEmitter.emit(executionId, event.data.error);
         }
+
         logger.info({ executionId }, "Terminating worker");
         worker.terminate();
       };

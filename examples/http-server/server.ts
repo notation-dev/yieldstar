@@ -1,6 +1,6 @@
 import pino from "pino";
 import { createWorkflowHttpServer } from "@yieldstar/bun-http-server";
-import { createWorkflowInvoker } from "../../packages/@yieldstar/bun-workers-invokers/src";
+import { createWorkflowInvoker } from "@yieldstar/bun-worker-invoker";
 import { sqliteEventLoop } from "./shared";
 
 const logger = pino();

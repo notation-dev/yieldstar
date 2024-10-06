@@ -3,6 +3,7 @@ export abstract class StepResponse {
 }
 
 export class StepKey extends StepResponse {
+  static type = "step-key";
   readonly type = "step-key";
   key: string | null;
   constructor(key: string | null) {
@@ -12,14 +13,17 @@ export class StepKey extends StepResponse {
 }
 
 export class StepCacheCheck extends StepResponse {
+  static type = "cache-check";
   readonly type = "cache-check";
 }
 
 export class StepInvalid extends StepResponse {
+  static type = "step-invalid";
   readonly type = "step-invalid";
 }
 
 export class StepResult extends StepResponse {
+  static type = "step-result";
   readonly type = "step-result";
   result: any;
   constructor(result: any) {
@@ -29,6 +33,7 @@ export class StepResult extends StepResponse {
 }
 
 export class WorkflowResult<T extends any> extends StepResponse {
+  static type = "workflow-result";
   readonly type = "workflow-result";
   result: T;
   constructor(result: T) {
@@ -38,6 +43,7 @@ export class WorkflowResult<T extends any> extends StepResponse {
 }
 
 export class WorkflowDelay extends StepResponse {
+  static type = "workflow-delay";
   readonly type = "workflow-delay";
   resumeIn: number;
   constructor(resumeIn: number) {
@@ -47,6 +53,7 @@ export class WorkflowDelay extends StepResponse {
 }
 
 export class WorkflowRestart extends StepResponse {
+  static type = "workflow-restart";
   readonly type = "workflow-restart";
   constructor() {
     super();
@@ -54,6 +61,7 @@ export class WorkflowRestart extends StepResponse {
 }
 
 export class StepError extends StepResponse {
+  static type = "step-error";
   readonly type = "step-error";
   err: any;
   maxAttempts: number;
@@ -78,6 +86,7 @@ export class StepError extends StepResponse {
 }
 
 export class StepDelay extends StepResponse {
+  static type = "step-delay";
   readonly type = "step-delay";
   resumeIn: number;
   constructor(resumeIn: number) {

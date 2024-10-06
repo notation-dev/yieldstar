@@ -1,12 +1,12 @@
-import type { CompositeStepGenerator } from "yieldstar";
+import type { WorkflowGenerator } from "@yieldstar/core";
 import type { Logger } from "pino";
 import pino from "pino";
-import { WorkflowRunner } from "yieldstar";
+import { WorkflowRunner } from "@yieldstar/core";
 import { createWorkflowInvoker } from "@yieldstar/test-invoker";
 import {
   MemoryEventLoop,
-  MemoryScheduler,
-  MemoryPersister,
+  MemorySchedulerClient,
+  MemoryHeapClient,
 } from "@yieldstar/test-runtime";
 import { createLocalSdk } from "yieldstar";
 
@@ -14,13 +14,13 @@ export function createWorkflowTestRunner(params?: { logger?: Logger }) {
   const logger = params?.logger ?? pino({ level: "error" });
 
   return {
-    async triggerAndWait<T>(workflow: CompositeStepGenerator<T>): Promise<T> {
+    async triggerAndWait<T>(workflow: WorkflowGenerator<T>): Promise<T> {
       const workflowRouter = { workflow };
       const memoryEventLoop = new MemoryEventLoop();
 
       const workflowRunner = new WorkflowRunner({
-        persister: new MemoryPersister(),
-        scheduler: new MemoryScheduler(memoryEventLoop),
+        heapClient: new MemoryHeapClient(),
+        schedulerClient: new MemorySchedulerClient(memoryEventLoop),
         router: workflowRouter,
       });
 

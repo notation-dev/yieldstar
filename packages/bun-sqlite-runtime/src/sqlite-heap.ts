@@ -1,8 +1,8 @@
-import type { StepPersister } from "yieldstar";
+import type { HeapClient } from "@yieldstar/core";
 import { Database } from "bun:sqlite";
 import { StepResponsesDao } from "./dao/step-response-dao";
 
-export class SqlitePersister implements StepPersister {
+export class SqliteHeapClient implements HeapClient {
   private stepResponsesDao: StepResponsesDao;
 
   constructor(db: Database) {

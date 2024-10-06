@@ -1,5 +1,5 @@
 {
-  "name": "@yieldstar/bun-sqlite-runtime",
+  "name": "@yieldstar/bun-worker-invoker",
   "type": "module",
   "main": "dist/index.js",
   "types": "src/index.ts",
@@ -7,6 +7,7 @@
     "build": "bun build src/index.ts --outfile dist/index.js --target bun --packages=external"
   },
   "devDependencies": {
+    "pino": "^9.4.0",
     "@types/bun": "latest",
     "@yieldstar/core": "workspace:*"
   }

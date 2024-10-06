@@ -1,6 +1,8 @@
-import type { CompositeStepGenerator, WorkflowFn } from "../types";
+import type { WorkflowGenerator } from "@yieldstar/core";
+import type { StepRunner } from "../internal/step-runner";
 import { isIterable } from "../internal/utils";
 import { deserialize, serialize } from "../internal/serialise";
+import { stepRunner } from "../internal/step-runner";
 import {
   StepResponse,
   StepKey,
@@ -10,20 +12,21 @@ import {
   StepCacheCheck,
   StepInvalid,
   WorkflowResult,
-} from "../base/step-response";
-import { stepRunner } from "./step-runner";
+} from "@yieldstar/core";
+
+export type WorkflowFn<T> = (step: StepRunner) => AsyncGenerator<any, T>;
 
 export function createWorkflow<T>(
   workflowFn: WorkflowFn<T>
-): CompositeStepGenerator<T> {
+): WorkflowGenerator<T> {
   /**
    * @description Advances workflow steps, handling any workflow logic, and
    * yielding control to a workflow executor to do async work
    * @yields {StepResponse}
    */
-  return async function* compositeStepGenerator(params) {
+  return async function* workflowGenerator(params) {
     const workflowIterator = workflowFn(stepRunner);
-    const { executionId, persister } = params;
+    const { executionId, heapClient } = params;
 
     let keylessStepIndex = -1;
     let iteratorResult: IteratorResult<any> | null = null;
@@ -67,7 +70,7 @@ export function createWorkflow<T>(
        * Using the StepKey, retrieve the previous response for this step from
        * the cache
        */
-      let cached = await persister.readStep({
+      let cached = await heapClient.readStep({
         executionId,
         stepKey,
       });
@@ -151,7 +154,7 @@ export function createWorkflow<T>(
        * If this step attempt is not already cached, cache it
        */
       if (!cached) {
-        await persister.writeStep({
+        await heapClient.writeStep({
           executionId,
           stepKey,
           stepAttempt,

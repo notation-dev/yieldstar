@@ -1,7 +1,7 @@
 import { Database } from "bun:sqlite";
 import { SqliteTaskQueue } from "./sqlite-task-queue";
 import { SqliteTimers } from "./sqlite-timers";
-import type { TaskProcessor } from "yieldstar";
+import type { TaskProcessor } from "@yieldstar/core";
 
 export class SqliteEventLoop {
   taskQueue: SqliteTaskQueue;
