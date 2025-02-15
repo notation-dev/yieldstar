@@ -7,7 +7,7 @@ import { createWorkflowTestRunner } from "@yieldstar/test-utils";
 const runner = createWorkflowTestRunner();
 
 // todo – use sqlite runtime
-test.skip("triggering a workflow", async () => {
+test("triggering a workflow", async () => {
   const mockWorkflowGenerator = mock<WorkflowFn<any>>(async function* (step) {
     yield* step.run(() => 1);
   });
@@ -17,6 +17,6 @@ test.skip("triggering a workflow", async () => {
 
   await sleep(1);
 
-  expect(executionId).toBeDefined();
+  expect(result).toBeDefined();
   expect(mockWorkflowGenerator).toBeCalledTimes(1);
 });
