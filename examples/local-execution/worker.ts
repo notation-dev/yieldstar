@@ -2,7 +2,7 @@ import pino from "pino";
 import { WorkflowRunner } from "@yieldstar/core";
 import { createWorkflowWorker } from "@yieldstar/bun-worker-invoker";
 import {
-  SqliteScheduler,
+  SqliteSchedulerClient,
   SqliteHeapClient,
   SqliteTaskQueueClient,
   SqliteTimersClient,
@@ -11,7 +11,7 @@ import { runtimeDb, workflowRouter } from "./shared";
 
 const workflowRunner = new WorkflowRunner({
   heapClient: new SqliteHeapClient(runtimeDb),
-  schedulerClient: new SqliteScheduler({
+  schedulerClient: new SqliteSchedulerClient({
     taskQueueClient: new SqliteTaskQueueClient(runtimeDb),
     timersClient: new SqliteTimersClient(runtimeDb),
   }),
