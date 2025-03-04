@@ -1,8 +1,8 @@
-import type { StepRunner } from "yieldstar";
+import type { WorkflowFn } from "yieldstar";
 import { createWorkflow } from "yieldstar";
 
-type WorkflowFn<T> = (
-  step: StepRunner,
+type CustomWorkflowFn<T> = (
+  step: Parameters<WorkflowFn<T>>[0],
   waitForState: (s: string) => AsyncGenerator
 ) => AsyncGenerator<any, T>;
 
@@ -16,7 +16,7 @@ const waitForStateFactory = (step: any) =>
     });
   };
 
-const workflowFactory = (workflowFn: WorkflowFn<any>) => {
+const workflowFactory = (workflowFn: CustomWorkflowFn<any>) => {
   return createWorkflow(async function* (step) {
     const waitForState = waitForStateFactory(step);
     return yield* workflowFn(step, waitForState);
