@@ -17,7 +17,6 @@ export class StepResponsesDao {
   }
 
   setupDb() {
-    this.db.exec("PRAGMA journal_mode = WAL;");
     this.db.run(`
       CREATE TABLE IF NOT EXISTS step_responses (
         execution_id TEXT NOT NULL,
