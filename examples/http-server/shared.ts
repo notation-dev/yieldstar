@@ -8,6 +8,6 @@ export const workflowRouter = createWorkflowRouter({
   "dynamic-workflow": dynamicWorkflow,
 });
 
-export const runtimeDb = await createSqliteDb("./.db/http-server.sqlite");
+export const runtimeDb = createSqliteDb({ path: "./.db/http-server.sqlite" });
 
 export const sqliteEventLoop = new SqliteEventLoop(runtimeDb);
