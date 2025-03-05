@@ -1,4 +1,3 @@
-import { serializeError, deserializeError, isErrorLike } from "serialize-error";
 import {
   StepDelay,
   StepError,
@@ -6,8 +5,16 @@ import {
   StepResponse,
   WorkflowResult,
 } from "@yieldstar/core";
+import { isErrorLike, serializeError, deserializeError } from "serialize-error";
 
-export function serialize(data: StepResponse): string {
+export function errorWithOriginalStack(error: Error, fn: Function) {
+  const err = new Error(error.message);
+  Error.captureStackTrace(err, fn);
+  err.stack = error.stack;
+  throw err;
+}
+
+export function serializeStepResponse(data: StepResponse): string {
   const replaceErrors = (key: string, value: any) => {
     if (value instanceof Error) {
       return serializeError(value);
@@ -18,7 +25,7 @@ export function serialize(data: StepResponse): string {
   return JSON.stringify(data, replaceErrors);
 }
 
-export function deserialize(jsonString: string): StepResponse {
+export function deserializeStepResponse(jsonString: string): StepResponse {
   const reviveErrors = (key: string, value: any) => {
     if (isErrorLike(value)) {
       return deserializeError(value);

@@ -4,6 +4,7 @@ import type {
 } from "@yieldstar/core";
 import { deserializeError, isErrorLike } from "serialize-error";
 import { randomUUID } from "node:crypto";
+import { errorWithOriginalStack } from "../internal/serialise";
 
 export function createHttpSdkFactory<W extends WorkflowRouter>(
   workflowRouter: W
@@ -57,7 +58,10 @@ export function createHttpSdkFactory<W extends WorkflowRouter>(
         const json = await result.json();
 
         if (isErrorLike(json)) {
-          throw deserializeError(json);
+          throw errorWithOriginalStack(
+            deserializeError(json),
+            this.triggerAndWait
+          );
         }
 
         return json as Promise<WorkflowGeneratorReturnType<W[K]>>;

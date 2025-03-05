@@ -1,7 +1,10 @@
 import type { WorkflowGenerator } from "@yieldstar/core";
 import type { StepRunner } from "../internal/step-runner";
 import { isIterable } from "../internal/utils";
-import { deserialize, serialize } from "../internal/serialise";
+import {
+  deserializeStepResponse,
+  serializeStepResponse,
+} from "../internal/serialise";
 import { stepRunner } from "../internal/step-runner";
 import {
   StepResponse,
@@ -115,7 +118,7 @@ export function createWorkflow<T>(
        */
       if (stepResponse instanceof StepCacheCheck) {
         const cachedResponse = cached
-          ? deserialize(cached.stepResponseJson)
+          ? deserializeStepResponse(cached.stepResponseJson)
           : null;
         iteratorResult = await workflowIterator.next(cachedResponse);
         stepResponse = iteratorResult.value;
@@ -159,7 +162,7 @@ export function createWorkflow<T>(
           stepKey,
           stepAttempt,
           stepDone: !needsRetry,
-          stepResponseJson: serialize(stepResponse),
+          stepResponseJson: serializeStepResponse(stepResponse),
         });
       }
 
