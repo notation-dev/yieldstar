@@ -1,6 +1,8 @@
 import type { Logger } from "pino";
 import type { Task, WorkflowInvoker } from "@yieldstar/core";
 import { EventEmitter } from "node:events";
+import { fileURLToPath } from "node:url";
+import { deserializeError } from "serialize-error";
 
 export function createWorkflowInvoker(params: {
   workerPath: string;
@@ -12,33 +14,38 @@ export function createWorkflowInvoker(params: {
     workflowEndEmitter,
     async execute(task: Task) {
       const { executionId } = task;
-      const worker = new Worker(workerPath);
 
-      logger.info({ executionId }, "Starting worker");
+      const filePath = workerPath.startsWith("file:")
+        ? fileURLToPath(workerPath)
+        : workerPath;
 
-      worker.onerror = (event) => {
-        logger.error(event.message);
-      };
+      const childProcess = Bun.spawn(["bun", filePath], {
+        ipc(message, childProcess) {
+          switch (message.status) {
+            case "completed":
+              const response = message.response;
+              if (response) {
+                workflowEndEmitter.emit(executionId, response.result);
+              }
+              break;
+            case "error":
+              workflowEndEmitter.emit(
+                executionId,
+                deserializeError(message.error)
+              );
+              logger.error({ executionId }, message.error);
+          }
 
-      worker.postMessage(task);
+          logger.info({ executionId }, "Terminating child process");
+          childProcess.kill();
+        },
+        stdout: "inherit",
+        stderr: "inherit",
+      });
 
-      worker.onmessage = (event) => {
-        switch (event.data.status) {
-          case "completed":
-            const response = event.data.response;
-            if (response) {
-              workflowEndEmitter.emit(executionId, response.result);
-            }
-            break;
-          case "error":
-            // todo: this is much less readable than console.error
-            logger.error(event.data.error);
-            workflowEndEmitter.emit(executionId, event.data.error);
-        }
+      logger.info({ executionId }, "Starting child process");
 
-        logger.info({ executionId }, "Terminating worker");
-        worker.terminate();
-      };
+      childProcess.send(task);
     },
   };
 }

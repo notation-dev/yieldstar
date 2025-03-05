@@ -1,7 +1,6 @@
 import type { Logger } from "pino";
 import type { Task, WorkflowRunner } from "@yieldstar/core";
-
-declare var self: Worker;
+import { serializeError } from "serialize-error";
 
 export function createWorkflowWorker(
   workflowRunner: WorkflowRunner<any>,
@@ -9,16 +8,14 @@ export function createWorkflowWorker(
 ) {
   return {
     listen() {
-      self.onmessage = async (event: { data: Task }) => {
-        const task = event.data;
+      process.on("message", async (task: Task) => {
         try {
-          // todo: pass logger in here
           const response = await workflowRunner.run(task);
-          self.postMessage({ status: "completed", response });
+          process.send!({ status: "completed", response });
         } catch (error: any) {
-          self.postMessage({ status: "error", error });
+          process.send!({ status: "error", error: serializeError(error) });
         }
-      };
+      });
     },
   };
 }
