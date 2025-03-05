@@ -1,15 +1,15 @@
 import { createWorkflow } from "yieldstar";
 
-export const pollingWorkflow = createWorkflow(async function* (step) {
+export const pollingWorkflow = createWorkflow(async function* (step, logger) {
   let num: number;
 
   yield* step.poll({ retryInterval: 1000, maxAttempts: 10 }, () => {
-    console.log("Polling");
+    logger.info("Polling");
     num = Math.random();
     return num > 0.75;
   });
 
   yield* step.run(() => {
-    console.log("Poll finished. Final result:", num);
+    logger.info("Poll finished. Final result:", num);
   });
 });

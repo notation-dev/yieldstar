@@ -22,6 +22,7 @@ export function createWorkflowTestRunner(params?: { logger?: Logger }) {
         heapClient: new MemoryHeapClient(),
         schedulerClient: new MemorySchedulerClient(memoryEventLoop),
         router: workflowRouter,
+        logger,
       });
 
       const invoker = createWorkflowInvoker({

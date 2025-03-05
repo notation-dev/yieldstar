@@ -7,7 +7,7 @@ const workflowPlan = [
   { type: "fail" },
 ] as const;
 
-export const dynamicWorkflow = createWorkflow(async function* (step) {
+export const dynamicWorkflow = createWorkflow(async function* (step, logger) {
   let lastResult: any;
   for (const action of workflowPlan) {
     switch (action.type) {
@@ -19,7 +19,7 @@ export const dynamicWorkflow = createWorkflow(async function* (step) {
         break;
       case "log":
         yield* step.run(() => {
-          console.log("Logging: ", lastResult);
+          logger.info("Logging: ", lastResult);
         });
         break;
       case "fail":

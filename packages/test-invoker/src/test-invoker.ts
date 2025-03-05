@@ -14,7 +14,7 @@ export function createWorkflowInvoker(params: {
       const { executionId } = task;
       logger.info({ executionId }, "Starting workflow exeuction");
       try {
-        const response = await runner.run(task);
+        const response = await runner.run(task, logger);
         if (response) {
           workflowEndEmitter.emit(executionId, response.result);
         }

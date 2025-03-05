@@ -10,7 +10,7 @@ export function createWorkflowWorker(
     listen() {
       process.on("message", async (task: Task) => {
         try {
-          const response = await workflowRunner.run(task);
+          const response = await workflowRunner.run(task, logger);
           process.send!({ status: "completed", response });
         } catch (error: any) {
           process.send!({ status: "error", error: serializeError(error) });

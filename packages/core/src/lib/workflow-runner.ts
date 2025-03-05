@@ -1,3 +1,4 @@
+import type { Logger } from "pino";
 import type {
   WorkflowGenerator,
   HeapClient,
@@ -17,13 +18,14 @@ export class WorkflowRunner<
     heapClient: HeapClient;
     schedulerClient: SchedulerClient;
     router: Router;
+    logger: Logger;
   }) {
     this.heapClient = params.heapClient;
     this.schedulerClient = params.schedulerClient;
     this.router = params.router;
   }
 
-  run: TaskProcessor = async (task) => {
+  run: TaskProcessor = async (task, logger) => {
     const { workflowId, executionId } = task;
     const workflow = this.router[workflowId];
 
@@ -32,7 +34,11 @@ export class WorkflowRunner<
     }
 
     try {
-      const response = await this.runWorkflows({ executionId, workflow });
+      const response = await this.runWorkflows({
+        executionId,
+        workflow,
+        logger,
+      });
 
       switch (response.type) {
         case "workflow-result":
@@ -55,12 +61,14 @@ export class WorkflowRunner<
   private async runWorkflows<T>(params: {
     executionId: string;
     workflow: WorkflowGenerator<T>;
+    logger: Logger;
   }): Promise<WorkflowResult<T> | WorkflowDelay> {
-    const { executionId, workflow } = params;
+    const { executionId, workflow, logger } = params;
 
     const workflowIterator = workflow({
       heapClient: this.heapClient,
       executionId,
+      logger,
     });
 
     const iteratorResult = await workflowIterator.next();

@@ -12,6 +12,7 @@
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "@yieldstar/core": "workspace:*"
+    "@yieldstar/core": "workspace:*",
+    "pino": "^9.6.0"
   }
 }
