@@ -6,6 +6,7 @@ import { deserializeError } from "serialize-error";
 
 export function createWorkflowInvoker(params: {
   workerPath: string;
+  executable?: boolean;
   logger: Logger;
 }): WorkflowInvoker {
   const workflowEndEmitter = new EventEmitter();
@@ -19,7 +20,9 @@ export function createWorkflowInvoker(params: {
         ? fileURLToPath(workerPath)
         : workerPath;
 
-      const childProcess = Bun.spawn(["bun", filePath], {
+      const args = params.executable ? [filePath] : ["bun", filePath];
+
+      const childProcess = Bun.spawn(args, {
         ipc(message, childProcess) {
           switch (message.status) {
             case "completed":

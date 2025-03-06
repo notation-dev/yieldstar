@@ -1,6 +1,6 @@
 {
   "name": "@yieldstar/bun-worker-invoker",
-  "version": "0.1.3",
+  "version": "0.1.4-alpha.1",
   "type": "module",
   "main": "dist/index.js",
   "types": "src/index.ts",
