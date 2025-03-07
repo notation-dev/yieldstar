@@ -1,6 +1,6 @@
-import { createWorkflow } from "yieldstar";
+import { workflow } from "yieldstar";
 
-export const loopWorkflow = createWorkflow(async function* (step, logger) {
+export const loopWorkflow = workflow(async function* (step, event, logger) {
   let numbers: number[] = [];
 
   let i = 0;

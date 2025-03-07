@@ -1,8 +1,8 @@
-import { createWorkflow } from "yieldstar";
+import { workflow } from "yieldstar";
 
 let executionIdx = -1;
 
-export const cacheKeysWorkflow = createWorkflow(async function* (step) {
+export const cacheKeysWorkflow = workflow(async function* (step) {
   executionIdx++;
   let volatileNum = 0;
   let stableNum = 0;

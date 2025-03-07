@@ -1,4 +1,4 @@
-import { createWorkflow } from "yieldstar";
+import { workflow } from "yieldstar";
 
 const workflowPlan = [
   { type: "get-number" },
@@ -7,7 +7,7 @@ const workflowPlan = [
   { type: "fail" },
 ] as const;
 
-export const dynamicWorkflow = createWorkflow(async function* (step, logger) {
+export const dynamicWorkflow = workflow(async function* (step, event, logger) {
   let lastResult: any;
   for (const action of workflowPlan) {
     switch (action.type) {

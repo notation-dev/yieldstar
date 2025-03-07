@@ -1,6 +1,6 @@
-import { createWorkflow } from "yieldstar";
+import { workflow } from "yieldstar";
 
-export const simpleWorkflow = createWorkflow(async function* (step, logger) {
+export const simpleWorkflow = workflow(async function* (step, event, logger) {
   let num = yield* step.run(() => {
     logger.info("In step 1");
     return 1;

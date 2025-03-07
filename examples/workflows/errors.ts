@@ -1,6 +1,6 @@
-import { createWorkflow, RetryableError } from "yieldstar";
+import { workflow, RetryableError } from "yieldstar";
 
-export const errorsWorkflow = createWorkflow(async function* (step, logger) {
+export const errorsWorkflow = workflow(async function* (step, event, logger) {
   let num = yield* step.run(() => {
     logger.info("In step 1");
     return 1;

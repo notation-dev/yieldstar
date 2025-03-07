@@ -2,11 +2,25 @@ import { workflow } from "yieldstar";
 import { createWorkflowTestRunner } from "@yieldstar/test-utils";
 import pino from "pino";
 
-// Create a logger
 const logger = pino({ level: "info" });
 
-// Define a workflow that uses parameters
-const userWorkflow = workflow(async function* (step, event, logger) {
+type Params = {
+  userId: string;
+  name: string;
+  role: string;
+  action: string;
+};
+
+type Result = {
+  success: boolean;
+  message: string;
+};
+
+const userWorkflow = workflow<Params, Result>(async function* (
+  step,
+  event,
+  logger
+) {
   const { params } = event;
 
   logger.info(`Starting workflow for user ${params?.userId || "unknown"}`);
