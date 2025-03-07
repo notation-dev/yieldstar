@@ -6,9 +6,7 @@ import { deserializeError, isErrorLike } from "serialize-error";
 import { randomUUID } from "node:crypto";
 import { errorWithOriginalStack } from "../internal/serialise";
 
-export function createHttpSdkFactory<W extends WorkflowRouter>(
-  workflowRouter: W
-) {
+export function createHttpSdkFactory<W extends WorkflowRouter>() {
   return (params: { host: string; port: number }) => {
     return {
       async trigger<K extends keyof W>(
