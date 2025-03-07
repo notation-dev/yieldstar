@@ -9,13 +9,16 @@ const runner = createWorkflowTestRunner();
 test("passing params to a workflow", async () => {
   const testParams = { foo: "bar", count: 42 };
   let capturedParams: any;
+  let capturedWorkflowId: string = "";
+  let capturedExecutionId: string = "";
 
   const mockWorkflowGenerator = mock<WorkflowFn<any>>(async function* (
     step,
-    event,
-    logger
+    event
   ) {
     capturedParams = event.params;
+    capturedWorkflowId = event.workflowId;
+    capturedExecutionId = event.executionId;
     return yield* step.run(() => event.params);
   });
 
@@ -29,18 +32,23 @@ test("passing params to a workflow", async () => {
   expect(result).toBeDefined();
   expect(mockWorkflowGenerator).toBeCalledTimes(1);
   expect(capturedParams).toEqual(testParams);
+  expect(capturedWorkflowId).toBe("workflow");
+  expect(capturedExecutionId).toBeDefined();
   expect(result).toEqual(testParams);
 });
 
 test("params are optional", async () => {
   let capturedParams: any;
+  let capturedWorkflowId: string = "";
+  let capturedExecutionId: string = "";
 
   const mockWorkflowGenerator = mock<WorkflowFn<any>>(async function* (
     step,
-    event,
-    logger
+    event
   ) {
     capturedParams = event.params;
+    capturedWorkflowId = event.workflowId;
+    capturedExecutionId = event.executionId;
     return yield* step.run(() => event.params || "default value");
   });
 
@@ -52,22 +60,7 @@ test("params are optional", async () => {
   expect(result).toBeDefined();
   expect(mockWorkflowGenerator).toBeCalledTimes(1);
   expect(capturedParams).toBeUndefined();
+  expect(capturedWorkflowId).toBe("workflow");
+  expect(capturedExecutionId).toBeDefined();
   expect(result).toBe("default value");
-});
-
-test("backward compatibility with createWorkflow", async () => {
-  const testParams = { foo: "bar", count: 42 };
-
-  // Using the old createWorkflow API
-  const oldWorkflow = workflow((step, logger) => {
-    return (async function* () {
-      return yield* step.run(() => "old workflow");
-    })();
-  });
-
-  const result = await runner.triggerAndWait(oldWorkflow, {
-    params: testParams,
-  });
-
-  expect(result).toBe("old workflow");
 });

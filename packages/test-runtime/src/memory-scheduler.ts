@@ -12,22 +12,14 @@ export class MemorySchedulerClient implements SchedulerClient {
     this.timers = eventLoop.timers;
   }
 
-  async requestWakeUp(params: {
-    workflowId: string;
-    executionId: string;
-    resumeIn?: number;
-    params?: any;
-  }) {
-    const { resumeIn, ...task } = params;
+  async requestWakeUp(
+    event: { workflowId: string; executionId: string; params?: any },
+    resumeIn?: number
+  ) {
     if (!resumeIn) {
-      this.taskQueue.add(task);
+      this.taskQueue.add(event);
       return;
     }
-    this.timers.startTimer({
-      duration: resumeIn,
-      workflowId: params.workflowId,
-      executionId: params.executionId,
-      params: params.params,
-    });
+    this.timers.startTimer(event, resumeIn);
   }
 }

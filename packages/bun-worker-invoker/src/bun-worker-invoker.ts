@@ -1,5 +1,5 @@
 import type { Logger } from "pino";
-import type { Task, WorkflowInvoker } from "@yieldstar/core";
+import type { ExecutionEvent, WorkflowInvoker } from "@yieldstar/core";
 import { EventEmitter } from "node:events";
 import { fileURLToPath } from "node:url";
 import { deserializeError } from "serialize-error";
@@ -13,7 +13,7 @@ export function createWorkflowInvoker(params: {
   const { logger, workerPath } = params;
   return {
     workflowEndEmitter,
-    async execute(task: Task) {
+    async execute(task: ExecutionEvent) {
       const { executionId } = task;
 
       const filePath = workerPath.startsWith("file:")

@@ -6,17 +6,19 @@ import { createWorkflowTestRunner } from "@yieldstar/test-utils";
 const runner = createWorkflowTestRunner();
 
 test("running sync workflows to completion", async () => {
-  const mockWorkflowGenerator = mock<WorkflowFn<any>>(async function* (step) {
-    let num = yield* step.run(() => {
-      return 1;
-    });
+  const mockWorkflowGenerator = mock<WorkflowFn<undefined, number>>(
+    async function* (step, event, logger) {
+      let num = yield* step.run(() => {
+        return 1;
+      });
 
-    num = yield* step.run(() => {
-      return Promise.resolve(num * 2);
-    });
+      num = yield* step.run(() => {
+        return Promise.resolve(num * 2);
+      });
 
-    return num;
-  });
+      return num;
+    }
+  );
 
   const workflow = createWorkflow(mockWorkflowGenerator);
 

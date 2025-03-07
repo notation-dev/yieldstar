@@ -8,11 +8,7 @@ const runner = createWorkflowTestRunner();
 
 // todo – use sqlite runtime
 test("triggering a workflow", async () => {
-  const mockWorkflowGenerator = mock<WorkflowFn<any>>(async function* (
-    step,
-    event,
-    logger
-  ) {
+  const mockWorkflowGenerator = mock<WorkflowFn<any>>(async function* (step) {
     return yield* step.run(() => 1);
   });
 

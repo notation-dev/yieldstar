@@ -14,22 +14,14 @@ export class SqliteSchedulerClient implements SchedulerClient {
     this.timersClient = params.timersClient;
   }
 
-  async requestWakeUp(params: {
-    workflowId: string;
-    executionId: string;
-    resumeIn?: number;
-    params?: any;
-  }) {
-    const { resumeIn, ...task } = params;
+  async requestWakeUp(
+    event: { workflowId: string; executionId: string; params?: any },
+    resumeIn?: number
+  ) {
     if (resumeIn) {
-      this.timersClient.createTimer({
-        delay: resumeIn,
-        workflowId: params.workflowId,
-        executionId: params.executionId,
-        params: params.params,
-      });
+      this.timersClient.createTimer(event, resumeIn);
     } else {
-      this.taskQueue.add(task);
+      this.taskQueue.add(event);
     }
   }
 }

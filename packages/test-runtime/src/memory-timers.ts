@@ -9,17 +9,15 @@ export class MemoryTimers {
     this.timers = new Set();
   }
 
-  startTimer(params: {
-    duration: number;
-    workflowId: string;
-    executionId: string;
-    params?: any;
-  }) {
-    const { duration, ...task } = params;
+  startTimer(
+    event: { workflowId: string; executionId: string; params?: any },
+    duration: number
+  ) {
     const timer = setTimeout(() => {
-      this.taskQueue.add(task);
+      this.taskQueue.add(event);
       this.timers.delete(timer);
     }, duration);
+
     this.timers.add(timer);
   }
 

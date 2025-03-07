@@ -1,4 +1,4 @@
-import type { WorkflowGenerator } from "@yieldstar/core";
+import type { WorkflowGenerator, TriggerEvent } from "@yieldstar/core";
 import type { Logger } from "pino";
 import pino from "pino";
 import { WorkflowRunner } from "@yieldstar/core";
@@ -10,13 +10,13 @@ import {
 } from "@yieldstar/test-runtime";
 import { createLocalSdk } from "yieldstar";
 
-export function createWorkflowTestRunner(params?: { logger?: Logger }) {
-  const logger = params?.logger ?? pino({ level: "error" });
+export function createWorkflowTestRunner(opts?: { logger?: Logger }) {
+  const logger = opts?.logger ?? pino({ level: "error" });
 
   return {
     async triggerAndWait<T>(
       workflow: WorkflowGenerator<T>,
-      options?: { params?: any }
+      event?: TriggerEvent
     ): Promise<T> {
       const workflowRouter = { workflow };
       const memoryEventLoop = new MemoryEventLoop(logger);

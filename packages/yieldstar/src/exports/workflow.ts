@@ -18,23 +18,30 @@ import {
   WorkflowResult,
 } from "@yieldstar/core";
 
-export type WorkflowFn<T> = (
+export type WorkflowFn<Params, Result> = (
   step: StepRunner,
-  event: { params?: any },
+  event: { workflowId: string; executionId: string; params?: Params },
   logger: Logger
-) => AsyncGenerator<any, T>;
+) => AsyncGenerator<any, Result>;
 
-export function workflow<T>(workflowFn: WorkflowFn<T>): WorkflowGenerator<T> {
+export function workflow<Params, Result>(
+  workflowFn: WorkflowFn<Params, Result>
+): WorkflowGenerator<Result> {
   /**
    * @description Advances workflow steps, handling any workflow logic, and
    * yielding control to a workflow executor to do async work
    * @yields {StepResponse}
    */
-  return async function* workflowGenerator(params) {
-    const { executionId, heapClient, logger, params: workflowParams } = params;
+  return async function* workflowGenerator({
+    workflowId,
+    executionId,
+    heapClient,
+    logger,
+    params,
+  }) {
     const workflowIterator = workflowFn(
       stepRunner,
-      { params: workflowParams },
+      { workflowId, executionId, params },
       logger
     );
 
@@ -229,9 +236,4 @@ export function workflow<T>(workflowFn: WorkflowFn<T>): WorkflowGenerator<T> {
   };
 }
 
-// Keep the old function for backward compatibility
-export function createWorkflow<T>(
-  workflowFn: (step: StepRunner, logger: Logger) => AsyncGenerator<any, T>
-): WorkflowGenerator<T> {
-  return workflow((step, event, logger) => workflowFn(step, logger));
-}
+export const createWorkflow = workflow;

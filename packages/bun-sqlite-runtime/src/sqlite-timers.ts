@@ -31,17 +31,15 @@ export class SqliteTimersClient {
     this.timersDao = new TimersDao(db);
   }
 
-  createTimer(params: {
-    delay: number;
-    workflowId: string;
-    executionId: string;
-    params?: any;
-  }) {
+  createTimer(
+    event: { executionId: string; workflowId: string; params?: any },
+    delay: number
+  ) {
     this.timersDao.insertTimer(
-      params.delay,
-      params.workflowId,
-      params.executionId,
-      params.params
+      delay,
+      event.workflowId,
+      event.executionId,
+      event.params
     );
   }
 }

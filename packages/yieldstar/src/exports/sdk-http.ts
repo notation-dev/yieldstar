@@ -1,31 +1,31 @@
 import type {
   WorkflowRouter,
   WorkflowGeneratorReturnType,
+  TriggerEvent,
 } from "@yieldstar/core";
 import { deserializeError, isErrorLike } from "serialize-error";
 import { randomUUID } from "node:crypto";
 import { errorWithOriginalStack } from "../internal/serialise";
 
 export function createHttpSdkFactory<W extends WorkflowRouter>() {
-  return (params: { host: string; port: number }) => {
+  return (opts: { host: string; port: number }) => {
     return {
       async trigger<K extends keyof W>(
         workflowId: K,
-        opts?: {
-          executionId?: string;
-          workflowParams?: Parameters<W[K]>[0] extends never
+        event?: TriggerEvent & {
+          params?: Parameters<W[K]>[0] extends never
             ? never
             : Parameters<W[K]>[0];
         }
       ) {
-        const { workflowParams } = opts ?? {};
-        const executionId = opts?.executionId ?? randomUUID();
-        const res = await fetch(`${params.host}:${params.port}/trigger`, {
+        const { params } = event ?? {};
+        const executionId = event?.executionId ?? randomUUID();
+        const res = await fetch(`${opts.host}:${opts.port}/trigger`, {
           method: "POST",
           body: JSON.stringify({
             executionId,
             workflowId,
-            params: workflowParams,
+            params: params,
           }),
         });
         if (res.ok) {
@@ -36,19 +36,18 @@ export function createHttpSdkFactory<W extends WorkflowRouter>() {
       },
       async triggerAndWait<K extends keyof W>(
         workflowId: K,
-        opts?: {
-          executionId?: string;
-          workflowParams?: Parameters<W[K]>[0] extends never
+        event?: TriggerEvent & {
+          params?: Parameters<W[K]>[0] extends never
             ? never
             : Parameters<W[K]>[0];
         }
       ) {
-        const { workflowParams } = opts ?? {};
-        const executionId = opts?.executionId ?? randomUUID();
+        const { params } = event ?? {};
+        const executionId = event?.executionId ?? randomUUID();
         // todo: add timeout and cancel request
-        await this.trigger(workflowId, { executionId, workflowParams });
+        await this.trigger(workflowId, { executionId, params });
         // todo: set up subscription first (maybe just use ws)
-        const result = await fetch(`${params.host}:${params.port}/events`, {
+        const result = await fetch(`${opts.host}:${opts.port}/events`, {
           method: "POST",
           body: JSON.stringify({ executionId }),
         });

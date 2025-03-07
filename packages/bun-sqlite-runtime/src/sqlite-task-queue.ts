@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite";
-import type { Task } from "@yieldstar/core";
+import type { ExecutionEvent } from "@yieldstar/core";
 import { TaskQueueDao } from "./dao/task-queue-dao";
 
 const VISIBILITY_WINDOW = 300000;
@@ -12,7 +12,7 @@ export class SqliteTaskQueue {
     this.taskQueueDao.setupDb();
   }
 
-  add(task: Task) {
+  add(task: ExecutionEvent) {
     this.taskQueueDao.insertTask(task);
   }
 
@@ -21,9 +21,8 @@ export class SqliteTaskQueue {
 
     if (!row) return undefined;
 
-    const now = Date.now();
-    const visibilityTimeout = now + VISIBILITY_WINDOW;
-
+    const visibilityTimeout =
+      Math.floor(Date.now() / 1000) + VISIBILITY_WINDOW / 1000;
     this.taskQueueDao.updateTaskVisibility(row.task_id, visibilityTimeout);
 
     return {
@@ -31,7 +30,6 @@ export class SqliteTaskQueue {
       workflowId: row.workflow_id,
       executionId: row.execution_id,
       params: row.params ? JSON.parse(row.params) : undefined,
-      visibilityTimeout,
     };
   }
 
@@ -50,10 +48,12 @@ export class SqliteTaskQueue {
 
 export class SqliteTaskQueueClient {
   private taskQueueDao: TaskQueueDao;
+
   constructor(db: Database) {
     this.taskQueueDao = new TaskQueueDao(db);
   }
-  add(task: Task) {
+
+  add(task: ExecutionEvent) {
     this.taskQueueDao.insertTask(task);
   }
 }

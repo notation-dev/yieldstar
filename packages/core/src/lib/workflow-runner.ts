@@ -4,6 +4,7 @@ import type {
   HeapClient,
   SchedulerClient,
   TaskProcessor,
+  ExecutionEvent,
 } from "..";
 import { StepDelay, WorkflowDelay, WorkflowResult } from "..";
 
@@ -25,8 +26,8 @@ export class WorkflowRunner<
     this.router = params.router;
   }
 
-  run: TaskProcessor = async (task, logger) => {
-    const { workflowId, executionId, params } = task;
+  run: TaskProcessor = async (event, logger) => {
+    const { workflowId, executionId, params } = event;
     const workflow = this.router[workflowId];
 
     if (!workflow) {
@@ -35,10 +36,9 @@ export class WorkflowRunner<
 
     try {
       const response = await this.runWorkflows({
-        executionId,
         workflow,
         logger,
-        params,
+        event,
       });
 
       switch (response.type) {
@@ -46,12 +46,10 @@ export class WorkflowRunner<
           return response;
 
         case "workflow-delay":
-          this.schedulerClient.requestWakeUp({
-            workflowId,
-            executionId,
-            resumeIn: response.resumeIn,
-            params,
-          });
+          this.schedulerClient.requestWakeUp(
+            { workflowId, executionId, params },
+            response.resumeIn
+          );
           break;
       }
     } catch (err) {
@@ -61,18 +59,18 @@ export class WorkflowRunner<
   };
 
   private async runWorkflows<T>(params: {
-    executionId: string;
     workflow: WorkflowGenerator<T>;
+    event: ExecutionEvent;
     logger: Logger;
-    params?: any;
   }): Promise<WorkflowResult<T> | WorkflowDelay> {
-    const { executionId, workflow, logger, params: workflowParams } = params;
+    const { workflow, event, logger } = params;
 
     const workflowIterator = workflow({
       heapClient: this.heapClient,
-      executionId,
+      workflowId: event.workflowId,
+      executionId: event.executionId,
+      params: event.params,
       logger,
-      params: workflowParams,
     });
 
     const iteratorResult = await workflowIterator.next();
