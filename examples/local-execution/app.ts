@@ -9,7 +9,7 @@ const workerPath = new URL("worker.ts", import.meta.url).href;
 export const invoker = createWorkflowInvoker({ workerPath, logger });
 export const sdk = createLocalSdk(workflowRouter, invoker);
 
-sqliteEventLoop.start({ onNewTask: invoker.execute });
+sqliteEventLoop.start({ onNewTask: invoker.execute, logger });
 
 try {
   const result = await sdk.triggerAndWait("simple-workflow");

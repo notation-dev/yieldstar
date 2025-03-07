@@ -17,5 +17,5 @@ const server = createWorkflowHttpServer({
   invoker,
 });
 
-sqliteEventLoop.start({ onNewTask: invoker.execute });
+sqliteEventLoop.start({ onNewTask: invoker.execute, logger });
 server.serve();

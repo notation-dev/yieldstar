@@ -9,16 +9,21 @@ import {
 } from "@yieldstar/bun-sqlite-runtime";
 import { runtimeDb, workflowRouter } from "./shared";
 
-const workflowRunner = new WorkflowRunner({
-  heapClient: new SqliteHeapClient(runtimeDb),
-  schedulerClient: new SqliteSchedulerClient({
-    taskQueueClient: new SqliteTaskQueueClient(runtimeDb),
-    timersClient: new SqliteTimersClient(runtimeDb),
-  }),
-  router: workflowRouter,
+const logger = pino();
+
+const heapClient = new SqliteHeapClient(runtimeDb);
+const schedulerClient = new SqliteSchedulerClient({
+  taskQueueClient: new SqliteTaskQueueClient(runtimeDb),
+  timersClient: new SqliteTimersClient(runtimeDb),
 });
 
-const logger = pino();
+const workflowRunner = new WorkflowRunner({
+  heapClient,
+  schedulerClient,
+  router: workflowRouter,
+  logger,
+});
+
 const worker = createWorkflowWorker(workflowRunner, logger);
 
 worker.listen();
