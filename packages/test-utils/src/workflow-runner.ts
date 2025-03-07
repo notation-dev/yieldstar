@@ -16,7 +16,7 @@ export function createWorkflowTestRunner(params?: { logger?: Logger }) {
   return {
     async triggerAndWait<T>(workflow: WorkflowGenerator<T>): Promise<T> {
       const workflowRouter = { workflow };
-      const memoryEventLoop = new MemoryEventLoop();
+      const memoryEventLoop = new MemoryEventLoop(logger);
 
       const workflowRunner = new WorkflowRunner({
         heapClient: new MemoryHeapClient(),
