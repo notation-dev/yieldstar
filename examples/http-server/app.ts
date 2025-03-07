@@ -1,7 +1,7 @@
 import { createHttpSdkFactory } from "yieldstar";
-import { workflowRouter } from "./shared";
+import type { WorkflowRouter } from "./shared";
 
-export const createSdk = createHttpSdkFactory(workflowRouter);
+export const createSdk = createHttpSdkFactory<WorkflowRouter>();
 const sdk = createSdk({ host: "localhost", port: 8080 });
 
 try {

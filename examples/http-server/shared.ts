@@ -11,3 +11,5 @@ export const workflowRouter = createWorkflowRouter({
 export const runtimeDb = createSqliteDb({ path: "./.db/http-server.sqlite" });
 
 export const sqliteEventLoop = new SqliteEventLoop(runtimeDb);
+
+export type WorkflowRouter = typeof workflowRouter;

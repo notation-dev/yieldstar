@@ -10,3 +10,5 @@ export const sqliteEventLoop = new SqliteEventLoop(runtimeDb);
 export const workflowRouter = createWorkflowRouter({
   "simple-workflow": simpleWorkflow,
 });
+
+export type WorkflowRouter = typeof workflowRouter;
