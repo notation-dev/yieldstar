@@ -13,6 +13,7 @@ export class MemoryTimers {
     duration: number;
     workflowId: string;
     executionId: string;
+    params?: any;
   }) {
     const { duration, ...task } = params;
     const timer = setTimeout(() => {

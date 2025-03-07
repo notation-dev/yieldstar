@@ -3,5 +3,6 @@ export interface SchedulerClient {
     workflowId: string;
     executionId: string;
     resumeIn: number;
+    params?: any;
   }): Promise<void>;
 }

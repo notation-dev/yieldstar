@@ -14,7 +14,10 @@ export function createWorkflowTestRunner(params?: { logger?: Logger }) {
   const logger = params?.logger ?? pino({ level: "error" });
 
   return {
-    async triggerAndWait<T>(workflow: WorkflowGenerator<T>): Promise<T> {
+    async triggerAndWait<T>(
+      workflow: WorkflowGenerator<T>,
+      options?: { params?: any }
+    ): Promise<T> {
       const workflowRouter = { workflow };
       const memoryEventLoop = new MemoryEventLoop(logger);
 
@@ -33,7 +36,9 @@ export function createWorkflowTestRunner(params?: { logger?: Logger }) {
       memoryEventLoop.start({ onNewTask: invoker.execute });
 
       const sdk = createLocalSdk<typeof workflowRouter>(invoker);
-      const result = await sdk.triggerAndWait("workflow");
+      const result = await sdk.triggerAndWait("workflow", {
+        workflowParams: options?.params,
+      });
 
       memoryEventLoop.stop();
       return result;

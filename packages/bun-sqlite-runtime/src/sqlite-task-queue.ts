@@ -30,6 +30,7 @@ export class SqliteTaskQueue {
       taskId: row.task_id,
       workflowId: row.workflow_id,
       executionId: row.execution_id,
+      params: row.params ? JSON.parse(row.params) : undefined,
       visibilityTimeout,
     };
   }

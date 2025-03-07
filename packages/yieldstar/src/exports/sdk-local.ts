@@ -6,6 +6,7 @@ import type {
 import { randomUUID } from "node:crypto";
 
 export function createLocalSdk<W extends WorkflowRouter>(
+  workflowRouter: W,
   invoker: WorkflowInvoker
 ) {
   return {

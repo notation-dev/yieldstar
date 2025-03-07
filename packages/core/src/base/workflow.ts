@@ -6,6 +6,7 @@ export type WorkflowGenerator<T = any> = (params: {
   executionId: string;
   heapClient: HeapClient;
   logger: Logger;
+  params?: any;
 }) => AsyncGenerator<StepResponse, WorkflowResult<T>, StepResponse>;
 
 export type WorkflowGeneratorReturnType<CG> = CG extends WorkflowGenerator<

@@ -18,6 +18,7 @@ export class SqliteSchedulerClient implements SchedulerClient {
     workflowId: string;
     executionId: string;
     resumeIn?: number;
+    params?: any;
   }) {
     const { resumeIn, ...task } = params;
     if (resumeIn) {
@@ -25,6 +26,7 @@ export class SqliteSchedulerClient implements SchedulerClient {
         delay: resumeIn,
         workflowId: params.workflowId,
         executionId: params.executionId,
+        params: params.params,
       });
     } else {
       this.taskQueue.add(task);

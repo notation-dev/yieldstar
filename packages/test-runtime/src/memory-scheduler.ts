@@ -16,6 +16,7 @@ export class MemorySchedulerClient implements SchedulerClient {
     workflowId: string;
     executionId: string;
     resumeIn?: number;
+    params?: any;
   }) {
     const { resumeIn, ...task } = params;
     if (!resumeIn) {
@@ -26,6 +27,7 @@ export class MemorySchedulerClient implements SchedulerClient {
       duration: resumeIn,
       workflowId: params.workflowId,
       executionId: params.executionId,
+      params: params.params,
     });
   }
 }

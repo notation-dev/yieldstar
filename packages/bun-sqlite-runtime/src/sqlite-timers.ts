@@ -18,6 +18,7 @@ export class SqliteTimers {
       this.taskQueue.add({
         workflowId: timer.workflow_id,
         executionId: timer.execution_id,
+        params: timer.params ? JSON.parse(timer.params) : undefined,
       });
     }
   }
@@ -34,11 +35,13 @@ export class SqliteTimersClient {
     delay: number;
     workflowId: string;
     executionId: string;
+    params?: any;
   }) {
     this.timersDao.insertTimer(
       params.delay,
       params.workflowId,
-      params.executionId
+      params.executionId,
+      params.params
     );
   }
 }

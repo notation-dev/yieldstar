@@ -20,20 +20,23 @@ import {
 
 export type WorkflowFn<T> = (
   step: StepRunner,
+  event: { params?: any },
   logger: Logger
 ) => AsyncGenerator<any, T>;
 
-export function createWorkflow<T>(
-  workflowFn: WorkflowFn<T>
-): WorkflowGenerator<T> {
+export function workflow<T>(workflowFn: WorkflowFn<T>): WorkflowGenerator<T> {
   /**
    * @description Advances workflow steps, handling any workflow logic, and
    * yielding control to a workflow executor to do async work
    * @yields {StepResponse}
    */
   return async function* workflowGenerator(params) {
-    const { executionId, heapClient, logger } = params;
-    const workflowIterator = workflowFn(stepRunner, logger);
+    const { executionId, heapClient, logger, params: workflowParams } = params;
+    const workflowIterator = workflowFn(
+      stepRunner,
+      { params: workflowParams },
+      logger
+    );
 
     let keylessStepIndex = -1;
     let iteratorResult: IteratorResult<any> | null = null;
@@ -224,4 +227,11 @@ export function createWorkflow<T>(
      */
     throw new Error("Critical error");
   };
+}
+
+// Keep the old function for backward compatibility
+export function createWorkflow<T>(
+  workflowFn: (step: StepRunner, logger: Logger) => AsyncGenerator<any, T>
+): WorkflowGenerator<T> {
+  return workflow((step, event, logger) => workflowFn(step, logger));
 }

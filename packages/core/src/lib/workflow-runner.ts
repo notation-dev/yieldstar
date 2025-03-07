@@ -26,7 +26,7 @@ export class WorkflowRunner<
   }
 
   run: TaskProcessor = async (task, logger) => {
-    const { workflowId, executionId } = task;
+    const { workflowId, executionId, params } = task;
     const workflow = this.router[workflowId];
 
     if (!workflow) {
@@ -38,6 +38,7 @@ export class WorkflowRunner<
         executionId,
         workflow,
         logger,
+        params,
       });
 
       switch (response.type) {
@@ -49,6 +50,7 @@ export class WorkflowRunner<
             workflowId,
             executionId,
             resumeIn: response.resumeIn,
+            params,
           });
           break;
       }
@@ -62,13 +64,15 @@ export class WorkflowRunner<
     executionId: string;
     workflow: WorkflowGenerator<T>;
     logger: Logger;
+    params?: any;
   }): Promise<WorkflowResult<T> | WorkflowDelay> {
-    const { executionId, workflow, logger } = params;
+    const { executionId, workflow, logger, params: workflowParams } = params;
 
     const workflowIterator = workflow({
       heapClient: this.heapClient,
       executionId,
       logger,
+      params: workflowParams,
     });
 
     const iteratorResult = await workflowIterator.next();

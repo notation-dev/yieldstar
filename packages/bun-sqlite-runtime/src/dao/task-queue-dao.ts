@@ -5,6 +5,7 @@ class TaskRow {
   task_id!: number;
   workflow_id!: string;
   execution_id!: string;
+  params?: string;
 }
 
 class CountRow {
@@ -24,6 +25,7 @@ export class TaskQueueDao {
         task_id INTEGER PRIMARY KEY AUTOINCREMENT,
         workflow_id TEXT NOT NULL,
         execution_id TEXT NOT NULL,
+        params TEXT,
         visible_from INTEGER DEFAULT 0
       );
     `);
@@ -31,13 +33,14 @@ export class TaskQueueDao {
 
   insertTask(task: Task) {
     const query = this.db.query(
-      `INSERT INTO task_queue (workflow_id, execution_id) 
-      VALUES ($workflowId, $executionId)`
+      `INSERT INTO task_queue (workflow_id, execution_id, params) 
+      VALUES ($workflowId, $executionId, $params)`
     );
 
     query.run({
       $workflowId: task.workflowId,
       $executionId: task.executionId,
+      $params: task.params ? JSON.stringify(task.params) : null,
     });
   }
 
