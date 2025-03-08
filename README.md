@@ -31,8 +31,8 @@ const myWorkflow = workflow(async function* (step, event, logger) {
 You can pass parameters to workflows when triggering them:
 
 ```ts
-// Trigger a workflow with parameters
-const result = await sdk.triggerAndWait("myWorkflow", {
+const result = await sdk.triggerAndWait({
+  workflowId: "myWorkflow",
   params: {
     userId: "123",
     action: "create",
