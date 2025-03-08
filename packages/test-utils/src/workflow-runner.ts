@@ -32,7 +32,7 @@ export function createWorkflowTestRunner(params?: { logger?: Logger }) {
 
       memoryEventLoop.start({ onNewTask: invoker.execute });
 
-      const sdk = createLocalSdk(workflowRouter, invoker);
+      const sdk = createLocalSdk<typeof workflowRouter>(invoker);
       const result = await sdk.triggerAndWait("workflow");
 
       memoryEventLoop.stop();
