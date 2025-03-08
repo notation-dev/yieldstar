@@ -1,3 +1,4 @@
+import type { ExecutionEvent } from "@yieldstar/core";
 import { Database } from "bun:sqlite";
 
 class TimerRow {
@@ -59,12 +60,7 @@ export class TimersDao {
     return count.count;
   }
 
-  insertTimer(
-    delay: number,
-    workflowId: string,
-    executionId: string,
-    params?: any
-  ) {
+  insertTimer(event: ExecutionEvent, delay: number) {
     const query = this.db.query(
       `INSERT INTO scheduled_tasks (delay, workflow_id, execution_id, created_at, params) 
       VALUES ($delay, $workflowId, $executionId, $createdAt, $params)`
@@ -72,10 +68,10 @@ export class TimersDao {
 
     query.run({
       $delay: delay,
-      $workflowId: workflowId,
-      $executionId: executionId,
+      $workflowId: event.workflowId,
+      $executionId: event.executionId,
       $createdAt: Date.now(),
-      $params: params ? JSON.stringify(params) : null,
+      $params: event.params ? JSON.stringify(event.params) : null,
     });
   }
 

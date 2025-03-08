@@ -27,11 +27,10 @@ export class WorkflowRunner<
   }
 
   run: EventProcessor<any, any> = async (event, logger) => {
-    const { workflowId, executionId, params } = event;
-    const workflow = this.router[workflowId];
+    const workflow = this.router[event.workflowId];
 
     if (!workflow) {
-      throw new Error(`No workflow registered for "${workflowId}"`);
+      throw new Error(`No workflow registered for "${event.workflowId}"`);
     }
 
     try {
@@ -46,10 +45,7 @@ export class WorkflowRunner<
           return response;
 
         case "workflow-delay":
-          this.schedulerClient.requestWakeUp(
-            { workflowId, executionId, params },
-            response.resumeIn
-          );
+          this.schedulerClient.requestWakeUp(event, response.resumeIn);
           break;
       }
     } catch (err) {

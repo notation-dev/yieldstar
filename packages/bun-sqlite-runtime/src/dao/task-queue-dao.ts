@@ -31,16 +31,16 @@ export class TaskQueueDao {
     `);
   }
 
-  insertTask(task: ExecutionEvent) {
+  insertTask(event: ExecutionEvent) {
     const query = this.db.prepare(
       `INSERT INTO task_queue (workflow_id, execution_id, params)
       VALUES ($workflowId, $executionId, $params)`
     );
 
     query.run({
-      $workflowId: task.workflowId,
-      $executionId: task.executionId,
-      $params: task.params ? JSON.stringify(task.params) : null,
+      $workflowId: event.workflowId,
+      $executionId: event.executionId,
+      $params: event.params ? JSON.stringify(event.params) : null,
     });
   }
 

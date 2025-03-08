@@ -21,14 +21,16 @@ export class SqliteTaskQueue {
 
     if (!row) return undefined;
 
-    const visibilityTimeout =
-      Math.floor(Date.now() / 1000) + VISIBILITY_WINDOW / 1000;
+    const now = Date.now();
+    const visibilityTimeout = now + VISIBILITY_WINDOW;
+
     this.taskQueueDao.updateTaskVisibility(row.task_id, visibilityTimeout);
 
     return {
       taskId: row.task_id,
       workflowId: row.workflow_id,
       executionId: row.execution_id,
+      visibilityTimeout,
       params: row.params ? JSON.parse(row.params) : undefined,
     };
   }

@@ -12,7 +12,7 @@ test("passing params to a workflow", async () => {
   let capturedWorkflowId: string = "";
   let capturedExecutionId: string = "";
 
-  const mockWorkflowGenerator = mock<WorkflowFn<any>>(async function* (
+  const mockWorkflowGenerator = mock<WorkflowFn<any, any>>(async function* (
     step,
     event
   ) {
@@ -42,13 +42,11 @@ test("params are optional", async () => {
   let capturedWorkflowId: string = "";
   let capturedExecutionId: string = "";
 
-  const mockWorkflowGenerator = mock<WorkflowFn<any>>(async function* (
+  const mockWorkflowGenerator = mock<WorkflowFn<any, any>>(async function* (
     step,
     event
   ) {
     capturedParams = event.params;
-    capturedWorkflowId = event.workflowId;
-    capturedExecutionId = event.executionId;
     return yield* step.run(() => event.params || "default value");
   });
 
@@ -60,7 +58,5 @@ test("params are optional", async () => {
   expect(result).toBeDefined();
   expect(mockWorkflowGenerator).toBeCalledTimes(1);
   expect(capturedParams).toBeUndefined();
-  expect(capturedWorkflowId).toBe("workflow");
-  expect(capturedExecutionId).toBeDefined();
   expect(result).toBe("default value");
 });

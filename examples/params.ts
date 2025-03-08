@@ -39,6 +39,11 @@ const userWorkflow = workflow<Params, Result>(async function* (
     };
   });
 
+  yield* step.poll({ retryInterval: 1000, maxAttempts: 5 }, async () => {
+    logger.info(`Polling user data for user ${params?.userId}`);
+    return false;
+  });
+
   // Step 2: Process user data based on action
   const result = yield* step.run("processUserData", async () => {
     const action = params?.action || "view";

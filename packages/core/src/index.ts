@@ -7,7 +7,7 @@ export type {
   WorkflowGeneratorReturnType,
   WorkflowRouter,
   EventOfWorkflow,
-  ParamsOfWorkflow,
+  EventParamsOfWorkflow,
 } from "./base/workflow";
 export type {
   TriggerEvent as TriggerEvent,
