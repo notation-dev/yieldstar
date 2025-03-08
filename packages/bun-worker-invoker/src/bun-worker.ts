@@ -1,5 +1,5 @@
 import type { Logger } from "pino";
-import type { Task, WorkflowRunner } from "@yieldstar/core";
+import type { ExecutionEvent, WorkflowRunner } from "@yieldstar/core";
 import { serializeError } from "serialize-error";
 
 export function createWorkflowWorker(
@@ -8,9 +8,9 @@ export function createWorkflowWorker(
 ) {
   return {
     listen() {
-      process.on("message", async (task: Task) => {
+      process.on("message", async (event: ExecutionEvent) => {
         try {
-          const response = await workflowRunner.run(task, logger);
+          const response = await workflowRunner.run(event, logger);
           process.send!({ status: "completed", response });
         } catch (error: any) {
           process.send!({ status: "error", error: serializeError(error) });

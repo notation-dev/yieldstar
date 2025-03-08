@@ -1,1 +1,1 @@
-export { createWorkflowTestRunner } from "./workflow-runner";
+export { createTestSdkFactory } from "./workflow-runner";

@@ -1,5 +1,5 @@
 import type { Logger } from "pino";
-import type { TaskProcessor } from "@yieldstar/core";
+import type { EventProcessor } from "@yieldstar/core";
 import { MemoryTaskQueue } from "./memory-task-queue";
 import { MemoryTimers } from "./memory-timers";
 
@@ -15,24 +15,29 @@ export class MemoryEventLoop {
     this.logger = logger;
   }
 
-  start(params: { onNewTask: TaskProcessor }) {
+  start(params: { onNewEvent: EventProcessor }) {
     this.isRunning = true;
-    this.loop(params.onNewTask);
+    this.loop(params.onNewEvent);
   }
 
   stop() {
     this.isRunning = false;
   }
 
-  private async loop(processTask: TaskProcessor) {
+  reset() {
+    this.taskQueue.clear();
+    this.timers.clear();
+  }
+
+  private async loop(processEvent: EventProcessor) {
     if (!this.isRunning) return;
     while (!this.taskQueue.isEmpty) {
       const task = this.taskQueue.process();
       if (task) {
-        await processTask(task, this.logger);
+        await processEvent(task.event, this.logger);
         this.taskQueue.remove(task.taskId);
       }
     }
-    setTimeout(() => this.loop(processTask), 0);
+    setTimeout(() => this.loop(processEvent), 0);
   }
 }

@@ -1,26 +1,29 @@
 import type { WorkflowFn } from "yieldstar";
 import { expect, test, mock } from "bun:test";
 import { createWorkflow } from "yieldstar";
-import { createWorkflowTestRunner } from "@yieldstar/test-utils";
+import { createTestSdkFactory } from "@yieldstar/test-utils";
 
-const runner = createWorkflowTestRunner();
+const createSdk = createTestSdkFactory();
 
 test("running sync workflows to completion", async () => {
-  const mockWorkflowGenerator = mock<WorkflowFn<any>>(async function* (step) {
-    let num = yield* step.run(() => {
-      return 1;
-    });
+  const mockWorkflowGenerator = mock<WorkflowFn<undefined, number>>(
+    async function* (step, event, logger) {
+      let num = yield* step.run(() => {
+        return 1;
+      });
 
-    num = yield* step.run(() => {
-      return Promise.resolve(num * 2);
-    });
+      num = yield* step.run(() => {
+        return Promise.resolve(num * 2);
+      });
 
-    return num;
-  });
+      return num;
+    }
+  );
 
   const workflow = createWorkflow(mockWorkflowGenerator);
+  const sdk = createSdk({ workflow });
 
-  await runner.triggerAndWait(workflow);
+  await sdk({ workflowId: "workflow" });
 
   expect(mockWorkflowGenerator).toBeCalledTimes(1);
 });
@@ -42,7 +45,8 @@ test("deferring workflow execution", async () => {
 
   const workflow = createWorkflow(mockWorkflowGenerator);
 
-  await runner.triggerAndWait(workflow);
+  const sdk = createSdk({ workflow });
+  await sdk({ workflowId: "workflow" });
 
   expect(mockWorkflowGenerator).toBeCalledTimes(2);
 });
@@ -62,7 +66,8 @@ test("resumes workflow after a set delay", async () => {
     return { firstExecutionTime, secondExecutionTime };
   });
 
-  const result = await runner.triggerAndWait(workflow);
+  const sdk = createSdk({ workflow });
+  const result = await sdk({ workflowId: "workflow" });
 
   const delay = result.secondExecutionTime - result.firstExecutionTime;
 

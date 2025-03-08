@@ -1,9 +1,8 @@
 import type { Logger } from "pino";
 import type { WorkflowResult } from "./step";
+import type { ExecutionEvent } from "./event";
 
-export type Task = { workflowId: string; executionId: string; params?: any };
-
-export type TaskProcessor = <T = any>(
-  task: Task,
+export type EventProcessor<EventParams = any, Result = any> = (
+  event: ExecutionEvent<EventParams>,
   logger: Logger
-) => Promise<void | WorkflowResult<T>>;
+) => Promise<void | WorkflowResult<Result>>;

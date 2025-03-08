@@ -1,6 +1,6 @@
-import { createWorkflow } from "yieldstar";
+import { workflow } from "yieldstar";
 
-export const pollingWorkflow = createWorkflow(async function* (step, logger) {
+export const pollingWorkflow = workflow(async function* (step, event, logger) {
   let num: number;
 
   yield* step.poll({ retryInterval: 1000, maxAttempts: 10 }, () => {

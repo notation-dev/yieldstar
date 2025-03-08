@@ -1,5 +1,5 @@
 import type { Logger } from "pino";
-import type { Task, WorkflowInvoker } from "@yieldstar/core";
+import type { ExecutionEvent, WorkflowInvoker } from "@yieldstar/core";
 import { serializeError } from "serialize-error";
 
 export function createWorkflowHttpServer(params: {
@@ -37,10 +37,10 @@ export function createWorkflowHttpServer(params: {
 
           if (url.pathname === "/trigger") {
             try {
-              const task = (await req.json()) as Task;
-              await invoker.execute(task);
+              const event = (await req.json()) as ExecutionEvent;
+              await invoker.execute(event);
               return Response.json(
-                { executionId: task.executionId },
+                { executionId: event.executionId },
                 { status: 202 }
               );
             } catch (err: any) {

@@ -3,12 +3,13 @@ import type {
   WorkflowGenerator,
   HeapClient,
   SchedulerClient,
-  TaskProcessor,
+  EventProcessor,
+  ExecutionEvent,
 } from "..";
 import { StepDelay, WorkflowDelay, WorkflowResult } from "..";
 
 export class WorkflowRunner<
-  Router extends Record<string, WorkflowGenerator<any>>
+  Router extends Record<string, WorkflowGenerator<any, any>>
 > {
   private heapClient: HeapClient;
   private schedulerClient: SchedulerClient;
@@ -25,19 +26,18 @@ export class WorkflowRunner<
     this.router = params.router;
   }
 
-  run: TaskProcessor = async (task, logger) => {
-    const { workflowId, executionId } = task;
-    const workflow = this.router[workflowId];
+  run: EventProcessor<any, any> = async (event, logger) => {
+    const workflow = this.router[event.workflowId];
 
     if (!workflow) {
-      throw new Error(`No workflow registered for "${workflowId}"`);
+      throw new Error(`No workflow registered for "${event.workflowId}"`);
     }
 
     try {
       const response = await this.runWorkflows({
-        executionId,
         workflow,
         logger,
+        event,
       });
 
       switch (response.type) {
@@ -45,11 +45,7 @@ export class WorkflowRunner<
           return response;
 
         case "workflow-delay":
-          this.schedulerClient.requestWakeUp({
-            workflowId,
-            executionId,
-            resumeIn: response.resumeIn,
-          });
+          this.schedulerClient.requestWakeUp(event, response.resumeIn);
           break;
       }
     } catch (err) {
@@ -58,16 +54,16 @@ export class WorkflowRunner<
     }
   };
 
-  private async runWorkflows<T>(params: {
-    executionId: string;
-    workflow: WorkflowGenerator<T>;
+  private async runWorkflows<EventParams, Result>(params: {
+    workflow: WorkflowGenerator<EventParams, Result>;
+    event: ExecutionEvent<EventParams>;
     logger: Logger;
-  }): Promise<WorkflowResult<T> | WorkflowDelay> {
-    const { executionId, workflow, logger } = params;
+  }): Promise<WorkflowResult<Result> | WorkflowDelay> {
+    const { workflow, event, logger } = params;
 
     const workflowIterator = workflow({
+      event,
       heapClient: this.heapClient,
-      executionId,
       logger,
     });
 
@@ -75,7 +71,7 @@ export class WorkflowRunner<
     const stageResponse = iteratorResult.value;
 
     if (iteratorResult.done) {
-      return stageResponse as WorkflowResult<T>;
+      return stageResponse as WorkflowResult<Result>;
     }
 
     if (stageResponse instanceof StepDelay) {

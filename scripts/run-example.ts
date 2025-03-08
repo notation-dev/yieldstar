@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import inquirer from "inquirer";
 
-const examplesDir = path.resolve(__dirname, "../examples");
+const examplesDir = path.resolve(__dirname, "../examples/workflows");
 
 function listFiles(dir: string): string[] {
   return fs
@@ -23,10 +23,6 @@ async function selectFile(files: string[]): Promise<string> {
   return answer.file;
 }
 
-async function runSelectedFile(filePath: string) {
-  await import(filePath);
-}
-
 async function main() {
   const files = listFiles(examplesDir);
   if (files.length === 0) {
@@ -37,7 +33,8 @@ async function main() {
   const selectedFile = await selectFile(files);
   const selectedFilePath = path.join(examplesDir, selectedFile);
 
-  await runSelectedFile(selectedFilePath);
+  const module = await import(selectedFilePath);
+  console.log(module);
 }
 
 main().catch(console.error);

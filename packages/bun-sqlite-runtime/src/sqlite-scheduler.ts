@@ -1,4 +1,4 @@
-import type { SchedulerClient } from "@yieldstar/core";
+import type { SchedulerClient, ExecutionEvent } from "@yieldstar/core";
 import { SqliteTaskQueueClient } from "./sqlite-task-queue";
 import { SqliteTimersClient } from "./sqlite-timers";
 
@@ -14,20 +14,11 @@ export class SqliteSchedulerClient implements SchedulerClient {
     this.timersClient = params.timersClient;
   }
 
-  async requestWakeUp(params: {
-    workflowId: string;
-    executionId: string;
-    resumeIn?: number;
-  }) {
-    const { resumeIn, ...task } = params;
+  async requestWakeUp(event: ExecutionEvent, resumeIn?: number) {
     if (resumeIn) {
-      this.timersClient.createTimer({
-        delay: resumeIn,
-        workflowId: params.workflowId,
-        executionId: params.executionId,
-      });
+      this.timersClient.createTimer(event, resumeIn);
     } else {
-      this.taskQueue.add(task);
+      this.taskQueue.add(event);
     }
   }
 }

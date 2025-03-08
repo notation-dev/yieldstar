@@ -1,3 +1,4 @@
+import type { ExecutionEvent } from "@yieldstar/core";
 import { Database } from "bun:sqlite";
 
 class TimerRow {
@@ -6,6 +7,7 @@ class TimerRow {
   workflow_id!: string;
   execution_id!: string;
   created_at!: number;
+  params?: string;
 }
 
 class CountRow {
@@ -27,7 +29,8 @@ export class TimersDao {
         delay INTEGER NOT NULL,
         workflow_id TEXT NOT NULL,
         execution_id TEXT NOT NULL,
-        created_at INTEGER NOT NULL
+        created_at INTEGER NOT NULL,
+        params TEXT
       );
     `);
   }
@@ -35,7 +38,7 @@ export class TimersDao {
   getExpiredTimers(): TimerRow[] {
     const query = this.db
       .query(
-        `SELECT id, delay, workflow_id, execution_id, created_at 
+        `SELECT id, delay, workflow_id, execution_id, created_at, params 
         FROM scheduled_tasks 
         WHERE (created_at + delay) < $currentTime`
       )
@@ -57,18 +60,18 @@ export class TimersDao {
     return count.count;
   }
 
-  insertTimer(delay: number, workflowId: string, executionId: string) {
-    const createdAt = Date.now();
-
+  insertTimer(event: ExecutionEvent, delay: number) {
     const query = this.db.query(
-      `INSERT INTO scheduled_tasks (delay, workflow_id, execution_id, created_at) 
-        VALUES ($delay, $workflowId, $executionId, $createdAt)`
+      `INSERT INTO scheduled_tasks (delay, workflow_id, execution_id, created_at, params) 
+      VALUES ($delay, $workflowId, $executionId, $createdAt, $params)`
     );
+
     query.run({
       $delay: delay,
-      $workflowId: workflowId,
-      $executionId: executionId,
-      $createdAt: createdAt,
+      $workflowId: event.workflowId,
+      $executionId: event.executionId,
+      $createdAt: Date.now(),
+      $params: event.params ? JSON.stringify(event.params) : null,
     });
   }
 

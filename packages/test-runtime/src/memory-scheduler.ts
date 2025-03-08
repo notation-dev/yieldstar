@@ -1,4 +1,4 @@
-import type { SchedulerClient } from "@yieldstar/core";
+import type { ExecutionEvent, SchedulerClient } from "@yieldstar/core";
 import type { MemoryTaskQueue } from "./memory-task-queue";
 import type { MemoryTimers } from "./memory-timers";
 import type { MemoryEventLoop } from "./memory-event-loop";
@@ -12,20 +12,11 @@ export class MemorySchedulerClient implements SchedulerClient {
     this.timers = eventLoop.timers;
   }
 
-  async requestWakeUp(params: {
-    workflowId: string;
-    executionId: string;
-    resumeIn?: number;
-  }) {
-    const { resumeIn, ...task } = params;
+  async requestWakeUp(event: ExecutionEvent, resumeIn?: number) {
     if (!resumeIn) {
-      this.taskQueue.add(task);
+      this.taskQueue.add(event);
       return;
     }
-    this.timers.startTimer({
-      duration: resumeIn,
-      workflowId: params.workflowId,
-      executionId: params.executionId,
-    });
+    this.timers.startTimer(event, resumeIn);
   }
 }

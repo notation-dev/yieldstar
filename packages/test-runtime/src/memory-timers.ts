@@ -1,3 +1,4 @@
+import type { ExecutionEvent } from "@yieldstar/core";
 import type { MemoryTaskQueue } from "./memory-task-queue";
 
 export class MemoryTimers {
@@ -9,20 +10,20 @@ export class MemoryTimers {
     this.timers = new Set();
   }
 
-  startTimer(params: {
-    duration: number;
-    workflowId: string;
-    executionId: string;
-  }) {
-    const { duration, ...task } = params;
+  startTimer(event: ExecutionEvent, duration: number) {
     const timer = setTimeout(() => {
-      this.taskQueue.add(task);
+      this.taskQueue.add(event);
       this.timers.delete(timer);
     }, duration);
+
     this.timers.add(timer);
   }
 
   get isEmpty(): boolean {
     return this.timers.size === 0;
+  }
+
+  clear() {
+    this.timers.clear();
   }
 }

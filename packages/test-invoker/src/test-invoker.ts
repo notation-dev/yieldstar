@@ -1,5 +1,9 @@
 import type { Logger } from "pino";
-import type { Task, WorkflowInvoker, WorkflowRunner } from "@yieldstar/core";
+import type {
+  ExecutionEvent,
+  WorkflowInvoker,
+  WorkflowRunner,
+} from "@yieldstar/core";
 import { EventEmitter } from "node:events";
 
 export function createWorkflowInvoker(params: {
@@ -10,15 +14,15 @@ export function createWorkflowInvoker(params: {
   const { logger, runner } = params;
   return {
     workflowEndEmitter,
-    async execute(task: Task) {
-      const { executionId } = task;
+    async execute(event: ExecutionEvent) {
+      const { executionId } = event;
       logger.info({ executionId }, "Starting workflow exeuction");
       try {
-        const response = await runner.run(task, logger);
+        const response = await runner.run(event, logger);
         if (response) {
           workflowEndEmitter.emit(executionId, response.result);
         }
-      } catch (err) {
+      } catch (err: any) {
         logger.error(err);
         workflowEndEmitter.emit(executionId, err);
       }

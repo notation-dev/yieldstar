@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import { createWorkflow } from "yieldstar";
-import { createWorkflowTestRunner } from "@yieldstar/test-utils";
+import { createTestSdkFactory } from "@yieldstar/test-utils";
 
-const runner = createWorkflowTestRunner();
+const createSdk = createTestSdkFactory();
 
 test("retrieving previous steps from cache", async () => {
   const returnedValues: number[] = [];
@@ -33,7 +33,8 @@ test("retrieving previous steps from cache", async () => {
     return num;
   });
 
-  await runner.triggerAndWait(workflow);
+  const sdk = createSdk({ workflow });
+  await sdk({ workflowId: "workflow" });
 
   expect(returnedValues).toEqual([1, 2]);
   expect(yieldedValues).toEqual([1, 1, 2, 1, 2]);

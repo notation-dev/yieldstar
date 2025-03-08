@@ -1,5 +1,5 @@
 import type { Logger } from "pino";
-import type { WorkflowGenerator } from "@yieldstar/core";
+import type { ExecutionEvent, WorkflowGenerator } from "@yieldstar/core";
 import type { StepRunner } from "../internal/step-runner";
 import { isIterable } from "../internal/utils";
 import {
@@ -18,22 +18,23 @@ import {
   WorkflowResult,
 } from "@yieldstar/core";
 
-export type WorkflowFn<T> = (
+export type WorkflowFn<EventParams, Result> = (
   step: StepRunner,
+  event: ExecutionEvent<EventParams>,
   logger: Logger
-) => AsyncGenerator<any, T>;
+) => AsyncGenerator<any, Result>;
 
-export function createWorkflow<T>(
-  workflowFn: WorkflowFn<T>
-): WorkflowGenerator<T> {
+export function workflow<EventParams = void, Result = void>(
+  workflowFn: WorkflowFn<EventParams, Result>
+): WorkflowGenerator<EventParams, Result> {
   /**
    * @description Advances workflow steps, handling any workflow logic, and
    * yielding control to a workflow executor to do async work
    * @yields {StepResponse}
    */
-  return async function* workflowGenerator(params) {
-    const { executionId, heapClient, logger } = params;
-    const workflowIterator = workflowFn(stepRunner, logger);
+  return async function* workflowGenerator({ event, heapClient, logger }) {
+    const workflowIterator = workflowFn(stepRunner, event, logger);
+    const { executionId } = event;
 
     let keylessStepIndex = -1;
     let iteratorResult: IteratorResult<any> | null = null;
@@ -225,3 +226,5 @@ export function createWorkflow<T>(
     throw new Error("Critical error");
   };
 }
+
+export const createWorkflow = workflow;

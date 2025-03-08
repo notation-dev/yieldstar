@@ -1,8 +1,8 @@
 import { expect, test, mock } from "bun:test";
 import { createWorkflow } from "yieldstar";
-import { createWorkflowTestRunner } from "@yieldstar/test-utils";
+import { createTestSdkFactory } from "@yieldstar/test-utils";
 
-const runner = createWorkflowTestRunner();
+const createSdk = createTestSdkFactory();
 
 test("step.run without cache keys", async () => {
   const mock1 = mock(() => 1);
@@ -20,7 +20,8 @@ test("step.run without cache keys", async () => {
     }
   });
 
-  await runner.triggerAndWait(workflow);
+  const sdk = createSdk({ workflow });
+  await sdk({ workflowId: "workflow" });
 
   expect(mock1).toBeCalledTimes(1);
   expect(mock2).not.toBeCalled();
@@ -42,7 +43,8 @@ test("step.run with cache keys", async () => {
     }
   });
 
-  await runner.triggerAndWait(workflow);
+  const sdk = createSdk({ workflow });
+  await sdk({ workflowId: "workflow" });
 
   expect(mock1).toBeCalledTimes(1);
   expect(mock2).toBeCalledTimes(1);
@@ -62,7 +64,8 @@ test("step.delay without cache keys", async () => {
 
   let startTime = Date.now();
 
-  await runner.triggerAndWait(workflow);
+  const sdk = createSdk({ workflow });
+  await sdk({ workflowId: "workflow" });
 
   let duration = Date.now() - startTime;
 
@@ -85,7 +88,8 @@ test("step.delay with cache keys", async () => {
 
   let startTime = Date.now();
 
-  await runner.triggerAndWait(workflow);
+  const sdk = createSdk({ workflow });
+  await sdk({ workflowId: "workflow" });
 
   let duration = Date.now() - startTime;
 
@@ -118,7 +122,8 @@ test("interlacing cache keys and cache indexes", async () => {
     return { stableNum, volatileNum };
   });
 
-  const result = await runner.triggerAndWait(workflow);
+  const sdk = createSdk({ workflow });
+  const result = await sdk({ workflowId: "workflow" });
 
   expect(result.stableNum).toBe(2);
   expect(result.volatileNum).toBe(1);

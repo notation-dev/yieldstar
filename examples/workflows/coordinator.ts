@@ -1,13 +1,14 @@
-import type { WorkflowFn } from "yieldstar";
-import { createWorkflow } from "yieldstar";
 import type { Logger } from "pino";
-type CustomWorkflowFn<T> = (
-  step: Parameters<WorkflowFn<T>>[0],
+import type { WorkflowFn } from "yieldstar";
+import { workflow } from "yieldstar";
+
+type CustomWorkflowFn<Params, Result> = (
+  step: Parameters<WorkflowFn<Params, Result>>[0],
   waitForState: (s: string) => AsyncGenerator
-) => AsyncGenerator<any, T>;
+) => AsyncGenerator<any, Result>;
 
 // essentially a custom step
-const waitForStateFactory = (step: any, logger: Logger) =>
+const waitForStateFactory = (step: any, event: any, logger: Logger) =>
   async function* (state: string) {
     yield* step.poll({ maxAttempts: 10, retryInterval: 1000 }, () => {
       logger.info("Polling...");
@@ -16,9 +17,11 @@ const waitForStateFactory = (step: any, logger: Logger) =>
     });
   };
 
-const workflowFactory = (workflowFn: CustomWorkflowFn<any>) => {
-  return createWorkflow(async function* (step, logger) {
-    const waitForState = waitForStateFactory(step, logger);
+const workflowFactory = <Params, Result>(
+  workflowFn: CustomWorkflowFn<Params, Result>
+) => {
+  return workflow(async function* (step, event, logger) {
+    const waitForState = waitForStateFactory(step, event, logger);
     return yield* workflowFn(step, waitForState);
   });
 };

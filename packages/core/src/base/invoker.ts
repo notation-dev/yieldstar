@@ -1,7 +1,7 @@
 import type { EventEmitter } from "node:events";
-import type { Task } from "./runtime";
+import type { ExecutionEvent } from "./event";
 
 export type WorkflowInvoker = {
   workflowEndEmitter: EventEmitter;
-  execute(task: Task): Promise<void>;
+  execute<EventParams>(event: ExecutionEvent<EventParams>): Promise<void>;
 };

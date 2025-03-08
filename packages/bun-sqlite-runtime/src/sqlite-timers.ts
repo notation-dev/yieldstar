@@ -1,6 +1,7 @@
 import { Database } from "bun:sqlite";
 import { TimersDao } from "./dao/timers-dao";
 import { SqliteTaskQueue } from "./sqlite-task-queue";
+import type { ExecutionEvent } from "@yieldstar/core";
 
 export class SqliteTimers {
   private timersDao: TimersDao;
@@ -18,6 +19,7 @@ export class SqliteTimers {
       this.taskQueue.add({
         workflowId: timer.workflow_id,
         executionId: timer.execution_id,
+        params: timer.params ? JSON.parse(timer.params) : undefined,
       });
     }
   }
@@ -30,15 +32,7 @@ export class SqliteTimersClient {
     this.timersDao = new TimersDao(db);
   }
 
-  createTimer(params: {
-    delay: number;
-    workflowId: string;
-    executionId: string;
-  }) {
-    this.timersDao.insertTimer(
-      params.delay,
-      params.workflowId,
-      params.executionId
-    );
+  createTimer(event: ExecutionEvent, delay: number) {
+    this.timersDao.insertTimer(event, delay);
   }
 }

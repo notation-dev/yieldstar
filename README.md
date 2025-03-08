@@ -3,9 +3,11 @@
 JavaScript-native distributed workflows that can be orchestrated by any backend.
 
 ```ts
-import { createWorkflow, RetryableError } from "yieldstar";
+import { workflow, RetryableError } from "yieldstar";
 
-const workflow = createWorkflow(async function* (step) {
+const myWorkflow = workflow(async function* (step, event, logger) {
+  const { params } = event; // Access workflow parameters
+
   let num = yield* step.run(() => {
     return fetch("https://randomnumber.com")
       .then((res) => res.json())
@@ -21,6 +23,33 @@ const workflow = createWorkflow(async function* (step) {
   });
 
   return num;
+});
+```
+
+## Passing Parameters to Workflows
+
+You can pass parameters to workflows when triggering them:
+
+```ts
+const result = await sdk.triggerAndWait({
+  workflowId: "myWorkflow",
+  params: {
+    userId: "123",
+    action: "create",
+  },
+});
+```
+
+Inside the workflow, you can access the parameters through the `event` object:
+
+```ts
+const myWorkflow = workflow(async function* (step, event, logger) {
+  const { params } = event;
+
+  logger.info(`Processing action ${params.action} for user ${params.userId}`);
+
+  // Use the parameters in your workflow logic
+  // ...
 });
 ```
 

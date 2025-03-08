@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import { createWorkflow } from "yieldstar";
-import { createWorkflowTestRunner } from "@yieldstar/test-utils";
+import { createTestSdkFactory } from "@yieldstar/test-utils";
 
-const runner = createWorkflowTestRunner();
+const createSdk = createTestSdkFactory();
 
 test("data flow between steps", async () => {
   const workflow = createWorkflow(async function* (step) {
@@ -17,7 +17,8 @@ test("data flow between steps", async () => {
     return num;
   });
 
-  const result = await runner.triggerAndWait(workflow);
+  const sdk = createSdk({ workflow });
+  const result = await sdk({ workflowId: "workflow" });
 
   expect(result).toBe(2);
 });
@@ -36,7 +37,8 @@ test("handling async steps", async () => {
     return num;
   });
 
-  const result = await runner.triggerAndWait(workflow);
+  const sdk = createSdk({ workflow });
 
+  const result = await sdk({ workflowId: "workflow" });
   expect(result).toBe(2);
 });

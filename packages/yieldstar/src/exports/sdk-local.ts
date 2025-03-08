@@ -1,47 +1,36 @@
 import type {
+  EventParamsOf,
   WorkflowRouter,
   WorkflowGeneratorReturnType,
   WorkflowInvoker,
+  TriggerEvent,
+  ExecutionEvent,
 } from "@yieldstar/core";
-import { randomUUID } from "node:crypto";
+import { randomUUIDv7 } from "bun";
 
 export function createLocalSdk<W extends WorkflowRouter>(
   invoker: WorkflowInvoker
 ) {
   return {
-    async trigger<K extends keyof W>(
-      workflowId: K,
-      opts?: {
-        executionId?: string;
-        workflowParams?: Parameters<W[K]>[0] extends never
-          ? never
-          : Parameters<W[K]>[0];
-      }
+    async trigger<K extends string & keyof W>(
+      event: TriggerEvent<K, EventParamsOf<W[K]>>
     ) {
-      const { workflowParams } = opts ?? {};
-      const executionId = opts?.executionId ?? randomUUID();
-      await invoker.execute({
-        executionId,
-        workflowId: workflowId as string,
-        params: workflowParams,
-      });
-      return { executionId };
+      const executionEvent: ExecutionEvent = {
+        executionId: event.executionId ?? randomUUIDv7(),
+        workflowId: event.workflowId,
+        params: event.params,
+      };
+      await invoker.execute(executionEvent);
+      return { executionId: executionEvent.executionId };
     },
-    async triggerAndWait<K extends keyof W>(
-      workflowId: K,
-      opts?: {
-        executionId?: string;
-        workflowParams?: Parameters<W[K]>[0] extends never
-          ? never
-          : Parameters<W[K]>[0];
-      }
+    async triggerAndWait<K extends string & keyof W>(
+      event: TriggerEvent<K, EventParamsOf<W[K]>>
     ) {
-      const { workflowParams } = opts ?? {};
-      const executionId = opts?.executionId ?? randomUUID();
+      const executionId = event.executionId ?? randomUUIDv7();
       const workflowCompletePromise = new Promise((resolve) => {
         invoker.workflowEndEmitter.once(executionId, resolve);
       });
-      await this.trigger(workflowId, { executionId, workflowParams });
+      await this.trigger({ ...event, executionId });
       return workflowCompletePromise as Promise<
         WorkflowGeneratorReturnType<W[K]>
       >;
