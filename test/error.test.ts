@@ -19,3 +19,10 @@ test("failing steps can be caught", async () => {
 
   expect(result).toBe(true);
 });
+
+test.skip("errors should be thrown by trigger", async () => {
+  const workflow = createWorkflow(async function* (step) {
+    throw new Error("Step error");
+  });
+  expect(() => runner.triggerAndWait(workflow)).toThrow();
+});
