@@ -5,7 +5,11 @@ export const createSdk = createHttpSdkFactory<WorkflowRouter>();
 const sdk = createSdk({ host: "localhost", port: 8080 });
 
 try {
-  const result = await sdk.triggerAndWait("simple-workflow");
+  const result = await sdk.triggerAndWait("dynamic-workflow", {
+    params: {
+      msg: "world",
+    },
+  });
   console.log(result);
 } catch (err) {
   console.error(err);

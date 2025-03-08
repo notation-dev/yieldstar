@@ -1,42 +1,29 @@
 import type { Logger } from "pino";
 import { HeapClient } from "./heap";
 import { StepResponse, WorkflowResult } from "./step";
+import type { ExecutionEvent } from "./event";
 
-export type WorkflowGeneratorParams = {
-  /**
-   * The ID of the workflow being executed.
-   */
-  workflowId: string;
-
-  /**
-   * The unique execution ID for this workflow run.
-   */
-  executionId: string;
-
-  /**
-   * The heap client for storing and retrieving workflow state.
-   */
+export type WorkflowGeneratorParams<EventParams> = {
+  event: ExecutionEvent<EventParams>;
   heapClient: HeapClient;
-
-  /**
-   * Logger instance for the workflow.
-   */
   logger: Logger;
-
-  /**
-   * Optional parameters passed to the workflow.
-   */
-  params?: any;
 };
 
-export type WorkflowGenerator<T = any> = (
-  params: WorkflowGeneratorParams
-) => AsyncGenerator<StepResponse, WorkflowResult<T>, StepResponse>;
+export type WorkflowGenerator<EventParams, Result> = (
+  genParams: WorkflowGeneratorParams<EventParams>
+) => AsyncGenerator<StepResponse, WorkflowResult<Result>, StepResponse>;
 
 export type WorkflowGeneratorReturnType<CG> = CG extends WorkflowGenerator<
-  infer T
+  infer EventParams,
+  infer Result
 >
-  ? T
+  ? Result
   : never;
 
-export type WorkflowRouter = Record<string, WorkflowGenerator>;
+export type WorkflowRouter = Record<string, WorkflowGenerator<any, any>>;
+
+export type EventOfWorkflow<W extends WorkflowGenerator<any, any>> =
+  Parameters<W>[0]["event"];
+
+export type ParamsOfWorkflow<W extends WorkflowGenerator<any, any>> =
+  Parameters<W>[0]["event"]["params"];

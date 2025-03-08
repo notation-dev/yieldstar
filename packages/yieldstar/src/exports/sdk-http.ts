@@ -1,4 +1,5 @@
 import type {
+  ParamsOfWorkflow,
   WorkflowRouter,
   WorkflowGeneratorReturnType,
   TriggerEvent,
@@ -12,11 +13,7 @@ export function createHttpSdkFactory<W extends WorkflowRouter>() {
     return {
       async trigger<K extends keyof W>(
         workflowId: K,
-        event?: TriggerEvent & {
-          params?: Parameters<W[K]>[0] extends never
-            ? never
-            : Parameters<W[K]>[0];
-        }
+        event?: TriggerEvent<ParamsOfWorkflow<W[K]>>
       ) {
         const { params } = event ?? {};
         const executionId = event?.executionId ?? randomUUID();
@@ -36,11 +33,7 @@ export function createHttpSdkFactory<W extends WorkflowRouter>() {
       },
       async triggerAndWait<K extends keyof W>(
         workflowId: K,
-        event?: TriggerEvent & {
-          params?: Parameters<W[K]>[0] extends never
-            ? never
-            : Parameters<W[K]>[0];
-        }
+        event?: TriggerEvent<ParamsOfWorkflow<W[K]>>
       ) {
         const { params } = event ?? {};
         const executionId = event?.executionId ?? randomUUID();

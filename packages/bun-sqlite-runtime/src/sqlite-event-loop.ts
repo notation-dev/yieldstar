@@ -1,7 +1,7 @@
 import { Database } from "bun:sqlite";
 import { SqliteTaskQueue } from "./sqlite-task-queue";
 import { SqliteTimers } from "./sqlite-timers";
-import type { TaskProcessor } from "@yieldstar/core";
+import type { EventProcessor } from "@yieldstar/core";
 import type { Logger } from "pino";
 
 export class SqliteEventLoop {
@@ -14,16 +14,16 @@ export class SqliteEventLoop {
     this.timers = new SqliteTimers({ db, taskQueue: this.taskQueue });
   }
 
-  start(params: { onNewTask: TaskProcessor; logger: Logger }) {
+  start(params: { onNewEvent: EventProcessor; logger: Logger }) {
     this.isRunning = true;
-    this.loop(params.onNewTask, params.logger);
+    this.loop(params.onNewEvent, params.logger);
   }
 
   stop() {
     this.isRunning = false;
   }
 
-  private async loop(processTask: TaskProcessor, logger: Logger) {
+  private async loop(processTask: EventProcessor, logger: Logger) {
     if (!this.isRunning) return;
 
     while (!this.taskQueue.isEmpty) {

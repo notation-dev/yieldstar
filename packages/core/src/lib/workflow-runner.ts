@@ -3,13 +3,13 @@ import type {
   WorkflowGenerator,
   HeapClient,
   SchedulerClient,
-  TaskProcessor,
+  EventProcessor,
   ExecutionEvent,
 } from "..";
 import { StepDelay, WorkflowDelay, WorkflowResult } from "..";
 
 export class WorkflowRunner<
-  Router extends Record<string, WorkflowGenerator<any>>
+  Router extends Record<string, WorkflowGenerator<any, any>>
 > {
   private heapClient: HeapClient;
   private schedulerClient: SchedulerClient;
@@ -26,7 +26,7 @@ export class WorkflowRunner<
     this.router = params.router;
   }
 
-  run: TaskProcessor = async (event, logger) => {
+  run: EventProcessor<any, any> = async (event, logger) => {
     const { workflowId, executionId, params } = event;
     const workflow = this.router[workflowId];
 
@@ -58,18 +58,16 @@ export class WorkflowRunner<
     }
   };
 
-  private async runWorkflows<T>(params: {
-    workflow: WorkflowGenerator<T>;
-    event: ExecutionEvent;
+  private async runWorkflows<EventParams, Result>(params: {
+    workflow: WorkflowGenerator<EventParams, Result>;
+    event: ExecutionEvent<EventParams>;
     logger: Logger;
-  }): Promise<WorkflowResult<T> | WorkflowDelay> {
+  }): Promise<WorkflowResult<Result> | WorkflowDelay> {
     const { workflow, event, logger } = params;
 
     const workflowIterator = workflow({
+      event,
       heapClient: this.heapClient,
-      workflowId: event.workflowId,
-      executionId: event.executionId,
-      params: event.params,
       logger,
     });
 
@@ -77,7 +75,7 @@ export class WorkflowRunner<
     const stageResponse = iteratorResult.value;
 
     if (iteratorResult.done) {
-      return stageResponse as WorkflowResult<T>;
+      return stageResponse as WorkflowResult<Result>;
     }
 
     if (stageResponse instanceof StepDelay) {

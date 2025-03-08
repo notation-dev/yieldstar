@@ -1,9 +1,7 @@
 /**
  * The event object that a user passes when triggering a workflow.
  */
-export type TriggerEvent<
-  Params extends Record<string, unknown> = Record<string, unknown>
-> = {
+export type TriggerEvent<EventParams = any> = {
   /**
    * Optional execution ID for the workflow. If not provided, a random UUID will be generated.
    */
@@ -12,15 +10,13 @@ export type TriggerEvent<
   /**
    * Optional parameters to pass to the workflow.
    */
-  params?: Params;
+  params?: EventParams;
 };
 
 /**
  * The event object that a workflow receives when it is executed.
  */
-export type ExecutionEvent<
-  Params extends Record<string, unknown> = Record<string, unknown>
-> = {
+export type ExecutionEvent<EventParams = any> = {
   /**
    * The ID of the workflow to execute.
    */
@@ -34,5 +30,5 @@ export type ExecutionEvent<
   /**
    * Optional parameters passed to the workflow.
    */
-  params?: Params;
+  params: EventParams;
 };

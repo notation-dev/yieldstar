@@ -1,4 +1,5 @@
 import type {
+  ParamsOfWorkflow,
   WorkflowRouter,
   WorkflowGeneratorReturnType,
   WorkflowInvoker,
@@ -10,7 +11,10 @@ export function createLocalSdk<W extends WorkflowRouter>(
   invoker: WorkflowInvoker
 ) {
   return {
-    async trigger<K extends keyof W>(workflowId: K, event?: TriggerEvent) {
+    async trigger<K extends keyof W>(
+      workflowId: K,
+      event?: TriggerEvent<ParamsOfWorkflow<W[K]>>
+    ) {
       const executionId = event?.executionId ?? randomUUID();
       await invoker.execute({
         executionId,
@@ -21,7 +25,7 @@ export function createLocalSdk<W extends WorkflowRouter>(
     },
     async triggerAndWait<K extends keyof W>(
       workflowId: K,
-      event?: TriggerEvent
+      event?: TriggerEvent<ParamsOfWorkflow<W[K]>>
     ) {
       const executionId = event?.executionId ?? randomUUID();
       const workflowCompletePromise = new Promise((resolve) => {

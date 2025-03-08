@@ -1,5 +1,8 @@
 import type { ExecutionEvent } from "./event";
 
 export interface SchedulerClient {
-  requestWakeUp(params: ExecutionEvent, resumeIn?: number): Promise<void>;
+  requestWakeUp<EventParams>(
+    event: ExecutionEvent<EventParams>,
+    resumeIn?: number
+  ): Promise<void>;
 }
