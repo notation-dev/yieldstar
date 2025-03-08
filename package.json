@@ -9,7 +9,8 @@
     "build:watch": "bun run build --watch",
     "check": "bun --filter '*' check",
     "dev": "bun run build --watch & bun test --watch",
-    "start": "bun scripts/run-example.ts"
+    "start": "bun scripts/run-example.ts",
+    "version": "npm version --workspaces"
   },
   "devDependencies": {
     "@types/bun": "latest",
