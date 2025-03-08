@@ -24,6 +24,11 @@ export class MemoryEventLoop {
     this.isRunning = false;
   }
 
+  reset() {
+    this.taskQueue.clear();
+    this.timers.clear();
+  }
+
   private async loop(processEvent: EventProcessor) {
     if (!this.isRunning) return;
     while (!this.taskQueue.isEmpty) {

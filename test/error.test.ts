@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import { createWorkflow } from "yieldstar";
-import { createWorkflowTestRunner } from "@yieldstar/test-utils";
+import { createTestSdkFactory } from "@yieldstar/test-utils";
 
-const runner = createWorkflowTestRunner();
+const createSdk = createTestSdkFactory();
 
 test("failing steps can be caught", async () => {
   const workflow = createWorkflow(async function* (step) {
@@ -15,7 +15,8 @@ test("failing steps can be caught", async () => {
     }
   });
 
-  const result = await runner.triggerAndWait(workflow);
+  const sdk = createSdk({ workflow });
+  const result = await sdk({ workflowId: "workflow" });
 
   expect(result).toBe(true);
 });
@@ -24,5 +25,6 @@ test.skip("errors should be thrown by trigger", async () => {
   const workflow = createWorkflow(async function* (step) {
     throw new Error("Step error");
   });
-  expect(() => runner.triggerAndWait(workflow)).toThrow();
+  const sdk = createSdk({ workflow });
+  expect(() => sdk({ workflowId: "workflow" })).toThrow();
 });

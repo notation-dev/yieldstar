@@ -13,7 +13,10 @@ export const sdk = createLocalSdk<WorkflowRouter>(invoker);
 sqliteEventLoop.start({ onNewEvent: invoker.execute, logger });
 
 try {
-  const result = await sdk.triggerAndWait("simple-workflow");
+  const result = await sdk.triggerAndWait({
+    workflowId: "dynamic-workflow",
+    params: { msg: "hello" },
+  });
   console.log(result);
 } finally {
   sqliteEventLoop.stop();

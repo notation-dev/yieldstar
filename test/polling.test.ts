@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import { createWorkflow } from "yieldstar";
-import { createWorkflowTestRunner } from "@yieldstar/test-utils";
+import { createTestSdkFactory } from "@yieldstar/test-utils";
 
-const runner = createWorkflowTestRunner();
+const createSdk = createTestSdkFactory();
 
 test("poll retries when predicate fails", async () => {
   let runs: number = 0;
@@ -16,7 +16,8 @@ test("poll retries when predicate fails", async () => {
     } catch {}
   });
 
-  await runner.triggerAndWait(workflow);
+  const sdk = createSdk({ workflow });
+  await sdk({ workflowId: "workflow" });
 
   expect(runs).toBe(10);
 });
@@ -31,7 +32,8 @@ test("poll resolves when predicate passes", async () => {
     });
   });
 
-  await runner.triggerAndWait(workflow);
+  const sdk = createSdk({ workflow });
+  await sdk({ workflowId: "workflow" });
 
   expect(runs).toBe(1);
 });
@@ -48,7 +50,8 @@ test("poll fails if a regular error is thrown", async () => {
     } catch {}
   });
 
-  await runner.triggerAndWait(workflow);
+  const sdk = createSdk({ workflow });
+  await sdk({ workflowId: "workflow" });
 
   expect(runs).toBe(1);
 });

@@ -24,7 +24,7 @@ export type WorkflowFn<EventParams, Result> = (
   logger: Logger
 ) => AsyncGenerator<any, Result>;
 
-export function workflow<EventParams, Result>(
+export function workflow<EventParams = void, Result = void>(
   workflowFn: WorkflowFn<EventParams, Result>
 ): WorkflowGenerator<EventParams, Result> {
   /**

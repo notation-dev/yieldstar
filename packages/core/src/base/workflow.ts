@@ -25,5 +25,5 @@ export type WorkflowRouter = Record<string, WorkflowGenerator<any, any>>;
 export type EventOfWorkflow<W extends WorkflowGenerator<any, any>> =
   Parameters<W>[0]["event"];
 
-export type EventParamsOfWorkflow<W extends WorkflowGenerator<any, any>> =
+export type EventParamsOf<W extends WorkflowGenerator<any, any>> =
   Parameters<W>[0]["event"]["params"];

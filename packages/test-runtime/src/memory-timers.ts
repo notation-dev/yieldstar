@@ -22,4 +22,8 @@ export class MemoryTimers {
   get isEmpty(): boolean {
     return this.timers.size === 0;
   }
+
+  clear() {
+    this.timers.clear();
+  }
 }

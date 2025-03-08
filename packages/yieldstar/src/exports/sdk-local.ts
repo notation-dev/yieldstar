@@ -1,38 +1,36 @@
 import type {
-  EventParamsOfWorkflow,
+  EventParamsOf,
   WorkflowRouter,
   WorkflowGeneratorReturnType,
   WorkflowInvoker,
   TriggerEvent,
   ExecutionEvent,
 } from "@yieldstar/core";
-import { randomUUID } from "node:crypto";
+import { randomUUIDv7 } from "bun";
 
 export function createLocalSdk<W extends WorkflowRouter>(
   invoker: WorkflowInvoker
 ) {
   return {
-    async trigger<K extends keyof W>(
-      workflowId: K,
-      triggerEvent?: TriggerEvent<EventParamsOfWorkflow<W[K]>>
+    async trigger<K extends string & keyof W>(
+      event: TriggerEvent<K, EventParamsOf<W[K]>>
     ) {
       const executionEvent: ExecutionEvent = {
-        executionId: triggerEvent?.executionId ?? randomUUID(),
-        workflowId: workflowId as string,
-        params: triggerEvent?.params,
+        executionId: event.executionId ?? randomUUIDv7(),
+        workflowId: event.workflowId,
+        params: event.params,
       };
       await invoker.execute(executionEvent);
       return { executionId: executionEvent.executionId };
     },
-    async triggerAndWait<K extends keyof W>(
-      workflowId: K,
-      triggerEvent?: TriggerEvent<EventParamsOfWorkflow<W[K]>>
+    async triggerAndWait<K extends string & keyof W>(
+      event: TriggerEvent<K, EventParamsOf<W[K]>>
     ) {
-      const executionId = triggerEvent?.executionId ?? randomUUID();
+      const executionId = event.executionId ?? randomUUIDv7();
       const workflowCompletePromise = new Promise((resolve) => {
         invoker.workflowEndEmitter.once(executionId, resolve);
       });
-      await this.trigger(workflowId, { ...triggerEvent, executionId });
+      await this.trigger({ ...event, executionId });
       return workflowCompletePromise as Promise<
         WorkflowGeneratorReturnType<W[K]>
       >;

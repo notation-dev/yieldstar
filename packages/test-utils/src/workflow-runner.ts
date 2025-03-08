@@ -1,8 +1,8 @@
 import type {
-  WorkflowGenerator,
+  WorkflowRouter,
   TriggerEvent,
   WorkflowGeneratorReturnType,
-  EventParamsOfWorkflow,
+  EventParamsOf,
 } from "@yieldstar/core";
 import type { Logger } from "pino";
 import pino from "pino";
@@ -15,37 +15,39 @@ import {
 } from "@yieldstar/test-runtime";
 import { createLocalSdk } from "yieldstar";
 
-export function createWorkflowTestRunner(params?: { logger?: Logger }) {
+export function createTestSdkFactory(params?: { logger?: Logger }) {
   const logger = params?.logger ?? pino({ level: "error" });
 
-  return {
-    async triggerAndWait<Workflow extends WorkflowGenerator<any, any>>(
-      workflow: Workflow,
-      event?: TriggerEvent<EventParamsOfWorkflow<Workflow>>
-    ): Promise<WorkflowGeneratorReturnType<Workflow>> {
-      const workflowRouter = { workflow };
-      const memoryEventLoop = new MemoryEventLoop(logger);
+  return <W extends WorkflowRouter>(workflowRouter: W) => {
+    const memoryEventLoop = new MemoryEventLoop(logger);
 
-      const workflowRunner = new WorkflowRunner({
-        heapClient: new MemoryHeapClient(),
-        schedulerClient: new MemorySchedulerClient(memoryEventLoop),
-        router: workflowRouter,
-        logger,
-      });
+    const workflowRunner = new WorkflowRunner({
+      heapClient: new MemoryHeapClient(),
+      schedulerClient: new MemorySchedulerClient(memoryEventLoop),
+      router: workflowRouter,
+      logger,
+    });
 
-      const invoker = createWorkflowInvoker({
-        runner: workflowRunner,
-        logger,
-      });
+    const invoker = createWorkflowInvoker({
+      runner: workflowRunner,
+      logger,
+    });
 
+    return async <
+      K extends keyof W & string,
+      EventParams = EventParamsOf<W[K]>
+    >(
+      event: TriggerEvent<"workflow", EventParams>
+    ): Promise<WorkflowGeneratorReturnType<W["workflow"]>> => {
       memoryEventLoop.start({ onNewEvent: invoker.execute });
 
       const sdk = createLocalSdk<typeof workflowRouter>(invoker);
-      const result = await sdk.triggerAndWait("workflow", event);
+      const result = await sdk.triggerAndWait(event);
 
       memoryEventLoop.stop();
+      memoryEventLoop.reset();
 
       return result;
-    },
+    };
   };
 }

@@ -41,6 +41,10 @@ export class MemoryTaskQueue {
     }
   }
 
+  clear() {
+    this.queue = [];
+  }
+
   private get visibleQueue() {
     return this.queue.filter((t) => t.visibleFrom < Date.now());
   }

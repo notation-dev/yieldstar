@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test";
 import { createWorkflow, RetryableError } from "yieldstar";
-import { createWorkflowTestRunner } from "@yieldstar/test-utils";
+import { createTestSdkFactory } from "@yieldstar/test-utils";
 import { pino } from "pino";
 
 const logger = pino({ level: "fatal" });
-const runner = createWorkflowTestRunner({ logger });
+const createSdk = createTestSdkFactory({ logger });
 
 test("retrying an error for maxAttempts", async () => {
   let runs = 0;
@@ -20,7 +20,8 @@ test("retrying an error for maxAttempts", async () => {
   });
 
   try {
-    await runner.triggerAndWait(workflow);
+    const sdk = createSdk({ workflow });
+    await sdk({ workflowId: "workflow" });
   } catch {
     expect(runs).toEqual(10);
   }
@@ -46,7 +47,8 @@ test("retrying an for maxAttempts (irrespective of number of times error is thro
   });
 
   try {
-    await runner.triggerAndWait(workflow);
+    const sdk = createSdk({ workflow });
+    await sdk({ workflowId: "workflow" });
   } catch {
     expect(runs).toEqual(5);
   }
@@ -76,17 +78,19 @@ test("retrying an for maxAttempts (irrespective of number of number of workflow 
     } catch {}
   });
 
-  await runner.triggerAndWait(workflow);
+  const sdk = createSdk({ workflow });
+  await sdk({ workflowId: "workflow" });
 
   expect(runs).toEqual(6);
 });
 
 test("retrying an error after retry interval", async () => {
   const executions: number[] = [];
+  let start = Date.now();
 
   const workflow = createWorkflow(async function* (step) {
     yield* step.run(async () => {
-      executions.push(Date.now());
+      executions.push((Date.now() - start) / 100);
       if (executions.length > 3) return;
       throw new RetryableError("Step error", {
         maxAttempts: 4,
@@ -95,5 +99,11 @@ test("retrying an error after retry interval", async () => {
     });
   });
 
-  await runner.triggerAndWait(workflow);
+  const sdk = createSdk({ workflow });
+  await sdk({ workflowId: "workflow" });
+
+  expect(executions[0]).toBeCloseTo(0, 1);
+  expect(executions[1]).toBeCloseTo(1, 1);
+  expect(executions[2]).toBeCloseTo(2, 1);
+  expect(executions[3]).toBeCloseTo(3, 1);
 });
