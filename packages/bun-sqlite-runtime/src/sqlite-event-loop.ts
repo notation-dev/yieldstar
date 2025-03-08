@@ -23,19 +23,19 @@ export class SqliteEventLoop {
     this.isRunning = false;
   }
 
-  private async loop(processTask: EventProcessor, logger: Logger) {
+  private async loop(processEvent: EventProcessor, logger: Logger) {
     if (!this.isRunning) return;
 
     while (!this.taskQueue.isEmpty) {
       const task = this.taskQueue.process();
       if (task) {
-        await processTask(task, logger);
+        await processEvent(task.event, logger);
         this.taskQueue.remove(task.taskId);
       }
     }
 
     this.timers.processTimers();
 
-    setTimeout(() => this.loop(processTask, logger), 10);
+    setTimeout(() => this.loop(processEvent, logger), 10);
   }
 }

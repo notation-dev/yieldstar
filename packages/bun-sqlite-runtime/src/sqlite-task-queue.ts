@@ -12,8 +12,8 @@ export class SqliteTaskQueue {
     this.taskQueueDao.setupDb();
   }
 
-  add(task: ExecutionEvent) {
-    this.taskQueueDao.insertTask(task);
+  add(event: ExecutionEvent) {
+    this.taskQueueDao.insertTask(event);
   }
 
   process() {
@@ -28,10 +28,12 @@ export class SqliteTaskQueue {
 
     return {
       taskId: row.task_id,
-      workflowId: row.workflow_id,
-      executionId: row.execution_id,
       visibilityTimeout,
-      params: row.params ? JSON.parse(row.params) : undefined,
+      event: {
+        workflowId: row.workflow_id,
+        executionId: row.execution_id,
+        params: row.params ? JSON.parse(row.params) : undefined,
+      },
     };
   }
 
@@ -55,7 +57,7 @@ export class SqliteTaskQueueClient {
     this.taskQueueDao = new TaskQueueDao(db);
   }
 
-  add(task: ExecutionEvent) {
-    this.taskQueueDao.insertTask(task);
+  add(event: ExecutionEvent) {
+    this.taskQueueDao.insertTask(event);
   }
 }

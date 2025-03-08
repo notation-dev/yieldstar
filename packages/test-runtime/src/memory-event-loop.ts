@@ -24,15 +24,15 @@ export class MemoryEventLoop {
     this.isRunning = false;
   }
 
-  private async loop(processTask: EventProcessor) {
+  private async loop(processEvent: EventProcessor) {
     if (!this.isRunning) return;
     while (!this.taskQueue.isEmpty) {
       const task = this.taskQueue.process();
       if (task) {
-        await processTask(task, this.logger);
+        await processEvent(task.event, this.logger);
         this.taskQueue.remove(task.taskId);
       }
     }
-    setTimeout(() => this.loop(processTask), 0);
+    setTimeout(() => this.loop(processEvent), 0);
   }
 }
