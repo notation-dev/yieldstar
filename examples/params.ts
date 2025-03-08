@@ -1,5 +1,5 @@
 import { workflow } from "yieldstar";
-import { createWorkflowTestRunner } from "@yieldstar/test-utils";
+import { createTestSdkFactory } from "@yieldstar/test-utils";
 import pino from "pino";
 
 const logger = pino({ level: "info" });
@@ -37,11 +37,6 @@ const userWorkflow = workflow<Params, Result>(async function* (
       name: params?.name || "Anonymous",
       role: params?.role || "user",
     };
-  });
-
-  yield* step.poll({ retryInterval: 1000, maxAttempts: 5 }, async () => {
-    logger.info(`Polling user data for user ${params?.userId}`);
-    return false;
   });
 
   // Step 2: Process user data based on action
@@ -82,12 +77,14 @@ const userWorkflow = workflow<Params, Result>(async function* (
 });
 
 // Create a test runner
-const runner = createWorkflowTestRunner({ logger });
+const createSdk = createTestSdkFactory({ logger });
 
 // Run the workflow with different parameters
 async function runExample() {
   // Example 1: Create a new user
-  const result1 = await runner.triggerAndWait(userWorkflow, {
+  const sdk = createSdk({ userWorkflow });
+  const result1 = await sdk.triggerAndWait({
+    workflowId: "userWorkflow",
     params: {
       userId: "123",
       name: "John Doe",
@@ -98,7 +95,8 @@ async function runExample() {
   console.log("Example 1 Result:", result1);
 
   // Example 2: Update an existing user
-  const result2 = await runner.triggerAndWait(userWorkflow, {
+  const result2 = await sdk.triggerAndWait({
+    workflowId: "userWorkflow",
     params: {
       userId: "456",
       name: "Jane Smith",
@@ -109,7 +107,10 @@ async function runExample() {
   console.log("Example 2 Result:", result2);
 
   // Example 3: No parameters (defaults will be used)
-  const result3 = await runner.triggerAndWait(userWorkflow);
+  const result3 = await sdk.triggerAndWait({
+    workflowId: "userWorkflow",
+    params: {},
+  });
   console.log("Example 3 Result:", result3);
 }
 

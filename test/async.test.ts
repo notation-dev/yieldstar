@@ -23,7 +23,7 @@ test("running sync workflows to completion", async () => {
   const workflow = createWorkflow(mockWorkflowGenerator);
   const sdk = createSdk({ workflow });
 
-  await sdk({ workflowId: "workflow" });
+  await sdk.triggerAndWait({ workflowId: "workflow" });
 
   expect(mockWorkflowGenerator).toBeCalledTimes(1);
 });
@@ -46,7 +46,7 @@ test("deferring workflow execution", async () => {
   const workflow = createWorkflow(mockWorkflowGenerator);
 
   const sdk = createSdk({ workflow });
-  await sdk({ workflowId: "workflow" });
+  await sdk.triggerAndWait({ workflowId: "workflow" });
 
   expect(mockWorkflowGenerator).toBeCalledTimes(2);
 });
@@ -67,7 +67,7 @@ test("resumes workflow after a set delay", async () => {
   });
 
   const sdk = createSdk({ workflow });
-  const result = await sdk({ workflowId: "workflow" });
+  const result = await sdk.triggerAndWait({ workflowId: "workflow" });
 
   const delay = result.secondExecutionTime - result.firstExecutionTime;
 

@@ -17,7 +17,7 @@ test("poll retries when predicate fails", async () => {
   });
 
   const sdk = createSdk({ workflow });
-  await sdk({ workflowId: "workflow" });
+  await sdk.triggerAndWait({ workflowId: "workflow" });
 
   expect(runs).toBe(10);
 });
@@ -33,7 +33,7 @@ test("poll resolves when predicate passes", async () => {
   });
 
   const sdk = createSdk({ workflow });
-  await sdk({ workflowId: "workflow" });
+  await sdk.triggerAndWait({ workflowId: "workflow" });
 
   expect(runs).toBe(1);
 });
@@ -51,7 +51,7 @@ test("poll fails if a regular error is thrown", async () => {
   });
 
   const sdk = createSdk({ workflow });
-  await sdk({ workflowId: "workflow" });
+  await sdk.triggerAndWait({ workflowId: "workflow" });
 
   expect(runs).toBe(1);
 });

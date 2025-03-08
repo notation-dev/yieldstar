@@ -34,7 +34,7 @@ test("retrieving previous steps from cache", async () => {
   });
 
   const sdk = createSdk({ workflow });
-  await sdk({ workflowId: "workflow" });
+  await sdk.triggerAndWait({ workflowId: "workflow" });
 
   expect(returnedValues).toEqual([1, 2]);
   expect(yieldedValues).toEqual([1, 1, 2, 1, 2]);

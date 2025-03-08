@@ -16,7 +16,7 @@ test("triggering a workflow", async () => {
 
   const testWorkflow = workflow(mockWorkflowGenerator);
   const sdk = createSdk({ workflow: testWorkflow });
-  const result = await sdk({ workflowId: "workflow" });
+  const result = await sdk.triggerAndWait({ workflowId: "workflow" });
 
   await sleep(1);
 

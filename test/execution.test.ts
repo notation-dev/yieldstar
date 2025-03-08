@@ -18,7 +18,7 @@ test("data flow between steps", async () => {
   });
 
   const sdk = createSdk({ workflow });
-  const result = await sdk({ workflowId: "workflow" });
+  const result = await sdk.triggerAndWait({ workflowId: "workflow" });
 
   expect(result).toBe(2);
 });
@@ -39,6 +39,6 @@ test("handling async steps", async () => {
 
   const sdk = createSdk({ workflow });
 
-  const result = await sdk({ workflowId: "workflow" });
+  const result = await sdk.triggerAndWait({ workflowId: "workflow" });
   expect(result).toBe(2);
 });

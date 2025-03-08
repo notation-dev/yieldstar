@@ -21,7 +21,7 @@ test("retrying an error for maxAttempts", async () => {
 
   try {
     const sdk = createSdk({ workflow });
-    await sdk({ workflowId: "workflow" });
+    await sdk.triggerAndWait({ workflowId: "workflow" });
   } catch {
     expect(runs).toEqual(10);
   }
@@ -48,7 +48,7 @@ test("retrying an for maxAttempts (irrespective of number of times error is thro
 
   try {
     const sdk = createSdk({ workflow });
-    await sdk({ workflowId: "workflow" });
+    await sdk.triggerAndWait({ workflowId: "workflow" });
   } catch {
     expect(runs).toEqual(5);
   }
@@ -79,7 +79,7 @@ test("retrying an for maxAttempts (irrespective of number of number of workflow 
   });
 
   const sdk = createSdk({ workflow });
-  await sdk({ workflowId: "workflow" });
+  await sdk.triggerAndWait({ workflowId: "workflow" });
 
   expect(runs).toEqual(6);
 });
@@ -100,7 +100,7 @@ test("retrying an error after retry interval", async () => {
   });
 
   const sdk = createSdk({ workflow });
-  await sdk({ workflowId: "workflow" });
+  await sdk.triggerAndWait({ workflowId: "workflow" });
 
   expect(executions[0]).toBeCloseTo(0, 1);
   expect(executions[1]).toBeCloseTo(1, 1);

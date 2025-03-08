@@ -20,7 +20,10 @@ test("passing params to a workflow", async () => {
 
   const testWorkflow = workflow(mockWorkflowGenerator);
   const sdk = createSdk({ workflow: testWorkflow });
-  const result = await sdk({ workflowId: "workflow", params: testParams });
+  const result = await sdk.triggerAndWait({
+    workflowId: "workflow",
+    params: testParams,
+  });
 
   await sleep(1);
 
@@ -43,7 +46,7 @@ test("params are optional", async () => {
 
   const testWorkflow = workflow(mockWorkflowGenerator);
   const sdk = createSdk({ workflow: testWorkflow });
-  const result = await sdk({ workflowId: "workflow" });
+  const result = await sdk.triggerAndWait({ workflowId: "workflow" });
 
   await sleep(1);
 

@@ -21,7 +21,7 @@ test("step.run without cache keys", async () => {
   });
 
   const sdk = createSdk({ workflow });
-  await sdk({ workflowId: "workflow" });
+  await sdk.triggerAndWait({ workflowId: "workflow" });
 
   expect(mock1).toBeCalledTimes(1);
   expect(mock2).not.toBeCalled();
@@ -44,7 +44,7 @@ test("step.run with cache keys", async () => {
   });
 
   const sdk = createSdk({ workflow });
-  await sdk({ workflowId: "workflow" });
+  await sdk.triggerAndWait({ workflowId: "workflow" });
 
   expect(mock1).toBeCalledTimes(1);
   expect(mock2).toBeCalledTimes(1);
@@ -65,7 +65,7 @@ test("step.delay without cache keys", async () => {
   let startTime = Date.now();
 
   const sdk = createSdk({ workflow });
-  await sdk({ workflowId: "workflow" });
+  await sdk.triggerAndWait({ workflowId: "workflow" });
 
   let duration = Date.now() - startTime;
 
@@ -89,7 +89,7 @@ test("step.delay with cache keys", async () => {
   let startTime = Date.now();
 
   const sdk = createSdk({ workflow });
-  await sdk({ workflowId: "workflow" });
+  await sdk.triggerAndWait({ workflowId: "workflow" });
 
   let duration = Date.now() - startTime;
 
@@ -123,7 +123,7 @@ test("interlacing cache keys and cache indexes", async () => {
   });
 
   const sdk = createSdk({ workflow });
-  const result = await sdk({ workflowId: "workflow" });
+  const result = await sdk.triggerAndWait({ workflowId: "workflow" });
 
   expect(result.stableNum).toBe(2);
   expect(result.volatileNum).toBe(1);

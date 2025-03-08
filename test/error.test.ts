@@ -16,7 +16,7 @@ test("failing steps can be caught", async () => {
   });
 
   const sdk = createSdk({ workflow });
-  const result = await sdk({ workflowId: "workflow" });
+  const result = await sdk.triggerAndWait({ workflowId: "workflow" });
 
   expect(result).toBe(true);
 });

@@ -33,21 +33,23 @@ export function createTestSdkFactory(params?: { logger?: Logger }) {
       logger,
     });
 
-    return async <
-      K extends keyof W & string,
-      EventParams = EventParamsOf<W[K]>
-    >(
-      event: TriggerEvent<"workflow", EventParams>
-    ): Promise<WorkflowGeneratorReturnType<W["workflow"]>> => {
-      memoryEventLoop.start({ onNewEvent: invoker.execute });
+    return {
+      async triggerAndWait<
+        K extends keyof W & string,
+        EventParams = EventParamsOf<W[K]>
+      >(
+        event: TriggerEvent<K, EventParams>
+      ): Promise<WorkflowGeneratorReturnType<W[K]>> {
+        memoryEventLoop.start({ onNewEvent: invoker.execute });
 
-      const sdk = createLocalSdk<typeof workflowRouter>(invoker);
-      const result = await sdk.triggerAndWait(event);
+        const sdk = createLocalSdk<typeof workflowRouter>(invoker);
+        const result = await sdk.triggerAndWait(event);
 
-      memoryEventLoop.stop();
-      memoryEventLoop.reset();
+        memoryEventLoop.stop();
+        memoryEventLoop.reset();
 
-      return result;
+        return result;
+      },
     };
   };
 }
