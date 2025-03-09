@@ -15,7 +15,7 @@
     "start": "bun scripts/run-example.ts",
     "version": "bunx bumpp",
     "prerelease": "bun i && bun run dts && bun run bundle",
-    "release": "find packages -name package.json -execdir bun publish \\;"
+    "release": "bin/release.sh"
   },
   "devDependencies": {
     "@types/bun": "latest",
