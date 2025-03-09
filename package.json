@@ -14,7 +14,7 @@
     "dev:test": "bun test --watch",
     "start": "bun scripts/run-example.ts",
     "version": "bunx bumpp --preid alpha -r",
-    "prerelease": "bun i && bun run dts && bun run bundle",
+    "prerelease": "pnpm i && bun run dts && bun run bundle",
     "release": "bin/release.sh"
   },
   "devDependencies": {

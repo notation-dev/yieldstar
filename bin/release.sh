@@ -10,11 +10,7 @@ npm logout
 npm login
 
 # Publish all @yieldstar packages
-for pkg in packages/*; do
-  if [[ "$pkg" != "packages/yieldstar" && -d "$pkg" ]]; then
-    bun publish --cwd="$pkg" $tag_flag
-  fi
-done
+pnpm publish --filter '@yieldstar/*' $tag_flag
 
 echo "\n\n=== Login as notation ===\n\n"
 
@@ -22,4 +18,4 @@ npm logout
 npm login
 
 # Publish unscoped yieldstar package (managed by @notation)
-bun publish --cwd="packages/yieldstar" $tag_flag
+pnpm publish --filter 'yieldstar' $tag_flag
