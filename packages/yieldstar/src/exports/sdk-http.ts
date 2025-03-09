@@ -1,20 +1,20 @@
 import type {
   EventParamsOf,
   WorkflowRouter,
-  WorkflowGeneratorReturnType,
   TriggerEvent,
   ExecutionEvent,
 } from "@yieldstar/core";
 import { randomUUIDv7 } from "bun";
 import { deserializeError, isErrorLike } from "serialize-error";
 import { errorWithOriginalStack } from "../internal/serialise";
+import type { TriggerAck, WorkflowResult } from "../internal/types";
 
 export function createHttpSdkFactory<W extends WorkflowRouter>() {
   return (params: { host: string; port: number }) => {
     return {
       async trigger<K extends string & keyof W>(
         event: TriggerEvent<K, EventParamsOf<W[K]>>
-      ) {
+      ): TriggerAck {
         const executionEvent: ExecutionEvent = {
           executionId: event?.executionId ?? randomUUIDv7(),
           workflowId: event?.workflowId as string,
@@ -34,7 +34,7 @@ export function createHttpSdkFactory<W extends WorkflowRouter>() {
       },
       async triggerAndWait<K extends string & keyof W>(
         event: TriggerEvent<K, EventParamsOf<W[K]>>
-      ) {
+      ): WorkflowResult<W, K> {
         // todo: add timeout and cancel request
         const { executionId } = await this.trigger(event);
 
@@ -53,7 +53,7 @@ export function createHttpSdkFactory<W extends WorkflowRouter>() {
           );
         }
 
-        return json as Promise<WorkflowGeneratorReturnType<W[K]>>;
+        return json as WorkflowResult<W, K>;
       },
     };
   };

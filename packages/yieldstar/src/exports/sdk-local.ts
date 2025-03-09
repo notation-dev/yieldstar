@@ -1,12 +1,12 @@
 import type {
   EventParamsOf,
   WorkflowRouter,
-  WorkflowGeneratorReturnType,
   WorkflowInvoker,
   TriggerEvent,
   ExecutionEvent,
 } from "@yieldstar/core";
 import { randomUUIDv7 } from "bun";
+import type { TriggerAck, WorkflowResult } from "../internal/types";
 
 export function createLocalSdk<W extends WorkflowRouter>(
   invoker: WorkflowInvoker
@@ -14,7 +14,7 @@ export function createLocalSdk<W extends WorkflowRouter>(
   return {
     async trigger<K extends string & keyof W>(
       event: TriggerEvent<K, EventParamsOf<W[K]>>
-    ) {
+    ): TriggerAck {
       const executionEvent: ExecutionEvent = {
         executionId: event.executionId ?? randomUUIDv7(),
         workflowId: event.workflowId,
@@ -25,15 +25,13 @@ export function createLocalSdk<W extends WorkflowRouter>(
     },
     async triggerAndWait<K extends string & keyof W>(
       event: TriggerEvent<K, EventParamsOf<W[K]>>
-    ) {
+    ): WorkflowResult<W, K> {
       const executionId = event.executionId ?? randomUUIDv7();
       const workflowCompletePromise = new Promise((resolve) => {
         invoker.workflowEndEmitter.once(executionId, resolve);
       });
       await this.trigger({ ...event, executionId });
-      return workflowCompletePromise as Promise<
-        WorkflowGeneratorReturnType<W[K]>
-      >;
+      return workflowCompletePromise as WorkflowResult<W, K>;
     },
   };
 }
