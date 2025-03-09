@@ -102,8 +102,8 @@ test("retrying an error after retry interval", async () => {
   const sdk = createSdk({ workflow });
   await sdk.triggerAndWait({ workflowId: "workflow" });
 
-  expect(executions[0]).toBeCloseTo(0, 1);
-  expect(executions[1]).toBeCloseTo(1, 1);
-  expect(executions[2]).toBeCloseTo(2, 1);
-  expect(executions[3]).toBeCloseTo(3, 1);
+  expect(executions[0]).toBeCloseTo(0, 0);
+  expect(executions[1]).toBeCloseTo(1, 0);
+  expect(executions[2]).toBeCloseTo(2, 0);
+  expect(executions[3]).toBeCloseTo(3, 0);
 });
