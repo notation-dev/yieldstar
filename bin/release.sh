@@ -5,7 +5,7 @@ tag_flag=""
 [[ "$version" == *alpha* ]] && tag_flag="--tag alpha"
 
 print_header() {
-  echo -e "\n\n=== $1 ===\n"
+  echo -e "\n\n===\n $1 \n===\n"
 }
 
 publish_scoped_packages() {
@@ -20,7 +20,8 @@ publish_unscoped_package() {
 
 switch_user() {
   local target_user=$1
-  print_header "Now switch to $target_user account and login again"
+  print_header "Now switch npm account to $target_user and log in again"
+  sleep 2
   npm logout
   npm login
 }
@@ -40,6 +41,7 @@ elif [ "$current_user" = "notation" ]; then
   
 else
   print_header "Log into npm as either yieldstar or notation"
+  sleep 2
   npm login
   
   # Re-run the script after login
