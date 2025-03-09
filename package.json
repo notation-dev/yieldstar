@@ -14,11 +14,11 @@
     "dev:test": "bun test --watch",
     "start": "bun scripts/run-example.ts",
     "version": "bunx bumpp --preid alpha -r",
-    "prerelease": "pnpm i && bun run dts && bun run bundle",
+    "prerelease": "pnpm i && bun dts && bun bundle",
     "release": "bin/release.sh"
   },
   "devDependencies": {
-    "@types/bun": "latest",
+    "@types/bun": "^1.2.4",
     "@types/inquirer": "^9.0.7",
     "concurrently": "^9.1.2",
     "inquirer": "^9.2.23"

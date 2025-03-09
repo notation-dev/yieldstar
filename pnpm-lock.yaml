@@ -13,8 +13,8 @@ importers:
         version: 5.6.2
     devDependencies:
       '@types/bun':
-        specifier: latest
-        version: 1.1.10
+        specifier: ^1.2.4
+        version: 1.2.4
       '@types/inquirer':
         specifier: ^9.0.7
         version: 9.0.7
@@ -32,8 +32,8 @@ importers:
         version: 11.0.3
     devDependencies:
       '@types/bun':
-        specifier: latest
-        version: 1.1.10
+        specifier: ^1.2.4
+        version: 1.2.4
       '@yieldstar/core':
         specifier: workspace:*
         version: link:../core
@@ -44,8 +44,8 @@ importers:
   packages/bun-sqlite-runtime:
     devDependencies:
       '@types/bun':
-        specifier: latest
-        version: 1.1.10
+        specifier: ^1.2.4
+        version: 1.2.4
       '@yieldstar/core':
         specifier: workspace:*
         version: link:../core
@@ -53,8 +53,8 @@ importers:
   packages/bun-worker-invoker:
     devDependencies:
       '@types/bun':
-        specifier: latest
-        version: 1.1.10
+        specifier: ^1.2.4
+        version: 1.2.4
       '@yieldstar/core':
         specifier: workspace:*
         version: link:../core
@@ -75,8 +75,8 @@ importers:
   packages/test-invoker:
     devDependencies:
       '@types/bun':
-        specifier: latest
-        version: 1.1.10
+        specifier: ^1.2.4
+        version: 1.2.4
       '@yieldstar/core':
         specifier: workspace:*
         version: link:../core
@@ -87,8 +87,8 @@ importers:
   packages/test-runtime:
     devDependencies:
       '@types/bun':
-        specifier: latest
-        version: 1.1.10
+        specifier: ^1.2.4
+        version: 1.2.4
       '@yieldstar/core':
         specifier: workspace:*
         version: link:../core
@@ -115,8 +115,8 @@ importers:
         version: 11.0.3
     devDependencies:
       '@types/bun':
-        specifier: latest
-        version: 1.1.10
+        specifier: ^1.2.4
+        version: 1.2.4
       '@yieldstar/core':
         specifier: workspace:*
         version: link:../core
@@ -132,6 +132,9 @@ packages:
 
   '@types/bun@1.1.10':
     resolution: {integrity: sha512-76KYVSwrHwr9zsnk6oLXOGs9KvyBg3U066GLO4rk6JZk1ypEPGCUDZ5yOiESyIHWs9cx9iC8r01utYN32XdmgA==}
+
+  '@types/bun@1.2.4':
+    resolution: {integrity: sha512-QtuV5OMR8/rdKJs213iwXDpfVvnskPXY/S0ZiFbsTjQZycuqPbMW8Gf/XhLfwE5njW8sxI2WjISURXPlHypMFA==}
 
   '@types/inquirer@9.0.7':
     resolution: {integrity: sha512-Q0zyBupO6NxGRZut/JdmqYKOnN95Eg5V8Csg3PGKkP+FnvsUZx1jAyK7fztIszxxMuoBA6E3KXWvdZVXIpx60g==}
@@ -182,6 +185,9 @@ packages:
 
   bun-types@1.1.29:
     resolution: {integrity: sha512-En3/TzSPMPyl5UlUB1MHzHpcrZDakTm7mS203eLoX1fBoEa3PW+aSS8GAqVJ7Is/m34Z5ogL+ECniLY0uDaCPw==}
+
+  bun-types@1.2.4:
+    resolution: {integrity: sha512-nDPymR207ZZEoWD4AavvEaa/KZe/qlrbMSchqpQwovPZCKc7pwMoENjEtHgMKaAjJhy+x6vfqSBA1QU3bJgs0Q==}
 
   chalk@4.1.2:
     resolution: {integrity: sha512-oKnbhFyRIXpUuez8iBMmyEa4nbj4IOQyuhc/wy9kY7/WVPcwIO9VA668Pu8RkO7+0G76SLROeyw9CpQ061i4mA==}
@@ -485,6 +491,10 @@ snapshots:
     dependencies:
       bun-types: 1.1.29
 
+  '@types/bun@1.2.4':
+    dependencies:
+      bun-types: 1.2.4
+
   '@types/inquirer@9.0.7':
     dependencies:
       '@types/through': 0.0.33
@@ -543,6 +553,11 @@ snapshots:
   bun-types@1.1.29:
     dependencies:
       '@types/node': 20.12.14
+      '@types/ws': 8.5.12
+
+  bun-types@1.2.4:
+    dependencies:
+      '@types/node': 22.7.4
       '@types/ws': 8.5.12
 
   chalk@4.1.2:
