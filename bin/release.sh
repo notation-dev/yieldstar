@@ -4,18 +4,46 @@ version=$(git describe)
 tag_flag=""
 [[ "$version" == *alpha* ]] && tag_flag="--tag alpha"
 
-echo "\n\n=== Login as yieldstar ===\n\n"
+print_header() {
+  echo -e "\n\n=== $1 ===\n"
+}
 
-npm logout
-npm login
+publish_scoped_packages() {
+  print_header "Publishing @yieldstar packages"
+  pnpm publish --filter '@yieldstar/*' $tag_flag
+}
 
-# Publish all @yieldstar packages
-pnpm publish --filter '@yieldstar/*' $tag_flag
+publish_unscoped_package() {
+  print_header "Publishing unscoped yieldstar package"
+  pnpm publish --filter 'yieldstar' $tag_flag
+}
 
-echo "\n\n=== Login as notation ===\n\n"
+switch_user() {
+  local target_user=$1
+  print_header "Now switch to $target_user account and login again"
+  npm logout
+  npm login
+}
 
-npm logout
-npm login
+current_user=$(npm whoami 2>/dev/null || echo "none")
+print_header "Current npm user: $current_user"
 
-# Publish unscoped yieldstar package (managed by @notation)
-pnpm publish --filter 'yieldstar' $tag_flag
+if [ "$current_user" = "yieldstar" ]; then
+  publish_scoped_packages
+  switch_user "notation"
+  publish_unscoped_package
+  
+elif [ "$current_user" = "notation" ]; then
+  publish_unscoped_package
+  switch_user "yieldstar"
+  publish_scoped_packages
+  
+else
+  print_header "Log into npm as either yieldstar or notation"
+  npm login
+  
+  # Re-run the script after login
+  exec $0
+fi
+
+print_header "Release completed successfully!"
