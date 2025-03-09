@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.base.json",
+  "files": [],
+  "references": [
+    { "path": "./packages/core" },
+    { "path": "./packages/yieldstar" },
+    { "path": "./packages/test-invoker" },
+    { "path": "./packages/test-runtime" },
+    { "path": "./packages/test-utils" },
+    { "path": "./packages/bun-http-server" },
+    { "path": "./packages/bun-sqlite-runtime" },
+    { "path": "./packages/bun-worker-invoker" }
+  ]
+}

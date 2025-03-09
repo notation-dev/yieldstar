@@ -5,17 +5,21 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "bun --filter '*' build",
-    "build:watch": "bun run build --watch",
-    "check": "bun --filter '*' check",
-    "dev": "bun run build --watch & bun test --watch",
+    "bundle": "bun --filter '*' build",
+    "dts": "tsc -b ./tsconfig.packages.json",
+    "dev": "concurrently -r npm:dev:dts npm:dev:bundle npm:dev:test",
+    "dev:dts": "bun run dts --watch",
+    "dev:bundle": "bun run bundle --watch",
+    "dev:test": "bun test --watch",
     "start": "bun scripts/run-example.ts",
     "version": "npm version -ws --include-workspace-root",
+    "prerelease": "bun run dts && bun run bundle",
     "release": "npm publish -ws"
   },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/inquirer": "^9.0.7",
+    "concurrently": "^9.1.2",
     "inquirer": "^9.2.23"
   },
   "peerDependencies": {

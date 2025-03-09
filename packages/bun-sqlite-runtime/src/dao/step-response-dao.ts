@@ -38,7 +38,7 @@ export class StepResponsesDao {
 
   deleteAll() {
     const query = this.db.query(`DELETE FROM step_responses`);
-    return query.run();
+    query.run();
   }
 
   getLatestStepResponse(executionId: string, stepKey: string) {

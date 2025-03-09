@@ -1,0 +1,51 @@
+{
+  "compilerOptions": {
+    // Enable latest features
+    "lib": ["ESNext"],
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleDetection": "force",
+    "allowJs": true,
+
+    // Module resolution
+    "moduleResolution": "Node",
+    "baseUrl": ".",
+    "paths": {
+      "@yieldstar/core": ["packages/core/src"],
+      "@yieldstar/core/*": ["packages/core/src/*"],
+      "yieldstar": ["packages/yieldstar/src"],
+      "yieldstar/*": ["packages/yieldstar/src/*"],
+      "@yieldstar/test-utils": ["packages/test-utils/src"],
+      "@yieldstar/test-utils/*": ["packages/test-utils/src/*"],
+      "@yieldstar/test-invoker": ["packages/test-invoker/src"],
+      "@yieldstar/test-invoker/*": ["packages/test-invoker/src/*"],
+      "@yieldstar/test-runtime": ["packages/test-runtime/src"],
+      "@yieldstar/test-runtime/*": ["packages/test-runtime/src/*"],
+      "@yieldstar/bun-http-server": ["packages/bun-http-server/src"],
+      "@yieldstar/bun-http-server/*": ["packages/bun-http-server/src/*"],
+      "@yieldstar/bun-sqlite-runtime": ["packages/bun-sqlite-runtime/src"],
+      "@yieldstar/bun-sqlite-runtime/*": ["packages/bun-sqlite-runtime/src/*"],
+      "@yieldstar/bun-worker-invoker": ["packages/bun-worker-invoker/src"],
+      "@yieldstar/bun-worker-invoker/*": ["packages/bun-worker-invoker/src/*"]
+    },
+
+    // Best practices
+    "strict": true,
+    "skipLibCheck": true,
+    "noFallthroughCasesInSwitch": true,
+
+    // Some stricter flags (disabled by default)
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noPropertyAccessFromIndexSignature": false,
+
+    // Project references settings
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+
+    // Don't automatically include anything
+    "emitDeclarationOnly": true
+  }
+}

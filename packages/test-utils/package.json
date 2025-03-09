@@ -3,10 +3,9 @@
   "version": "0.2.0-alpha.0",
   "type": "module",
   "main": "dist/index.js",
-  "types": "src/index.ts",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "build": "bun build src/index.ts --outfile dist/index.js --packages=external",
-    "check": "tsc --noEmit"
+    "build": "bun build src/index.ts --outfile dist/index.js --packages=external"
   },
   "dependencies": {
     "yieldstar": "workspace:*",
