@@ -13,9 +13,9 @@
     "dev:bundle": "bun run bundle --watch",
     "dev:test": "bun test --watch",
     "start": "bun scripts/run-example.ts",
-    "version": "npm version -ws --include-workspace-root",
-    "prerelease": "bun run dts && bun run bundle",
-    "release": "npm publish -ws"
+    "version": "bunx bumpp",
+    "prerelease": "bun i && bun run dts && bun run bundle",
+    "release": "find packages -name package.json -execdir bun publish \\;"
   },
   "devDependencies": {
     "@types/bun": "latest",
