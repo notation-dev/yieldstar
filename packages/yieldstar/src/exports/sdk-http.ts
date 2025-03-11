@@ -4,7 +4,7 @@ import type {
   TriggerEvent,
   ExecutionEvent,
 } from "@yieldstar/core";
-import { randomUUIDv7 } from "bun";
+import { randomUUID } from "node:crypto";
 import { deserializeError, isErrorLike } from "serialize-error";
 import { errorWithOriginalStack } from "../internal/serialise";
 import type { TriggerAck, WorkflowResult } from "../internal/types";
@@ -16,7 +16,7 @@ export function createHttpSdkFactory<W extends WorkflowRouter>() {
         event: TriggerEvent<K, EventParamsOf<W[K]>>
       ): TriggerAck {
         const executionEvent: ExecutionEvent = {
-          executionId: event?.executionId ?? randomUUIDv7(),
+          executionId: event?.executionId ?? randomUUID(),
           workflowId: event?.workflowId as string,
           params: event?.params,
         };

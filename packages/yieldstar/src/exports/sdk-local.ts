@@ -5,7 +5,7 @@ import type {
   TriggerEvent,
   ExecutionEvent,
 } from "@yieldstar/core";
-import { randomUUIDv7 } from "bun";
+import { randomUUID } from "node:crypto";
 import type { TriggerAck, WorkflowResult } from "../internal/types";
 
 export function createLocalSdk<W extends WorkflowRouter>(
@@ -16,7 +16,7 @@ export function createLocalSdk<W extends WorkflowRouter>(
       event: TriggerEvent<K, EventParamsOf<W[K]>>
     ): TriggerAck {
       const executionEvent: ExecutionEvent = {
-        executionId: event.executionId ?? randomUUIDv7(),
+        executionId: event.executionId ?? randomUUID(),
         workflowId: event.workflowId,
         params: event.params,
       };
@@ -26,7 +26,7 @@ export function createLocalSdk<W extends WorkflowRouter>(
     async triggerAndWait<K extends string & keyof W>(
       event: TriggerEvent<K, EventParamsOf<W[K]>>
     ): WorkflowResult<W, K> {
-      const executionId = event.executionId ?? randomUUIDv7();
+      const executionId = event.executionId ?? randomUUID();
       const workflowCompletePromise = new Promise((resolve) => {
         invoker.workflowEndEmitter.once(executionId, resolve);
       });
