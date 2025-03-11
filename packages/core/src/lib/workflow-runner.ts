@@ -78,6 +78,8 @@ export class WorkflowRunner<
       return new WorkflowDelay(stageResponse.resumeIn - Date.now());
     }
 
-    throw new Error("Workflow runner critical error");
+    throw new Error(
+      "Workflow runner critical error. This is likely because your worklow and worker are referencing different versions of @yieldstar/core."
+    );
   }
 }
