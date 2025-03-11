@@ -7,9 +7,11 @@
   "scripts": {
     "build": "bun build src/index.ts --outfile dist/index.js --target bun --packages=external"
   },
+  "dependencies": {
+    "@yieldstar/core": "workspace:*",
+    "pino": "^9.4.0"
+  },
   "devDependencies": {
-    "pino": "^9.4.0",
-    "@types/bun": "^1.2.4",
-    "@yieldstar/core": "workspace:*"
+    "@types/bun": "^1.2.4"
   }
 }

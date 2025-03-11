@@ -7,7 +7,7 @@
   ],
   "scripts": {
     "bundle": "bun --filter '*' build",
-    "dts": "tsc -b ./tsconfig.packages.json",
+    "dts": "tsc -b",
     "dev": "concurrently -r npm:dev:dts npm:dev:bundle npm:dev:test",
     "dev:dts": "bun run dts --watch",
     "dev:bundle": "bun run bundle --watch",

@@ -8,12 +8,12 @@
     "build": "bun build src/index.ts --outfile dist/index.js --target bun --packages=external"
   },
   "dependencies": {
+    "@yieldstar/core": "workspace:*",
     "nanoid": "^5.1.3",
+    "pino": "^9.6.0",
     "serialize-error": "^11.0.3"
   },
   "devDependencies": {
-    "@types/node": "^22.13.10",
-    "@yieldstar/core": "workspace:*",
-    "pino": "^9.6.0"
+    "@types/node": "^22.13.10"
   }
 }

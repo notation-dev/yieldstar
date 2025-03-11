@@ -8,6 +8,7 @@
     "build": "bun build src/index.ts --outfile dist/index.js --packages=external"
   },
   "dependencies": {
+    "pino": "^9.6.0",
     "yieldstar": "workspace:*",
     "@yieldstar/core": "workspace:*",
     "@yieldstar/test-invoker": "workspace:*",

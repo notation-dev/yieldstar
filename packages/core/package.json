@@ -8,9 +8,7 @@
     "build": "bun build src/index.ts --outfile dist/index.js --target bun --packages=external"
   },
   "devDependencies": {
-    "@types/bun": "latest"
-  },
-  "peerDependencies": {
-    "typescript": "^5.0.0"
+    "@types/bun": "latest",
+    "pino": "^9.6.0"
   }
 }
