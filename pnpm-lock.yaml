@@ -110,6 +110,9 @@ importers:
 
   packages/yieldstar:
     dependencies:
+      nanoid:
+        specifier: ^5.1.3
+        version: 5.1.3
       serialize-error:
         specifier: ^11.0.3
         version: 11.0.3
@@ -302,6 +305,11 @@ packages:
   mute-stream@1.0.0:
     resolution: {integrity: sha512-avsJQhyd+680gKXyG/sQc0nXaC6rBkPOfyHYcFb9+hdkqQkR9bdnkJ0AMZhke0oesPqIO+mFFJ+IdBc7mst4IA==}
     engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
+
+  nanoid@5.1.3:
+    resolution: {integrity: sha512-zAbEOEr7u2CbxwoMRlz/pNSpRP0FdAU4pRaYunCdEezWohXFs+a0Xw7RfkKaezMsmSM1vttcLthJtwRnVtOfHQ==}
+    engines: {node: ^18 || >=20}
+    hasBin: true
 
   on-exit-leak-free@2.1.2:
     resolution: {integrity: sha512-0eJJY6hXLGf1udHwfNftBqH+g73EU4B504nZeKpz1sYRKafAghwxEJunB2O7rDZkL4PGfsMVnTXZ2EjibbqcsA==}
@@ -662,6 +670,8 @@ snapshots:
   mimic-fn@2.1.0: {}
 
   mute-stream@1.0.0: {}
+
+  nanoid@5.1.3: {}
 
   on-exit-leak-free@2.1.2: {}
 
