@@ -1,0 +1,10 @@
+{
+  "name": "yieldstar-test",
+  "version": "0.0.1",
+  "private": true,
+  "dependencies": {
+    "@yieldstar/test-utils": "workspace:*",
+    "pino": "^9.6.0",
+    "yieldstar": "workspace:*"
+  }
+}

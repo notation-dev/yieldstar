@@ -6,7 +6,7 @@
     "packages/*"
   ],
   "scripts": {
-    "bundle": "bun --filter '*' build",
+    "bundle": "bun --filter '*' build && tsc -b",
     "dts": "tsc -b",
     "dev": "concurrently -r npm:dev:dts npm:dev:bundle npm:dev:test",
     "dev:dts": "bun run dts --watch",
@@ -14,7 +14,7 @@
     "dev:test": "bun test --watch",
     "start": "bun scripts/run-example.ts",
     "version": "bunx bumpp --preid alpha -r",
-    "prerelease": "pnpm i && bun dts && bun bundle",
+    "prerelease": "pnpm i && bun bundle",
     "release": "bin/release.sh"
   },
   "devDependencies": {
