@@ -6,13 +6,21 @@ export function createWorkflowHttpServer(params: {
   port: number;
   invoker: WorkflowInvoker;
   logger: Logger;
+  responseHeaders?: Record<string, string>;
 }) {
-  const { logger, port, invoker } = params;
+  const { logger, port, invoker, responseHeaders } = params;
   return {
     serve() {
       return Bun.serve({
         port: port,
         async fetch(req) {
+          if (req.method === "OPTIONS") {
+            return new Response(null, {
+              status: 204,
+              headers: responseHeaders,
+            });
+          }
+
           const url = new URL(req.url);
 
           if (url.pathname === "/events") {
@@ -21,7 +29,10 @@ export function createWorkflowHttpServer(params: {
             };
 
             if (!executionId) {
-              return new Response("Missing executionId", { status: 400 });
+              return new Response("Missing executionId", {
+                status: 400,
+                headers: responseHeaders,
+              });
             }
 
             const result = await new Promise((resolve) => {
@@ -29,10 +40,13 @@ export function createWorkflowHttpServer(params: {
             });
 
             if (result instanceof Error) {
-              return Response.json(serializeError(result));
+              return Response.json(serializeError(result), {
+                status: 500,
+                headers: responseHeaders,
+              });
             }
 
-            return Response.json(result);
+            return Response.json(result, { headers: responseHeaders });
           }
 
           if (url.pathname === "/trigger") {
@@ -41,15 +55,21 @@ export function createWorkflowHttpServer(params: {
               await invoker.execute(event);
               return Response.json(
                 { executionId: event.executionId },
-                { status: 202 }
+                { status: 202, headers: responseHeaders }
               );
             } catch (err: any) {
               logger.error(err);
-              return Response.json(err.message, { status: 400 });
+              return Response.json(err.message, {
+                status: 400,
+                headers: responseHeaders,
+              });
             }
           }
 
-          return new Response("Not Found", { status: 404 });
+          return new Response("Not Found", {
+            status: 404,
+            headers: responseHeaders,
+          });
         },
       });
     },
