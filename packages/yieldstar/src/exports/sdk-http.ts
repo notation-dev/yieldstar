@@ -3,18 +3,28 @@ import type {
   WorkflowRouter,
   TriggerEvent,
   ExecutionEvent,
+  WorkflowGeneratorReturnType,
 } from "@yieldstar/core";
 import { nanoid } from "nanoid";
-import { deserializeError, isErrorLike } from "serialize-error";
+import { deserializeError } from "serialize-error";
 import { errorWithOriginalStack } from "../internal/serialise";
-import type { TriggerAck, WorkflowResult } from "../internal/types";
+
+type TriggerAck = {
+  executionId: string;
+};
+
+type TriggerResponse<W extends WorkflowRouter, K extends string & keyof W> = {
+  executionId: string;
+  ack: () => Promise<TriggerAck>;
+  waitForResult: () => Promise<WorkflowGeneratorReturnType<W[K]>>;
+};
 
 export function createHttpSdkFactory<W extends WorkflowRouter>() {
   return (params: { host: string; port: number }) => {
     return {
       async trigger<K extends string & keyof W>(
         event: TriggerEvent<K, EventParamsOf<W[K]>>
-      ): TriggerAck {
+      ): Promise<TriggerResponse<W, K>> {
         const executionEvent: ExecutionEvent = {
           executionId: event?.executionId ?? nanoid(),
           workflowId: event?.workflowId as string,
@@ -27,33 +37,36 @@ export function createHttpSdkFactory<W extends WorkflowRouter>() {
         });
 
         if (res.ok) {
-          return res.json() as Promise<{ executionId: string }>;
+          return {
+            executionId: executionEvent.executionId,
+            ack: () => res.json() as Promise<TriggerAck>,
+            waitForResult: () =>
+              this.waitForResult<K>({
+                executionId: executionEvent.executionId,
+              }),
+          };
         } else {
           throw res.statusText;
         }
       },
-      async triggerAndWait<K extends string & keyof W>(
-        event: TriggerEvent<K, EventParamsOf<W[K]>>
-      ): WorkflowResult<W, K> {
-        // todo: add timeout and cancel request
-        const { executionId } = await this.trigger(event);
-
+      async waitForResult<K extends string & keyof W>(
+        ack: TriggerAck
+      ): Promise<WorkflowGeneratorReturnType<W[K]>> {
         // todo: set up subscription first (maybe just use ws)
-        const result = await fetch(`${params.host}:${params.port}/events`, {
+        const res = await fetch(`${params.host}:${params.port}/events`, {
           method: "POST",
-          body: JSON.stringify({ executionId }),
+          body: JSON.stringify({ executionId: ack.executionId }),
         });
 
-        const json = await result.json();
-
-        if (isErrorLike(json)) {
+        if (res.status === 500) {
+          const error = await res.json();
           throw errorWithOriginalStack(
-            deserializeError(json),
-            this.triggerAndWait
+            deserializeError(error),
+            this.waitForResult
           );
         }
 
-        return json as WorkflowResult<W, K>;
+        return res.json() as Promise<WorkflowGeneratorReturnType<W[K]>>;
       },
     };
   };
