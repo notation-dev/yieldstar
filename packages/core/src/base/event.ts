@@ -18,3 +18,13 @@ export type ExecutionEvent<EventParams = any> = {
   executionId: string;
   params: EventParams;
 };
+
+export type WorkflowEvent<
+  EventParams = any,
+  Context extends Map<any, any> = Map<any, any>
+> = {
+  workflowId: string;
+  executionId: string;
+  params: EventParams;
+  context: Context;
+};

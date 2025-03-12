@@ -2,6 +2,8 @@ export type { HeapClient, HeapRecord } from "./base/heap";
 export type { WorkflowInvoker } from "./base/invoker";
 export type { EventProcessor } from "./base/runtime";
 export type { SchedulerClient } from "./base/scheduler";
+export type { TriggerEvent, ExecutionEvent, WorkflowEvent } from "./base/event";
+
 export type {
   WorkflowGenerator,
   WorkflowGeneratorReturnType,
@@ -9,10 +11,6 @@ export type {
   EventOfWorkflow,
   EventParamsOf,
 } from "./base/workflow";
-export type {
-  TriggerEvent as TriggerEvent,
-  ExecutionEvent as ExecutionEvent,
-} from "./base/event";
 
 export {
   StepCacheCheck,

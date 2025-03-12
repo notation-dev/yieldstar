@@ -1,0 +1,155 @@
+# bun-http-server
+
+## Features
+
+- HTTP server for triggering and monitoring workflows
+- Middleware for request/response/context processing
+
+## Installation
+
+```bash
+npm install @yieldstar/bun-http-server
+```
+
+## Usage
+
+### Basic Server
+
+```typescript
+import { createWorkflowHttpServer } from "@yieldstar/bun-http-server";
+import { pino } from "pino";
+
+const logger = pino();
+const invoker = /* your workflow invoker */;
+
+const server = createWorkflowHttpServer({
+  port: 8080,
+  logger,
+  invoker,
+});
+
+const serverInstance = server.serve();
+logger.info(`Server started on port ${serverInstance.port}`);
+```
+
+## Middleware
+
+Middleware can be passed to the server. Middleware supports:
+
+- reading the HTTP request
+- setting context (available to other middleware and the invoked workflow)
+- returning early HTTP responses
+- setting HTTP reponse headers
+
+```typescript
+import {
+  createWorkflowHttpServer,
+  createMiddleware,
+} from "@yieldstar/bun-http-server";
+
+// CORS middleware
+const corsMiddleware = createMiddleware(async (req, event, next) => {
+  // Continue to the next middleware or handler
+  const response = await next();
+
+  // Add CORS headers to the response
+  response.headers.set("Access-Control-Allow-Origin", "*");
+  response.headers.set(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, DELETE, OPTIONS"
+  );
+  response.headers.set(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization"
+  );
+
+  return response;
+});
+
+// Authentication middleware
+const authMiddleware = createMiddleware(async (req, event, next) => {
+  // Get auth token from request
+  const cookies = parseCookies(req.headers.get("Cookie"));
+  const authToken = cookies["X-Token"];
+
+  if (!authToken) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
+  // Store the auth token in the context
+  event.context.set("authToken", authToken);
+
+  // Continue to the next middleware or handler
+  return next();
+});
+
+// Create server with middleware
+const server = createWorkflowHttpServer({
+  port: 8080,
+  logger,
+  invoker,
+  middleware: [corsMiddleware, authMiddleware],
+});
+```
+
+### Middleware lifecycle
+
+```typescript
+import { createMiddleware } from "@yieldstar/bun-http-server";
+
+const myMiddleware = createMiddleware(async (req, event, next) => {
+  // Read the HTTP request
+  const token = req.headers.get("X-token");
+
+  // Read context set by previous middlewares
+  event.context.get("token");
+
+  // Set context
+  if (!token) {
+    event.context.set("token", token);
+  }
+
+  // Advance the middleware chain until either:
+  // A middleware function returns a response,
+  // or, the final handler invokes the workflow
+  const response = await next();
+
+  // At this point context has been delivered to the workflow
+  // so mutating it will throw an error
+  event.context.set("test", "will throw");
+
+  // The response can still be updated before it is sent to the user
+  response.headers.set("X-Handled-By", "SuperAceDev");
+
+  return response;
+});
+```
+
+## API Reference
+
+### `createWorkflowHttpServer(options)`
+
+Creates an HTTP server for YieldStar workflows.
+
+Options:
+
+- `port`: The port to listen on
+- `invoker`: The workflow invoker
+- `logger`: A Pino logger instance
+- `responseHeaders`: Optional headers to add to all responses
+- `middleware`: Optional array of middleware functions
+
+### `createMiddleware(handler)`
+
+Creates a middleware function.
+
+Handler parameters:
+
+- `req`: The request object
+- `event`: The middleware event with a context property (Map)
+- `next`: Function to call the next middleware or handler
+- `logger`: The logger passed to createWorkflowHttpServer
+
+## License
+
+MIT
