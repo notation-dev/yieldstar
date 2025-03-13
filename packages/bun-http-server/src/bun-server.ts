@@ -9,14 +9,13 @@ import {
 } from "@yieldstar/core";
 import { executeMiddlewareChain } from "./middleware";
 
-export function createWorkflowRoutes<R extends `/${string}`>(params: {
-  basePath?: R;
+export function createWorkflowRoutes(params: {
+  basePath?: `/${string}`;
   invoker: WorkflowInvoker;
   logger: Logger;
   middleware?: MiddlewareFunction[];
 }): Record<string, { POST: RouterTypes.RouteHandler<string> }> {
   const { logger, invoker, middleware = [], basePath = "" } = params;
-
   return {
     [`${basePath}/trigger`]: {
       POST: async (req) => {
