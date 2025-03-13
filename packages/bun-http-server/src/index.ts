@@ -1,2 +1,2 @@
-export { createWorkflowHttpServer } from "./bun-server";
+export { createRoutes } from "./bun-server";
 export { createMiddleware } from "./middleware";

@@ -1,6 +1,6 @@
 {
   "name": "yieldstar-examples",
-  "version": "0.4.0-alpha.1",
+  "version": "0.4.0-alpha.3",
   "private": true,
   "dependencies": {
     "@yieldstar/bun-http-server": "workspace:*",
