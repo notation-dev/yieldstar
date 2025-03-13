@@ -1,3 +1,4 @@
+import type { RouterTypes } from "bun";
 import type { Logger } from "pino";
 import type {
   ExecutionEvent,
@@ -13,80 +14,78 @@ import {
 } from "@yieldstar/core";
 import { executeMiddlewareChain } from "./middleware";
 
-export function createWorkflowHttpServer(params: {
-  port: number;
+export function createWorkflowRoutes<R extends `/${string}`>(params: {
+  basePath?: R;
   invoker: WorkflowInvoker;
   logger: Logger;
   middleware?: MiddlewareFunction[];
-}) {
-  const { logger, port, invoker, middleware = [] } = params;
+}): Record<string, { POST: RouterTypes.RouteHandler<string> }> {
+  const { logger, invoker, middleware = [], basePath = "" } = params;
 
   return {
-    serve() {
-      return Bun.serve({
-        port: port,
-        async fetch(req) {
-          const url = new URL(req.url);
+    [`${basePath}/trigger`]: {
+      POST: async (req) => {
+        const executionEvent = (await req.json()) as ExecutionEvent;
 
-          if (url.pathname === "/events") {
-            const { executionId } = (await req.json()) as {
-              executionId: string;
-            };
+        const event: MiddlewareEvent = {
+          ...executionEvent,
+          context: new FreezableMap<string, any>(),
+        };
 
-            if (!executionId) {
-              return new Response("Missing executionId", {
-                status: 400,
-              });
+        return executeMiddlewareChain(
+          req,
+          event,
+          logger,
+          middleware,
+          async (req, event) => {
+            try {
+              const workflowEvent: WorkflowEvent = {
+                ...event,
+                context: new ReadOnlyMap(event.context),
+              };
+              await invoker.execute(workflowEvent);
+              return Response.json(
+                { executionId: event.executionId },
+                { status: 202 }
+              );
+            } catch (err: any) {
+              logger.error(err);
+              return Response.json(err.message, { status: 400 });
             }
+          }
+        );
+      },
+    },
+    [`${basePath}/events`]: {
+      POST: async (req) => {
+        const url = new URL(req.url);
 
-            const result = await new Promise((resolve) => {
-              invoker.workflowEndEmitter.once(executionId, resolve);
+        if (url.pathname === "/events") {
+          const { executionId } = (await req.json()) as {
+            executionId: string;
+          };
+
+          if (!executionId) {
+            return new Response("Missing executionId", {
+              status: 400,
             });
-
-            if (result instanceof Error) {
-              return Response.json(serializeError(result), {
-                status: 500,
-              });
-            }
-
-            return Response.json(result);
           }
 
-          if (url.pathname === "/trigger") {
-            const executionEvent = (await req.json()) as ExecutionEvent;
+          const result = await new Promise((resolve) => {
+            invoker.workflowEndEmitter.once(executionId, resolve);
+          });
 
-            const event: MiddlewareEvent = {
-              ...executionEvent,
-              context: new FreezableMap<string, any>(),
-            };
-
-            return executeMiddlewareChain(
-              req,
-              event,
-              logger,
-              middleware,
-              async (req, event) => {
-                try {
-                  const workflowEvent: WorkflowEvent = {
-                    ...event,
-                    context: new ReadOnlyMap(event.context),
-                  };
-                  await invoker.execute(workflowEvent);
-                  return Response.json(
-                    { executionId: event.executionId },
-                    { status: 202 }
-                  );
-                } catch (err: any) {
-                  logger.error(err);
-                  return Response.json(err.message, { status: 400 });
-                }
-              }
-            );
+          if (result instanceof Error) {
+            return Response.json(serializeError(result), {
+              status: 500,
+            });
           }
 
-          return new Response("Not Found", { status: 404 });
-        },
-      });
+          return Response.json(result);
+        }
+
+        return new Response("Not Found", { status: 404 });
+      },
     },
   };
 }

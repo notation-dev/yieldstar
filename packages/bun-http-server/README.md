@@ -2,46 +2,63 @@
 
 ## Features
 
-- HTTP server for triggering and monitoring workflows
+- Route handlers for triggering and monitoring workflows
 - Middleware for request/response/context processing
 
 ## Installation
 
-```bash
+```sh
 npm install @yieldstar/bun-http-server
 ```
 
-## Usage
+## Basic Usage
 
-### Basic Server
-
-```typescript
-import { createWorkflowHttpServer } from "@yieldstar/bun-http-server";
+```ts
+import { createWorkflowRoutes } from "@yieldstar/bun-http-server";
 import { pino } from "pino";
 
 const logger = pino();
-const invoker = /* your workflow invoker */;
 
-const server = createWorkflowHttpServer({
-  port: 8080,
-  logger,
-  invoker,
+const server = Bun.serve({
+  port: 3000,
+  routes: createWorkflowRoutes({
+    invoker: invoker,
+    logger: logger,
+    middleware: [middleware1, middleware2],
+  }),
 });
 
 const serverInstance = server.serve();
 logger.info(`Server started on port ${serverInstance.port}`);
 ```
 
+## Custom Routes
+
+```ts
+const server = Bun.serve({
+  port: 3000,
+  routes: {
+    "status": new Reponse('OK')
+    // mount workflow routes on base route: /workflow
+    ...createWorkflowRoutes({
+      basePath: "/workflow",
+      invoker: invoker,
+      logger: logger,
+    }),
+  }
+});
+```
+
 ## Middleware
 
-Middleware can be passed to the server. Middleware supports:
+Middleware can be passed to the server. Middleware enables:
 
 - reading the HTTP request
 - setting context (available to other middleware and the invoked workflow)
 - returning early HTTP responses
 - setting HTTP reponse headers
 
-```typescript
+```ts
 import {
   createWorkflowHttpServer,
   createMiddleware,
@@ -94,7 +111,7 @@ const server = createWorkflowHttpServer({
 
 ### Middleware lifecycle
 
-```typescript
+```ts
 import { createMiddleware } from "@yieldstar/bun-http-server";
 
 const myMiddleware = createMiddleware(async (req, event, next) => {
@@ -130,17 +147,16 @@ const myMiddleware = createMiddleware(async (req, event, next) => {
 
 ## API Reference
 
-### `createWorkflowHttpServer(options)`
+### `createWorkflowRoutes(options)`
 
 Creates an HTTP server for YieldStar workflows.
 
 Options:
 
-- `port`: The port to listen on
 - `invoker`: The workflow invoker
 - `logger`: A Pino logger instance
-- `responseHeaders`: Optional headers to add to all responses
 - `middleware`: Optional array of middleware functions
+- `basePath`: Optional path to mount the routes on
 
 ### `createMiddleware(handler)`
 
@@ -151,7 +167,7 @@ Handler parameters:
 - `req`: The request object
 - `event`: The middleware event with a context property (Map)
 - `next`: Function to call the next middleware or handler
-- `logger`: The logger passed to createWorkflowHttpServer
+- `logger`: The logger passed to createWorkflowRoutes
 
 ## License
 
