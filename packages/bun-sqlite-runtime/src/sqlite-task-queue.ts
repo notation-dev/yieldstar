@@ -1,5 +1,5 @@
+import type { WorkflowEvent } from "@yieldstar/core";
 import { Database } from "bun:sqlite";
-import type { ExecutionEvent } from "@yieldstar/core";
 import { TaskQueueDao } from "./dao/task-queue-dao";
 
 const VISIBILITY_WINDOW = 300000;
@@ -12,7 +12,7 @@ export class SqliteTaskQueue {
     this.taskQueueDao.setupDb();
   }
 
-  add(event: ExecutionEvent) {
+  add(event: WorkflowEvent) {
     this.taskQueueDao.insertTask(event);
   }
 
@@ -33,6 +33,7 @@ export class SqliteTaskQueue {
         workflowId: row.workflow_id,
         executionId: row.execution_id,
         params: row.params ? JSON.parse(row.params) : undefined,
+        context: row.context ? new Map(JSON.parse(row.context)) : new Map(),
       },
     };
   }
@@ -57,7 +58,7 @@ export class SqliteTaskQueueClient {
     this.taskQueueDao = new TaskQueueDao(db);
   }
 
-  add(event: ExecutionEvent) {
+  add(event: WorkflowEvent) {
     this.taskQueueDao.insertTask(event);
   }
 }

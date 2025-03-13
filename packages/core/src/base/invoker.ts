@@ -3,5 +3,5 @@ import type { ExecutionEvent } from "./event";
 
 export type WorkflowInvoker = {
   workflowEndEmitter: EventEmitter;
-  execute<EventParams>(event: ExecutionEvent<EventParams>): Promise<void>;
+  execute(event: ExecutionEvent): Promise<void>;
 };

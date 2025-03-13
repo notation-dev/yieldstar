@@ -4,12 +4,14 @@ import type {
   HeapClient,
   SchedulerClient,
   EventProcessor,
-  ExecutionEvent,
+  WorkflowEvent,
+  EventParams,
 } from "..";
 import { StepDelay, WorkflowDelay, WorkflowResult } from "..";
+import { EventContext } from "../base/event";
 
 export class WorkflowRunner<
-  Router extends Record<string, WorkflowGenerator<any, any>>
+  Router extends Record<string, WorkflowGenerator<any, any, any>>
 > {
   private heapClient: HeapClient;
   private schedulerClient: SchedulerClient;
@@ -26,7 +28,7 @@ export class WorkflowRunner<
     this.router = params.router;
   }
 
-  run: EventProcessor<any, any> = async (event, logger) => {
+  run: EventProcessor = async (event, logger) => {
     const workflow = this.router[event.workflowId];
 
     if (!workflow) {
@@ -54,9 +56,13 @@ export class WorkflowRunner<
     }
   };
 
-  private async runWorkflows<EventParams, Result>(params: {
-    workflow: WorkflowGenerator<EventParams, Result>;
-    event: ExecutionEvent<EventParams>;
+  private async runWorkflows<
+    Params extends EventParams,
+    Result,
+    Context extends EventContext
+  >(params: {
+    workflow: WorkflowGenerator<Params, Result, Context>;
+    event: WorkflowEvent<Params, Context>;
     logger: Logger;
   }): Promise<WorkflowResult<Result> | WorkflowDelay> {
     const { workflow, event, logger } = params;

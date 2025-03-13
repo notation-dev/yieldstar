@@ -8,7 +8,7 @@ try {
   const execution = await sdk.trigger({
     workflowId: "dynamic-workflow",
     params: {
-      msg: "world",
+      msg: "world!",
     },
   });
 

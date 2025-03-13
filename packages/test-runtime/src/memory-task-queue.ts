@@ -1,9 +1,9 @@
-import type { ExecutionEvent } from "@yieldstar/core";
+import type { WorkflowEvent } from "@yieldstar/core";
 
 const VISIBILITY_WINDOW = 300000;
 
 type Task = {
-  event: ExecutionEvent;
+  event: WorkflowEvent;
   taskId: number;
   visibleFrom: number;
 };
@@ -12,7 +12,7 @@ export class MemoryTaskQueue {
   private queue: Task[] = [];
   private nextTaskId: number = 0;
 
-  add(event: ExecutionEvent) {
+  add(event: WorkflowEvent) {
     this.queue.push({
       taskId: this.nextTaskId++,
       visibleFrom: Date.now(),

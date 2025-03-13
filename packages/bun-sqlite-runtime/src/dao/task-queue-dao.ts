@@ -1,11 +1,12 @@
 import { Database } from "bun:sqlite";
-import type { ExecutionEvent } from "@yieldstar/core";
+import type { WorkflowEvent } from "@yieldstar/core";
 
 class TaskRow {
   task_id!: number;
   workflow_id!: string;
   execution_id!: string;
   params?: string;
+  context?: string;
 }
 
 class CountRow {
@@ -26,21 +27,25 @@ export class TaskQueueDao {
         workflow_id TEXT NOT NULL,
         execution_id TEXT NOT NULL,
         params TEXT,
+        context TEXT,
         visible_from INTEGER DEFAULT (strftime('%s', 'now'))
       )
     `);
   }
 
-  insertTask(event: ExecutionEvent) {
+  insertTask(event: WorkflowEvent) {
     const query = this.db.prepare(
-      `INSERT INTO task_queue (workflow_id, execution_id, params)
-      VALUES ($workflowId, $executionId, $params)`
+      `INSERT INTO task_queue (workflow_id, execution_id, params, context)
+      VALUES ($workflowId, $executionId, $params, $context)`
     );
 
     query.run({
       $workflowId: event.workflowId,
       $executionId: event.executionId,
       $params: event.params ? JSON.stringify(event.params) : null,
+      $context: event.context
+        ? JSON.stringify(Array.from(event.context.entries()))
+        : null,
     });
   }
 
