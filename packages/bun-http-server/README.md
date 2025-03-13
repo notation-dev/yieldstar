@@ -14,14 +14,14 @@ npm install @yieldstar/bun-http-server
 ## Basic Usage
 
 ```ts
-import { createWorkflowRoutes } from "@yieldstar/bun-http-server";
+import { createRoutes } from "@yieldstar/bun-http-server";
 import { pino } from "pino";
 
 const logger = pino();
 
 const server = Bun.serve({
   port: 3000,
-  routes: createWorkflowRoutes({
+  routes: createRoutes({
     invoker: invoker,
     logger: logger,
     middleware: [middleware1, middleware2],
@@ -38,8 +38,8 @@ Bun.serve({
   port: 3000,
   routes: {
     "status": new Reponse('OK')
-    // mount workflow routes on base route: /workflow
-    ...createWorkflowRoutes({
+      // mount workflow routes on /workflow
+    ...createRoutes({
       basePath: "/workflow",
       invoker: invoker,
       logger: logger,
@@ -146,7 +146,7 @@ const myMiddleware = createMiddleware(async (req, event, next) => {
 
 ## API Reference
 
-### `createWorkflowRoutes(options)`
+### `createRoutes(options)`
 
 Creates an HTTP server for YieldStar workflows.
 
@@ -166,7 +166,7 @@ Handler parameters:
 - `req`: The request object
 - `event`: The middleware event with a context property (Map)
 - `next`: Function to call the next middleware or handler
-- `logger`: The logger passed to createWorkflowRoutes
+- `logger`: The logger passed to createRoutes
 
 ## License
 

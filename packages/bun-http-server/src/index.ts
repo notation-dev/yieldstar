@@ -1,2 +1,2 @@
-export { createWorkflowRoutes } from "./bun-server";
+export { createRoutes } from "./bun-server";
 export { createMiddleware } from "./middleware";
