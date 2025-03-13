@@ -1,4 +1,4 @@
-# bun-http-server
+# @yieldstar/bun-http-server
 
 ## Features
 
@@ -114,9 +114,12 @@ const myMiddleware = createMiddleware(async (req, event, next) => {
   // or, the final handler invokes the workflow
   const response = await next();
 
-  // At this point context has been delivered to the workflow
-  // so mutating it will throw an error
-  event.context.set("test", "will throw");
+  // After next() is called, the context is frozen to prevent modifications
+  // Any attempt to modify the context will throw an error:
+  event.context.set("key", "value"); // Error: Cannot call set on a frozen map
+
+  // When passed to the workflow, the context is converted to a read-only version
+  // that prevents modifications in the workflow
 
   // The response can still be updated before it is sent to the user
   response.headers.set("X-Handled-By", "SuperAceDev");

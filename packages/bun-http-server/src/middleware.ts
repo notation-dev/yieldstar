@@ -1,18 +1,5 @@
 import type { Logger } from "pino";
-import type { ExecutionEvent } from "@yieldstar/core";
-
-export type MiddlewareEvent = ExecutionEvent & {
-  context: Map<string, any>;
-};
-
-export type MiddlewareNext = () => Promise<Response>;
-
-export type MiddlewareFunction = (
-  req: Request,
-  event: MiddlewareEvent,
-  next: MiddlewareNext,
-  logger: Logger
-) => Promise<Response>;
+import type { MiddlewareEvent, MiddlewareFunction } from "@yieldstar/core";
 
 /**
  * Creates a middleware function that can be used with the HTTP server.
@@ -43,6 +30,7 @@ export async function executeMiddlewareChain(
   handler: (req: Request, event: MiddlewareEvent) => Promise<Response>
 ): Promise<Response> {
   if (!middlewares.length) {
+    event.context.freeze();
     return handler(req, event);
   }
 
@@ -50,6 +38,7 @@ export async function executeMiddlewareChain(
 
   const next = async (): Promise<Response> => {
     if (index >= middlewares.length) {
+      event.context.freeze();
       return await handler(req, event);
     }
 

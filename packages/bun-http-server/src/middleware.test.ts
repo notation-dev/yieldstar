@@ -1,10 +1,7 @@
 import { beforeEach, expect, it, mock } from "bun:test";
 import pino from "pino";
-import {
-  createMiddleware,
-  executeMiddlewareChain,
-  MiddlewareEvent,
-} from "./middleware";
+import { FreezableMap, MiddlewareEvent } from "@yieldstar/core";
+import { createMiddleware, executeMiddlewareChain } from "./middleware";
 
 const logger = pino();
 
@@ -12,7 +9,7 @@ const reqFixture = new Request("http://localhost");
 const handlerMock = mock(async () => new Response("OK"));
 
 const eventFixture: MiddlewareEvent = {
-  context: new Map(),
+  context: new FreezableMap<string, any>(),
   workflowId: "test",
   executionId: "test",
   params: {},
@@ -20,7 +17,7 @@ const eventFixture: MiddlewareEvent = {
 
 beforeEach(() => {
   handlerMock.mockClear();
-  eventFixture.context = new Map();
+  eventFixture.context = new FreezableMap<string, any>();
 });
 
 it("should create a middleware function", () => {
@@ -42,6 +39,8 @@ it("should execute middleware chain with no middleware", async () => {
 
   expect(handlerMock).toHaveBeenCalledTimes(1);
   expect(await response.text()).toBe("OK");
+  // Context should be frozen after execution
+  expect(eventFixture.context.isFrozen()).toBe(true);
 });
 
 it("should execute middleware chain with one middleware", async () => {
@@ -61,6 +60,8 @@ it("should execute middleware chain with one middleware", async () => {
   expect(handlerMock).toHaveBeenCalledTimes(1);
   expect(eventFixture.context.get("test")).toBe("value");
   expect(await response.text()).toBe("OK");
+  // Context should be frozen after execution
+  expect(eventFixture.context.isFrozen()).toBe(true);
 });
 
 it("should execute middleware chain with multiple middleware", async () => {
@@ -86,6 +87,8 @@ it("should execute middleware chain with multiple middleware", async () => {
   expect(eventFixture.context.get("test1")).toBe("value1");
   expect(eventFixture.context.get("test2")).toBe("value2");
   expect(await response.text()).toBe("OK");
+  // Context should be frozen after execution
+  expect(eventFixture.context.isFrozen()).toBe(true);
 });
 
 it("should short-circuit middleware chain if middleware returns a response", async () => {
@@ -112,6 +115,8 @@ it("should short-circuit middleware chain if middleware returns a response", asy
   expect(eventFixture.context.get("test2")).toBeUndefined();
   expect(await response.text()).toBe("Unauthorized");
   expect(response.status).toBe(401);
+  // Context should not be frozen if the chain is short-circuited
+  expect(eventFixture.context.isFrozen()).toBe(false);
 });
 
 it("should allow middleware to modify the response", async () => {
@@ -131,4 +136,5 @@ it("should allow middleware to modify the response", async () => {
 
   expect(handlerMock).toHaveBeenCalledTimes(1);
   expect(response.headers.get("X-Test")).toBe("test-value");
+  expect(eventFixture.context.isFrozen()).toBe(true);
 });

@@ -21,7 +21,7 @@ export type ExecutionEvent<EventParams = any> = {
 
 export type WorkflowEvent<
   EventParams = any,
-  Context extends Map<any, any> = Map<any, any>
+  Context extends ReadonlyMap<any, any> = ReadonlyMap<any, any>
 > = {
   workflowId: string;
   executionId: string;

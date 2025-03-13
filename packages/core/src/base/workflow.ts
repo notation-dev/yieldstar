@@ -1,11 +1,11 @@
 import type { Logger } from "pino";
 import { HeapClient } from "./heap";
 import { StepResponse, WorkflowResult } from "./step";
-import type { ExecutionEvent, WorkflowEvent } from "./event";
+import type { WorkflowEvent } from "./event";
 
 export type WorkflowGeneratorParams<
   EventParams,
-  Context extends Map<any, any>
+  Context extends ReadonlyMap<any, any>
 > = {
   event: WorkflowEvent<EventParams, Context>;
   heapClient: HeapClient;

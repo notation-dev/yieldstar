@@ -5,7 +5,7 @@ import type { WorkflowEvent } from "./event";
 export type EventProcessor<
   EventParams = any,
   Result = any,
-  Context extends Map<any, any> = Map<any, any>
+  Context extends ReadonlyMap<any, any> = ReadonlyMap<any, any>
 > = (
   event: WorkflowEvent<EventParams, Context>,
   logger: Logger
