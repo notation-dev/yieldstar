@@ -28,14 +28,13 @@ const server = Bun.serve({
   }),
 });
 
-const serverInstance = server.serve();
-logger.info(`Server started on port ${serverInstance.port}`);
+logger.info(`Server started on port ${server.url}`);
 ```
 
 ## Custom Routes
 
 ```ts
-const server = Bun.serve({
+Bun.serve({
   port: 3000,
   routes: {
     "status": new Reponse('OK')
