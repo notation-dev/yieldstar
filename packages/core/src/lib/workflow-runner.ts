@@ -5,8 +5,10 @@ import type {
   SchedulerClient,
   EventProcessor,
   WorkflowEvent,
+  EventParams,
 } from "..";
 import { StepDelay, WorkflowDelay, WorkflowResult } from "..";
+import { EventContext } from "../base/event";
 
 export class WorkflowRunner<
   Router extends Record<string, WorkflowGenerator<any, any, any>>
@@ -26,7 +28,7 @@ export class WorkflowRunner<
     this.router = params.router;
   }
 
-  run: EventProcessor<any, any> = async (event, logger) => {
+  run: EventProcessor = async (event, logger) => {
     const workflow = this.router[event.workflowId];
 
     if (!workflow) {
@@ -55,12 +57,12 @@ export class WorkflowRunner<
   };
 
   private async runWorkflows<
-    EventParams,
+    Params extends EventParams,
     Result,
-    Context extends Map<any, any>
+    Context extends EventContext
   >(params: {
-    workflow: WorkflowGenerator<EventParams, Result, Context>;
-    event: WorkflowEvent<EventParams, Context>;
+    workflow: WorkflowGenerator<Params, Result, Context>;
+    event: WorkflowEvent<Params, Context>;
     logger: Logger;
   }): Promise<WorkflowResult<Result> | WorkflowDelay> {
     const { workflow, event, logger } = params;

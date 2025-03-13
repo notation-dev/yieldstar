@@ -1,13 +1,8 @@
 import type { Logger } from "pino";
-import type {
-  ExecutionEvent,
-  WorkflowInvoker,
-  WorkflowEvent,
-} from "@yieldstar/core";
+import type { ExecutionEvent, WorkflowInvoker } from "@yieldstar/core";
 import { serializeError } from "serialize-error";
 import {
   FreezableMap,
-  ReadOnlyMap,
   MiddlewareEvent,
   MiddlewareFunction,
 } from "@yieldstar/core";
@@ -67,11 +62,7 @@ export function createWorkflowHttpServer(params: {
               middleware,
               async (req, event) => {
                 try {
-                  const workflowEvent: WorkflowEvent = {
-                    ...event,
-                    context: new ReadOnlyMap(event.context),
-                  };
-                  await invoker.execute(workflowEvent);
+                  await invoker.execute(event);
                   return Response.json(
                     { executionId: event.executionId },
                     { status: 202 }

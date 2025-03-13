@@ -1,10 +1,5 @@
 import type { Logger } from "pino";
-import { ExecutionEvent } from "./event";
-import { FreezableMap } from "../utils/map";
-
-export type MiddlewareEvent = ExecutionEvent & {
-  context: FreezableMap<string, any>;
-};
+import type { MiddlewareEvent } from "./event";
 
 export type MiddlewareNext = () => Promise<Response>;
 

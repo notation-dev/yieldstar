@@ -1,5 +1,5 @@
-import { Database } from "bun:sqlite";
 import type { WorkflowEvent } from "@yieldstar/core";
+import { Database } from "bun:sqlite";
 import { TaskQueueDao } from "./dao/task-queue-dao";
 
 const VISIBILITY_WINDOW = 300000;

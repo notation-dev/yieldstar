@@ -1,6 +1,7 @@
 import { Database } from "bun:sqlite";
 import { TimersDao } from "./dao/timers-dao";
 import { SqliteTaskQueue } from "./sqlite-task-queue";
+import { FreezableMap } from "@yieldstar/core";
 import type { WorkflowEvent } from "@yieldstar/core";
 
 export class SqliteTimers {

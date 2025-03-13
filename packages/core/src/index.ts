@@ -2,13 +2,16 @@ export type { HeapClient, HeapRecord } from "./base/heap";
 export type { WorkflowInvoker } from "./base/invoker";
 export type { EventProcessor } from "./base/runtime";
 export type { SchedulerClient } from "./base/scheduler";
-export type { ExecutionEvent, TriggerEvent, WorkflowEvent } from "./base/event";
-
 export type {
-  MiddlewareNext,
+  EventParams,
+  EventContext,
+  ExecutionEvent,
   MiddlewareEvent,
-  MiddlewareFunction,
-} from "./base/middleware";
+  TriggerEvent,
+  WorkflowEvent,
+} from "./base/event";
+
+export type { MiddlewareNext, MiddlewareFunction } from "./base/middleware";
 
 export type {
   WorkflowGenerator,
@@ -32,4 +35,6 @@ export {
 } from "./base/step";
 
 export { WorkflowRunner } from "./lib/workflow-runner";
+
 export { ReadOnlyMap, FreezableMap } from "./utils/map";
+export { errorWithOriginalStack } from "./utils/error";

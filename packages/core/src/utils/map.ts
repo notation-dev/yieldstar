@@ -1,3 +1,5 @@
+import { errorWithOriginalStack } from "./error";
+
 export class ReadOnlyMap<K, V> implements ReadonlyMap<K, V> {
   private sourceMap: Map<K, V>;
 
@@ -17,15 +19,15 @@ export class ReadOnlyMap<K, V> implements ReadonlyMap<K, V> {
     return this.sourceMap.size;
   }
 
-  entries(): ReturnType<Map<K, V>["entries"]> {
+  entries(): MapIterator<[K, V]> {
     return this.sourceMap.entries();
   }
 
-  keys(): ReturnType<Map<K, V>["keys"]> {
+  keys(): MapIterator<K> {
     return this.sourceMap.keys();
   }
 
-  values(): ReturnType<Map<K, V>["values"]> {
+  values(): MapIterator<V> {
     return this.sourceMap.values();
   }
 
@@ -36,7 +38,7 @@ export class ReadOnlyMap<K, V> implements ReadonlyMap<K, V> {
     return this.sourceMap.forEach(callbackfn, thisArg);
   }
 
-  [Symbol.iterator](): ReturnType<Map<K, V>[typeof Symbol.iterator]> {
+  [Symbol.iterator](): MapIterator<[K, V]> {
     return this.sourceMap[Symbol.iterator]();
   }
 }
@@ -54,21 +56,24 @@ export class FreezableMap<K, V> extends Map<K, V> {
 
   set(key: K, value: V): this {
     if (this.frozen) {
-      throw new Error("Cannot call set on a frozen map");
+      const error = new Error("Cannot call set on a frozen map");
+      throw errorWithOriginalStack(error, this.set);
     }
     return super.set(key, value);
   }
 
   delete(key: K): boolean {
     if (this.frozen) {
-      throw new Error("Cannot call delete on a frozen map");
+      const error = new Error("Cannot call delete on a frozen map");
+      throw errorWithOriginalStack(error, this.delete);
     }
     return super.delete(key);
   }
 
   clear(): void {
     if (this.frozen) {
-      throw new Error("Cannot call clear on a frozen map");
+      const error = new Error("Cannot call clear on a frozen map");
+      throw errorWithOriginalStack(error, this.clear);
     }
     return super.clear();
   }

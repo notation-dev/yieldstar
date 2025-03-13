@@ -36,9 +36,9 @@ export function createTestSdkFactory(params?: { logger?: Logger }) {
     return {
       async triggerAndWait<
         K extends keyof W & string,
-        EventParams = EventParamsOf<W[K]>
+        Params extends EventParamsOf<W[K]> = EventParamsOf<W[K]>
       >(
-        event: TriggerEvent<K, EventParams>
+        event: TriggerEvent<K, Params>
       ): Promise<WorkflowGeneratorReturnType<W[K]>> {
         memoryEventLoop.start({ onNewEvent: invoker.execute });
 

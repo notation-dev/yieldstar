@@ -1,5 +1,10 @@
 import type { Logger } from "pino";
-import type { WorkflowEvent, WorkflowGenerator } from "@yieldstar/core";
+import type {
+  WorkflowEvent,
+  WorkflowGenerator,
+  EventParams,
+  EventContext,
+} from "@yieldstar/core";
 import type { StepRunner } from "../internal/step-runner";
 import { isIterable } from "../internal/utils";
 import {
@@ -18,19 +23,23 @@ import {
   WorkflowResult,
 } from "@yieldstar/core";
 
-export type WorkflowFn<EventParams, Result, Context extends Map<any, any>> = (
+export type WorkflowFn<
+  Params extends EventParams,
+  Result,
+  Context extends EventContext
+> = (
   step: StepRunner,
-  event: WorkflowEvent<EventParams, Context>,
+  event: WorkflowEvent<Params, Context>,
   logger: Logger
 ) => AsyncGenerator<any, Result>;
 
 export function workflow<
-  EventParams = void,
-  Result = void,
-  Context extends Map<any, any> = Map<any, any>
+  Params extends EventParams,
+  Result,
+  Context extends EventContext
 >(
-  workflowFn: WorkflowFn<EventParams, Result, Context>
-): WorkflowGenerator<EventParams, Result, Context> {
+  workflowFn: WorkflowFn<Params, Result, Context>
+): WorkflowGenerator<Params, Result, Context> {
   /**
    * @description Advances workflow steps, handling any workflow logic, and
    * yielding control to a workflow executor to do async work

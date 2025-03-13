@@ -7,7 +7,7 @@ import type {
 } from "@yieldstar/core";
 import { nanoid } from "nanoid";
 import { deserializeError } from "serialize-error";
-import { errorWithOriginalStack } from "../internal/serialise";
+import { errorWithOriginalStack } from "@yieldstar/core";
 
 type TriggerAck = {
   executionId: string;

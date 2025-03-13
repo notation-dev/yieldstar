@@ -11,6 +11,11 @@ test("ReadOnlyMap", () => {
   expect(readOnlyMap.get("key")).toBe("value");
   expect(readOnlyMap.has("key")).toBe(true);
   expect(readOnlyMap.size).toBe(1);
+  expect(Array.from(readOnlyMap.entries())).toEqual([["key", "value"]]);
+  expect(Array.from(readOnlyMap.keys())).toEqual(["key"]);
+  expect(Array.from(readOnlyMap.values())).toEqual(["value"]);
+  expect(readOnlyMap.forEach).toBeInstanceOf(Function);
+  expect(readOnlyMap[Symbol.iterator]).toBeInstanceOf(Function);
 
   expect("set" in readOnlyMap).toBe(false);
   expect("delete" in readOnlyMap).toBe(false);

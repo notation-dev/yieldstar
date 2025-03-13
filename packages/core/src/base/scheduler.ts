@@ -1,8 +1,8 @@
-import type { ExecutionEvent } from "./event";
+import type { WorkflowEvent, EventParams } from "./event";
 
 export interface SchedulerClient {
-  requestWakeUp<EventParams>(
-    event: ExecutionEvent<EventParams>,
+  requestWakeUp<Params extends EventParams>(
+    event: WorkflowEvent<Params>,
     resumeIn?: number
   ): Promise<void>;
 }
