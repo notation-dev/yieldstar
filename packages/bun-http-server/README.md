@@ -32,7 +32,7 @@ const serverInstance = server.serve();
 logger.info(`Server started on port ${serverInstance.port}`);
 ```
 
-## Custom Routes
+## Custom Routes
 
 ```ts
 const server = Bun.serve({
