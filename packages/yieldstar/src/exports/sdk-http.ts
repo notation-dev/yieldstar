@@ -20,7 +20,10 @@ type TriggerResponse<W extends WorkflowRouter, K extends string & keyof W> = {
 };
 
 export function createHttpSdkFactory<W extends WorkflowRouter>() {
-  return (params: { url: string }) => {
+  return (params: {
+    url: string;
+    fetchOptions?: Omit<RequestInit, "body" | "method">;
+  }) => {
     return {
       async trigger<K extends string & keyof W>(
         event: TriggerEvent<K, EventParamsOf<W[K]>>
@@ -32,6 +35,7 @@ export function createHttpSdkFactory<W extends WorkflowRouter>() {
         };
 
         const res = await fetch(`${params.url}/trigger`, {
+          ...params.fetchOptions,
           method: "POST",
           body: JSON.stringify(executionEvent),
         });
@@ -56,6 +60,7 @@ export function createHttpSdkFactory<W extends WorkflowRouter>() {
         const res = await fetch(`${params.url}/events`, {
           method: "POST",
           body: JSON.stringify({ executionId: ack.executionId }),
+          ...params.fetchOptions,
         });
 
         if (res.status === 500) {
