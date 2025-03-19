@@ -52,31 +52,27 @@ export const createEventsHandler =
 
     const url = new URL(req.url);
 
-    if (url.pathname === "/events") {
-      const { executionId } = (await req.json()) as {
-        executionId: string;
-      };
+    const { executionId } = (await req.json()) as {
+      executionId: string;
+    };
 
-      if (!executionId) {
-        return new Response("Missing executionId", {
-          status: 400,
-        });
-      }
-
-      const result = await new Promise((resolve) => {
-        invoker.workflowEndEmitter.once(executionId, resolve);
+    if (!executionId) {
+      return new Response("Missing executionId", {
+        status: 400,
       });
-
-      if (result instanceof Error) {
-        return Response.json(serializeError(result), {
-          status: 500,
-        });
-      }
-
-      return Response.json(result);
     }
 
-    return new Response("Not Found", { status: 404 });
+    const result = await new Promise((resolve) => {
+      invoker.workflowEndEmitter.once(executionId, resolve);
+    });
+
+    if (result instanceof Error) {
+      return Response.json(serializeError(result), {
+        status: 500,
+      });
+    }
+
+    return Response.json(result);
   };
 
 export function createRoutes(params: {
