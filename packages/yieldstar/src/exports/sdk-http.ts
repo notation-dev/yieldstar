@@ -32,6 +32,7 @@ export function createHttpSdkFactory<W extends WorkflowRouter>() {
           executionId: event?.executionId ?? nanoid(),
           workflowId: event?.workflowId as string,
           params: event?.params,
+          context: event?.context,
         };
 
         const res = await fetch(`${params.url}/trigger`, {

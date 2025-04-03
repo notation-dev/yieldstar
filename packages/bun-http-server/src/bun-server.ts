@@ -22,7 +22,9 @@ export const createTriggerHandler =
 
     const event: MiddlewareEvent = {
       ...executionEvent,
-      context: new FreezableMap<string, any>(),
+      context: new FreezableMap<string, any>(
+        Object.entries(executionEvent.context ?? {})
+      ),
     };
 
     return executeMiddlewareChain(

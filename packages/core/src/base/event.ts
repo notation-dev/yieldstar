@@ -12,17 +12,20 @@ export type TriggerEvent<
       workflowId: WorkflowId;
       executionId?: string;
       params?: undefined;
+      context?: Record<string, any>;
     }
   : {
       workflowId: WorkflowId;
       executionId?: string;
       params: Params;
+      context?: Record<string, any>;
     };
 
 export type ExecutionEvent<Params extends EventParams = EventParams> = {
   workflowId: string;
   executionId: string;
   params: Params;
+  context?: Record<string, any>;
 };
 
 export type WorkflowEvent<
