@@ -37,7 +37,7 @@ logger.info(`Server started on port ${server.url}`);
 Bun.serve({
   port: 3000,
   routes: {
-    "status": new Reponse('OK')
+    "/status": new Response('OK')
       // mount workflow routes on /workflow
     ...createRoutes({
       basePath: "/workflow",

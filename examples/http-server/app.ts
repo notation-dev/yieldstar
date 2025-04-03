@@ -2,13 +2,19 @@ import { createHttpSdkFactory } from "yieldstar";
 import type { WorkflowRouter } from "./shared";
 
 export const createSdk = createHttpSdkFactory<WorkflowRouter>();
-const sdk = createSdk({ host: "localhost", port: 8080 });
+const sdk = createSdk({ url: "http://localhost:8080" });
 
 try {
   const execution = await sdk.trigger({
-    workflowId: "dynamic-workflow",
+    workflowId: "simple-workflow",
     params: {
       msg: "world!",
+    },
+    context: {
+      user: {
+        id: "123",
+        name: "John Doe",
+      },
     },
   });
 
