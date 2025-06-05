@@ -37,14 +37,14 @@ logger.info(`Server started on port ${server.url}`);
 Bun.serve({
   port: 3000,
   routes: {
-    "/status": new Response('OK')
-      // mount workflow routes on /workflow
+    "/status": new Response('OK'),
+    // mount workflow routes on /workflow
     ...createRoutes({
       basePath: "/workflow",
-      invoker: invoker,
-      logger: logger,
+      invoker,
+      logger,
     }),
-  }
+  },
 });
 ```
 
@@ -55,13 +55,10 @@ Middleware can be passed to the server. Middleware enables:
 - reading the HTTP request
 - setting context (available to other middleware and the invoked workflow)
 - returning early HTTP responses
-- setting HTTP reponse headers
+- setting HTTP response headers
 
 ```ts
-import {
-  createWorkflowHttpServer,
-  createMiddleware,
-} from "@yieldstar/bun-http-server";
+import { createRoutes, createMiddleware } from "@yieldstar/bun-http-server";
 
 // CORS middleware
 const corsMiddleware = createMiddleware(async (req, event, next) => {
@@ -100,11 +97,13 @@ const authMiddleware = createMiddleware(async (req, event, next) => {
 });
 
 // Create server with middleware
-const server = createWorkflowHttpServer({
+const server = Bun.serve({
   port: 8080,
-  logger,
-  invoker,
-  middleware: [corsMiddleware, authMiddleware],
+  routes: createRoutes({
+    logger,
+    invoker,
+    middleware: [corsMiddleware, authMiddleware],
+  }),
 });
 ```
 
