@@ -60,15 +60,19 @@ export function createWorkflow<T>(
        * If the generator is done, the workflow has returned, so we set a
        * special key for that.
        */
+      let stepFnHash: string | null = null;
+
       if (iteratorResult.done) {
         stepKey = "$$workflow-result$$";
       } else if (!(iteratorResult.value instanceof StepKey)) {
         throw new Error("Step runners must yield a StepKey object");
       } else if (iteratorResult.value.key) {
         stepKey = iteratorResult.value.key;
+        stepFnHash = iteratorResult.value.fnHash;
       } else {
         keylessStepIndex++;
         stepKey = `$$step-index-${keylessStepIndex}$$`;
+        stepFnHash = iteratorResult.value.fnHash;
       }
 
       /**
@@ -79,6 +83,14 @@ export function createWorkflow<T>(
         executionId,
         stepKey,
       });
+
+      if (
+        cached?.meta.fnHash &&
+        stepFnHash &&
+        cached.meta.fnHash !== stepFnHash
+      ) {
+        cached = null;
+      }
 
       /**
        * Increment attempt counter. We'll save this after execution.
@@ -163,6 +175,7 @@ export function createWorkflow<T>(
           executionId,
           stepKey,
           stepAttempt,
+          fnHash: stepFnHash ?? undefined,
           stepDone: !needsRetry,
           stepResponseJson: serialize(stepResponse),
         });

@@ -6,6 +6,7 @@ import {
   StepDelay,
   StepCacheCheck,
 } from "./step-response";
+import { createHash } from "node:crypto";
 import { RetryableError } from "./errors";
 
 /**
@@ -19,6 +20,13 @@ import { RetryableError } from "./errors";
 export const stepRunner = { run, delay, poll };
 
 export type StepRunner = typeof stepRunner;
+
+function getFnHash(fn: Function): string {
+  const err: { stack?: string } = {};
+  Error.captureStackTrace(err, fn);
+  const line = err.stack ? err.stack.split("\n")[1]?.trim() ?? "" : "";
+  return createHash("sha1").update(line).digest("hex");
+}
 
 function run<T extends any>(
   fn: () => T | Promise<T>
@@ -35,15 +43,17 @@ async function* run<T extends any>(
 ): AsyncGenerator<StepResponse, T, StepResult | StepError> {
   let key: string | null = null;
   let fn: () => T | Promise<T>;
+  let fnHash: string | null = null;
 
   if (typeof arg1 === "string") {
     key = arg1;
     fn = arg2!;
   } else {
     fn = arg1;
+    fnHash = getFnHash(run);
   }
 
-  yield new StepKey(key);
+  yield new StepKey(key, fnHash);
 
   const cached = yield new StepCacheCheck();
 
@@ -83,15 +93,17 @@ async function* delay(
 ): AsyncGenerator<any, void, StepDelay> {
   let key: string | null = null;
   let retryInterval: number;
+  let fnHash: string | null = null;
 
   if (typeof arg1 === "string") {
     key = arg1;
     retryInterval = arg2!;
   } else {
     retryInterval = arg1;
+    fnHash = getFnHash(delay);
   }
 
-  yield new StepKey(key);
+  yield new StepKey(key, fnHash);
 
   const cached = yield new StepCacheCheck();
 

@@ -37,3 +37,11 @@ To run an example:
 ```bash
 bun start
 ```
+
+### Call-site caching
+
+When a step is invoked without providing a cache key, Yieldstar hashes the call
+site of that invocation and uses the hash as the step key. On subsequent
+executions the stored hash is compared with the new call site so cached values
+are ignored if a step has moved, preventing accidental reuse when steps are
+re-ordered.

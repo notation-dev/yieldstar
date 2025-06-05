@@ -20,6 +20,7 @@ export class MemoryConnector extends WorkerConnector {
     executionId: string;
     stepIndex: number;
     stepAttempt: number;
+    fnHash?: string;
     stepDone: boolean;
     stepResponseJson: string;
   }) {
@@ -30,6 +31,7 @@ export class MemoryConnector extends WorkerConnector {
       meta: {
         attempt: stepAttempt,
         done: stepDone,
+        fnHash: params.fnHash,
       },
     };
     const attempts = this.cache[key];

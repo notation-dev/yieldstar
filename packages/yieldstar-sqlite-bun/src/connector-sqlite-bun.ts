@@ -8,6 +8,7 @@ type DbResult = {
   step_key: string;
   step_attempt: number;
   step_done: 0 | 1;
+  fn_hash: string | null;
   step_response: string;
 };
 
@@ -35,6 +36,7 @@ export class SqliteConnector extends WorkerConnector {
       step_key TEXT NOT NULL,
       step_attempt INTEGER NOT NULL,
       step_done BOOL NOT NULL,
+      fn_hash TEXT,
       step_response JSONB,
       PRIMARY KEY (execution_id, step_key, step_attempt)
     );
@@ -84,6 +86,7 @@ export class SqliteConnector extends WorkerConnector {
       meta: {
         attempt: result.step_attempt,
         done: Boolean(result.step_done),
+        fnHash: result.fn_hash,
       },
     };
   }
@@ -92,18 +95,20 @@ export class SqliteConnector extends WorkerConnector {
     executionId: string;
     stepKey: string;
     stepAttempt: number;
+    fnHash?: string;
     stepDone: boolean;
     stepResponseJson: string;
   }) {
     const query = this.db.query(`
-      INSERT INTO step_responses (execution_id, step_key, step_attempt, step_done, step_response) 
-      VALUES ($executionId, $stepKey, $stepAttempt, $stepDone, $stepResponse)`);
+      INSERT INTO step_responses (execution_id, step_key, step_attempt, step_done, fn_hash, step_response)
+      VALUES ($executionId, $stepKey, $stepAttempt, $stepDone, $fnHash, $stepResponse)`);
 
     query.run({
       $executionId: params.executionId,
       $stepKey: params.stepKey,
       $stepAttempt: params.stepAttempt,
       $stepDone: params.stepDone,
+      $fnHash: params.fnHash ?? null,
       $stepResponse: params.stepResponseJson,
     });
   }

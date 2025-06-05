@@ -24,6 +24,12 @@ if (randomValue) {
 }
 ```
 
+If a step is invoked without an explicit cache key, Yieldstar hashes the call site
+of that invocation and stores the hash alongside the cached result. On subsequent
+invocations the engine compares the stored hash with the new call site hash. If
+they differ, the cached value is ignored, preventing invalid reuse when steps are
+re-ordered.
+
 2. **Stateless**. Ensure steps are stateless with respect to the outer workflow scope. Steps are only run once per workflow, even though the workflow may be invoked multiple times. If a step's output intentionally changes based on state in the workflow scope, assign it a dynamic cache key.
 
 ```ts

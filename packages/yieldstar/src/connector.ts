@@ -1,6 +1,6 @@
 type CacheResponse = {
   stepResponseJson: string;
-  meta: { attempt: number; done: boolean };
+  meta: { attempt: number; done: boolean; fnHash?: string };
 };
 
 export abstract class Connector {
@@ -14,6 +14,7 @@ export abstract class Connector {
     executionId: string;
     stepKey: string;
     stepAttempt: number;
+    fnHash?: string;
     stepDone: boolean;
     stepResponseJson: string;
   }): Promise<void>;

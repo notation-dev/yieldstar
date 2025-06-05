@@ -5,9 +5,15 @@ export abstract class StepResponse {
 export class StepKey extends StepResponse {
   type = "step-key";
   key: string | null;
-  constructor(key: string | null) {
+  /**
+   * Hash of the call site for keyless steps. Used at runtime to
+   * detect when step order has changed between workflow executions.
+   */
+  fnHash: string | null;
+  constructor(key: string | null, fnHash: string | null = null) {
     super();
     this.key = key;
+    this.fnHash = fnHash;
   }
 }
 
