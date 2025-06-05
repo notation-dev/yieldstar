@@ -1,13 +1,10 @@
 FROM ghcr.io/codex-src/codex-universal:2
 
-USER root
-RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y postgresql postgresql-contrib && \
-    rm -rf /var/lib/apt/lists/*
+apt-get update && apt-get install -y postgresql postgresql-contrib
 
-USER postgres
-ENV PGDATA=/var/lib/postgresql/data
-RUN mkdir -p $PGDATA && initdb -D $PGDATA
+service postgresql start
 
-EXPOSE 5432
-CMD ["postgres", "-D", "/var/lib/postgresql/data", "-c", "listen_addresses=*" ]
+sudo -u postgres createdb yieldstar-test
+sudo -u postgres psql -c "CREATE USER testuser WITH PASSWORD 'testpass';"
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE yieldstar-test TO testuser;"
+sudo -u postgres psql -c "ALTER USER testuser CREATEDB;"
