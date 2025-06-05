@@ -7,6 +7,7 @@ import {
   StepCacheCheck,
 } from "@yieldstar/core";
 import { RetryableError } from "../exports/errors";
+import { createHash } from "crypto";
 
 /**
  * @description A library of step generators, each of which:
@@ -19,6 +20,32 @@ import { RetryableError } from "../exports/errors";
 export const stepRunner = { run, delay, poll };
 
 export type StepRunner = typeof stepRunner;
+
+function getFnHash(ignoreFn: Function) {
+  // Preserve any existing stack so we can restore it later
+  const originalStack = (ignoreFn as any).stack;
+
+  // Capture a stack trace and skip frames up to `ignoreFn`
+  const err: { stack?: string } = {};
+  Error.captureStackTrace(err, ignoreFn);
+
+  // Grab the first relevant line from the stack
+  const line = err.stack?.split("\n")[1] ?? "";
+
+  // Normalize to file path and line number for stability across runtimes
+  const match = line.match(/(.*):(\d+):(\d+)/);
+  const stable = match ? `${match[1]}:${match[2]}` : line;
+
+  // Restore the original stack property on the ignored function
+  if (originalStack === undefined) {
+    delete (ignoreFn as any).stack;
+  } else {
+    (ignoreFn as any).stack = originalStack;
+  }
+
+  // Hash the stable location to get a unique identifier for the call site
+  return createHash("sha1").update(stable).digest("hex");
+}
 
 function run<T extends any>(
   fn: () => T | Promise<T>
@@ -43,7 +70,8 @@ async function* run<T extends any>(
     fn = arg1;
   }
 
-  yield new StepKey(key);
+  const callSiteHash = getFnHash(run);
+  yield new StepKey(key, callSiteHash);
 
   const cached = yield new StepCacheCheck();
 
@@ -91,7 +119,8 @@ async function* delay(
     retryInterval = arg1;
   }
 
-  yield new StepKey(key);
+  const callSiteHash = getFnHash(delay);
+  yield new StepKey(key, callSiteHash);
 
   const cached = yield new StepCacheCheck();
 

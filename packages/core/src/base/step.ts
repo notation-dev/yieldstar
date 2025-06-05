@@ -6,9 +6,13 @@ export class StepKey extends StepResponse {
   static type = "step-key";
   readonly type = "step-key";
   key: string | null;
-  constructor(key: string | null) {
+  callSiteHash?: string;
+  constructor(key: string | null, callSiteHash?: string) {
     super();
     this.key = key;
+    if (callSiteHash) {
+      this.callSiteHash = callSiteHash;
+    }
   }
 }
 

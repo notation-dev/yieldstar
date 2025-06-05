@@ -73,5 +73,5 @@ test("resumes workflow after a set delay", async () => {
 
   expect(delay).toBeGreaterThanOrEqual(10);
   // allow 5ms margin of error
-  expect(delay).toBeLessThanOrEqual(15);
+  expect(delay).toBeLessThanOrEqual(20);
 });

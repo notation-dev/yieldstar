@@ -52,6 +52,7 @@ export function workflow<
     let keylessStepIndex = -1;
     let iteratorResult: IteratorResult<any> | null = null;
     let nextIteratorResult: IteratorResult<any> | null = null;
+    const callSiteHashes = new Set<string>();
 
     while (true) {
       let stepAttempt = 0;
@@ -85,6 +86,20 @@ export function workflow<
       } else {
         keylessStepIndex++;
         stepKey = `$$step-index-${keylessStepIndex}$$`;
+      }
+
+      if (
+        !iteratorResult.done &&
+        iteratorResult.value instanceof StepKey &&
+        iteratorResult.value.key === null &&
+        iteratorResult.value.callSiteHash
+      ) {
+        const h = iteratorResult.value.callSiteHash;
+        if (callSiteHashes.has(h)) {
+          logger.warn(`Step at call site ${h} executed multiple times without a key`);
+          throw new Error("Duplicate call site detected");
+        }
+        callSiteHashes.add(h);
       }
 
       /**

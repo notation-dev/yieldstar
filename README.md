@@ -66,3 +66,12 @@ To run an example:
 ```bash
 bun start
 ```
+
+## Automatic Step Keys and Loop Detection
+
+When `step.run` or `step.delay` are invoked without an explicit cache key,
+Yieldstar computes a hash of the call site and stores it alongside the step.
+During a single workflow execution these call site hashes are tracked. If the
+same call site is reached more than once without providing a key, the runtime
+throws an error. This helps catch accidental loops where a step is executed in a
+cycle without a unique cache key.
