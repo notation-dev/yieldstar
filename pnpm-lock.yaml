@@ -69,6 +69,22 @@ importers:
         specifier: ^1.2.4
         version: 1.2.4
 
+  packages/bun-postgres-runtime:
+    dependencies:
+      '@yieldstar/core':
+        specifier: workspace:*
+        version: link:../core
+      pino:
+        specifier: ^9.6.0
+        version: 9.6.0
+    devDependencies:
+      '@types/bun':
+        specifier: ^1.2.4
+        version: 1.2.15
+      yieldstar:
+        specifier: workspace:*
+        version: link:../yieldstar
+
   packages/bun-sqlite-runtime:
     dependencies:
       '@yieldstar/core':
@@ -191,6 +207,9 @@ packages:
   '@types/bun@1.1.10':
     resolution: {integrity: sha512-76KYVSwrHwr9zsnk6oLXOGs9KvyBg3U066GLO4rk6JZk1ypEPGCUDZ5yOiESyIHWs9cx9iC8r01utYN32XdmgA==}
 
+  '@types/bun@1.2.15':
+    resolution: {integrity: sha512-U1ljPdBEphF0nw1MIk0hI7kPg7dFdPyM7EenHsp6W5loNHl7zqy6JQf/RKCgnUn2KDzUpkBwHPnEJEjII594bA==}
+
   '@types/bun@1.2.4':
     resolution: {integrity: sha512-QtuV5OMR8/rdKJs213iwXDpfVvnskPXY/S0ZiFbsTjQZycuqPbMW8Gf/XhLfwE5njW8sxI2WjISURXPlHypMFA==}
 
@@ -243,6 +262,9 @@ packages:
 
   bun-types@1.1.29:
     resolution: {integrity: sha512-En3/TzSPMPyl5UlUB1MHzHpcrZDakTm7mS203eLoX1fBoEa3PW+aSS8GAqVJ7Is/m34Z5ogL+ECniLY0uDaCPw==}
+
+  bun-types@1.2.15:
+    resolution: {integrity: sha512-NarRIaS+iOaQU1JPfyKhZm4AsUOrwUOqRNHY0XxI8GI8jYxiLXLcdjYMG9UKS+fwWasc1uw1htV9AX24dD+p4w==}
 
   bun-types@1.2.4:
     resolution: {integrity: sha512-nDPymR207ZZEoWD4AavvEaa/KZe/qlrbMSchqpQwovPZCKc7pwMoENjEtHgMKaAjJhy+x6vfqSBA1QU3bJgs0Q==}
@@ -603,6 +625,10 @@ snapshots:
     dependencies:
       bun-types: 1.1.29
 
+  '@types/bun@1.2.15':
+    dependencies:
+      bun-types: 1.2.15
+
   '@types/bun@1.2.4':
     dependencies:
       bun-types: 1.2.4
@@ -666,6 +692,10 @@ snapshots:
     dependencies:
       '@types/node': 20.12.14
       '@types/ws': 8.5.12
+
+  bun-types@1.2.15:
+    dependencies:
+      '@types/node': 22.13.10
 
   bun-types@1.2.4:
     dependencies:

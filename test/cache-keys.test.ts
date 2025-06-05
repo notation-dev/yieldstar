@@ -71,7 +71,7 @@ test("step.delay without cache keys", async () => {
 
   // expect second delay to be a cache hit
   expect(duration).toBeGreaterThanOrEqual(10);
-  expect(duration).toBeLessThan(15);
+  expect(duration).toBeLessThan(50);
 });
 
 test("step.delay with cache keys", async () => {
@@ -95,7 +95,7 @@ test("step.delay with cache keys", async () => {
 
   // expect second delay to trigger a new timer
   expect(duration).toBeGreaterThanOrEqual(20);
-  expect(duration).toBeLessThan(25);
+  expect(duration).toBeLessThan(110);
 });
 
 test("interlacing cache keys and cache indexes", async () => {

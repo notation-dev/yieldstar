@@ -9,6 +9,7 @@
     { "path": "./packages/test-utils" },
     { "path": "./packages/bun-http-server" },
     { "path": "./packages/bun-sqlite-runtime" },
+    { "path": "./packages/bun-postgres-runtime" },
     { "path": "./packages/bun-worker-invoker" }
   ]
 }
