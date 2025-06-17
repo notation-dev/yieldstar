@@ -33,8 +33,10 @@ function getFnHash(ignoreFn: Function) {
   const line = err.stack?.split("\n")[1] ?? "";
 
   // Normalize to file path and line number for stability across runtimes
-  const match = line.match(/(.*):(\d+):(\d+)/);
-  const stable = match ? `${match[1]}:${match[2]}` : line;
+  // Stack traces can vary slightly between runtimes so we capture the path
+  // inside parentheses and trim off the column number
+  const match = line.match(/\((.*):(\d+):(\d+)\)/);
+  const stable = match ? `${match[1]}:${match[2]}` : line.trim();
 
   // Restore the original stack property on the ignored function
   if (originalStack === undefined) {
