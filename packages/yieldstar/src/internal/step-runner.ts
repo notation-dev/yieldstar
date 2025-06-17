@@ -50,29 +50,37 @@ function getFnHash(ignoreFn: Function) {
 }
 
 function run<T extends any>(
-  fn: () => T | Promise<T>
+  fn: () => T | Promise<T>,
+  callSiteHash?: string
 ): AsyncGenerator<StepResponse, T, StepResult | StepError>;
 
 function run<T extends any>(
   key: string,
-  fn: () => T | Promise<T>
+  fn: () => T | Promise<T>,
+  callSiteHash?: string
 ): AsyncGenerator<StepResponse, T, StepResult | StepError>;
 
 async function* run<T extends any>(
   arg1: string | (() => T | Promise<T>),
-  arg2?: () => T | Promise<T>
+  arg2?: (() => T | Promise<T>) | string,
+  arg3?: string
 ): AsyncGenerator<StepResponse, T, StepResult | StepError> {
   let key: string | null = null;
   let fn: () => T | Promise<T>;
+  let callSiteHash: string | undefined;
 
   if (typeof arg1 === "string") {
     key = arg1;
-    fn = arg2!;
+    fn = arg2 as () => T | Promise<T>;
+    callSiteHash = arg3;
   } else {
     fn = arg1;
+    callSiteHash = arg2 as string | undefined;
   }
 
-  const callSiteHash = getFnHash(run);
+  if (!callSiteHash) {
+    callSiteHash = getFnHash(run);
+  }
   yield new StepKey(key, callSiteHash);
 
   const cached = yield new StepCacheCheck();
@@ -157,6 +165,8 @@ async function* poll(
     predicate = arg2 as PollPredicate;
   }
 
+  const callSiteHash = getFnHash(poll);
+
   const task = async () => {
     if (!(await predicate())) {
       throw new RetryableError("Polling reached max retries", {
@@ -167,8 +177,8 @@ async function* poll(
   };
 
   if (key) {
-    yield* run(key, task);
+    yield* run(key, task, callSiteHash);
   } else {
-    yield* run(task);
+    yield* run(task, callSiteHash);
   }
 }
