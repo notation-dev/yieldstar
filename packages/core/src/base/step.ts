@@ -5,8 +5,8 @@ export abstract class StepResponse {
 export class StepKey extends StepResponse {
   static type = "step-key";
   readonly type = "step-key";
-  key: string | null;
-  constructor(key: string | null) {
+  key: string;
+  constructor(key: string) {
     super();
     this.key = key;
   }
