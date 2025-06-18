@@ -49,9 +49,9 @@ export function workflow<
     const workflowIterator = workflowFn(stepRunner, event, logger);
     const { executionId } = event;
 
-    let keylessStepIndex = -1;
     let iteratorResult: IteratorResult<any> | null = null;
     let nextIteratorResult: IteratorResult<any> | null = null;
+    const stepKeys = new Set<string>();
 
     while (true) {
       let stepAttempt = 0;
@@ -71,20 +71,20 @@ export function workflow<
 
       /**
        * Get the StepKey from the step runner.
-       * If the StepKey value is null, assume deterministic ordering, and use
-       * the step index as a key.
        * If the generator is done, the workflow has returned, so we set a
        * special key for that.
+       * Finally, check that this call site wasn't reached before.
        */
       if (iteratorResult.done) {
         stepKey = "$$workflow-result$$";
       } else if (!(iteratorResult.value instanceof StepKey)) {
         throw new Error("Step runners must yield a StepKey object");
-      } else if (iteratorResult.value.key) {
-        stepKey = iteratorResult.value.key;
       } else {
-        keylessStepIndex++;
-        stepKey = `$$step-index-${keylessStepIndex}$$`;
+        stepKey = iteratorResult.value.key;
+        if (stepKeys.has(stepKey)) {
+          throw new Error("Each step in a loop must have a unique cache key.");
+        }
+        stepKeys.add(stepKey)
       }
 
       /**

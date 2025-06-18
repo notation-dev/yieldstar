@@ -24,7 +24,7 @@ test("step.run without cache keys", async () => {
   await sdk.triggerAndWait({ workflowId: "workflow" });
 
   expect(mock1).toBeCalledTimes(1);
-  expect(mock2).not.toBeCalled();
+  expect(mock2).toBeCalledTimes(1);
 });
 
 test("step.run with cache keys", async () => {
@@ -69,9 +69,9 @@ test("step.delay without cache keys", async () => {
 
   let duration = Date.now() - startTime;
 
-  // expect second delay to be a cache hit
-  expect(duration).toBeGreaterThanOrEqual(10);
-  expect(duration).toBeLessThan(50);
+  // expect both delays to be invoked
+  expect(duration).toBeGreaterThanOrEqual(20);
+  expect(duration).toBeLessThan(25);
 });
 
 test("step.delay with cache keys", async () => {
@@ -96,35 +96,4 @@ test("step.delay with cache keys", async () => {
   // expect second delay to trigger a new timer
   expect(duration).toBeGreaterThanOrEqual(20);
   expect(duration).toBeLessThan(110);
-});
-
-test("interlacing cache keys and cache indexes", async () => {
-  let executionIdx = -1;
-
-  const workflow = createWorkflow(async function* (step) {
-    executionIdx++;
-    let volatileNum = 0;
-    let stableNum = 0;
-
-    // a different step will run on re-invocation of the workflow
-    // therefore the steps need cache keys
-    if (executionIdx === 0) {
-      stableNum = yield* step.run("step-1", () => 1);
-      volatileNum = yield* step.run(() => 1);
-    } else {
-      volatileNum = yield* step.run(() => 2);
-      stableNum = yield* step.run("step-2", () => 2);
-    }
-
-    // trigger a second invocation of the workflow
-    yield* step.delay(100);
-
-    return { stableNum, volatileNum };
-  });
-
-  const sdk = createSdk({ workflow });
-  const result = await sdk.triggerAndWait({ workflowId: "workflow" });
-
-  expect(result.stableNum).toBe(2);
-  expect(result.volatileNum).toBe(1);
 });

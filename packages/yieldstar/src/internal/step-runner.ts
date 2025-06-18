@@ -7,6 +7,7 @@ import {
   StepCacheCheck,
 } from "@yieldstar/core";
 import { RetryableError } from "../exports/errors";
+import { getCallSiteHash } from "./utils";
 
 /**
  * @description A library of step generators, each of which:
@@ -21,27 +22,29 @@ export const stepRunner = { run, delay, poll };
 export type StepRunner = typeof stepRunner;
 
 function run<T extends any>(
-  fn: () => T | Promise<T>
+  fn: () => T | Promise<T>,
 ): AsyncGenerator<StepResponse, T, StepResult | StepError>;
 
 function run<T extends any>(
   key: string,
-  fn: () => T | Promise<T>
+  fn: () => T | Promise<T>,
 ): AsyncGenerator<StepResponse, T, StepResult | StepError>;
 
 async function* run<T extends any>(
   arg1: string | (() => T | Promise<T>),
-  arg2?: () => T | Promise<T>
+  arg2?: (() => T | Promise<T>) | string,
 ): AsyncGenerator<StepResponse, T, StepResult | StepError> {
   let key: string | null = null;
   let fn: () => T | Promise<T>;
 
   if (typeof arg1 === "string") {
     key = arg1;
-    fn = arg2!;
+    fn = arg2 as () => T | Promise<T>;
   } else {
     fn = arg1;
   }
+
+  if (!key) key = getCallSiteHash(run);
 
   yield new StepKey(key);
 
@@ -91,6 +94,8 @@ async function* delay(
     retryInterval = arg1;
   }
 
+  if (!key) key = getCallSiteHash(delay);
+
   yield new StepKey(key);
 
   const cached = yield new StepCacheCheck();
@@ -126,6 +131,8 @@ async function* poll(
     predicate = arg2 as PollPredicate;
   }
 
+  if (!key) key  = getCallSiteHash(poll);
+
   const task = async () => {
     if (!(await predicate())) {
       throw new RetryableError("Polling reached max retries", {
@@ -135,9 +142,5 @@ async function* poll(
     }
   };
 
-  if (key) {
-    yield* run(key, task);
-  } else {
-    yield* run(task);
-  }
+  yield* run(key, task, );
 }
