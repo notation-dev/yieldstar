@@ -1,6 +1,8 @@
 {
   "name": "yieldstar",
   "version": "0.4.5",
+  "license": "MIT",
+  "author": "Daniel Grant",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
