@@ -1,6 +1,6 @@
 {
   "name": "yieldstar",
-  "version": "0.4.4",
+  "version": "0.4.10",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
