@@ -4,7 +4,7 @@
   "private": true,
   "dependencies": {
     "@yieldstar/test-utils": "workspace:*",
-    "pino": "^9.6.0",
+    "pino": "^9.9.0",
     "yieldstar": "workspace:*"
   }
 }

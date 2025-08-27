@@ -7,11 +7,11 @@
     "@yieldstar/bun-sqlite-runtime": "workspace:*",
     "@yieldstar/bun-worker-invoker": "workspace:*",
     "@yieldstar/core": "workspace:*",
-    "pino": "^9.4.0",
+    "pino": "^9.9.0",
     "yieldstar": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^22.10.2",
-    "pino-pretty": "^11.2.2"
+    "@types/node": "^22.18.0",
+    "pino-pretty": "^11.3.0"
   }
 }
