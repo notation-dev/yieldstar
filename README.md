@@ -55,4 +55,4 @@ MIT
 
 ## Author
 
-[Daniel Grant](danielgrant.co)
+[Daniel Grant](https://danielgrant.co)

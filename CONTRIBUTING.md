@@ -96,7 +96,7 @@ Examples are in `examples/`.
 
 Releases are handled by `bin/release.sh`.
 
-- Bump version (pre): `bun run version`
+- Bump version (pre): `bun run bump`
 - Pre‑release build: `bun run prerelease`
 - Release: `bun run release`
 

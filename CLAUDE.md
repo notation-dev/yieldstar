@@ -83,7 +83,7 @@ Releases are handled by `bin/release.sh` which:
 - Handles npm account switching between `yieldstar` and `notation` users
 
 Use these commands for releases:
-- `bun run version` - Bump version with alpha pre-release
+- `bun run bump` - Bump version with alpha pre-release
 - `bun run prerelease` - Install deps and bundle before release
 - `bun run release` - Execute the release script
 

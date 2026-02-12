@@ -13,7 +13,7 @@
     "dev:bundle": "bun run bundle --watch",
     "dev:test": "bun test --watch",
     "start": "bun scripts/run-example.ts",
-    "version": "bunx bumpp --preid alpha -r",
+    "bump": "bunx bumpp --preid alpha -r",
     "prerelease": "pnpm i && bun bundle",
     "release": "bin/release.sh"
   },
