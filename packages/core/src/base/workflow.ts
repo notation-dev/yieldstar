@@ -1,6 +1,7 @@
 import type { Logger } from "pino";
 import type { EventParams, WorkflowEvent, EventContext } from "./event";
 import { HeapClient } from "./heap";
+import { StoreClient } from "./store";
 import { StepResponse, WorkflowResult } from "./step";
 
 export type WorkflowGeneratorParams<
@@ -9,6 +10,7 @@ export type WorkflowGeneratorParams<
 > = {
   event: WorkflowEvent<Params, Context>;
   heapClient: HeapClient;
+  storeClient: StoreClient;
   logger: Logger;
 };
 
