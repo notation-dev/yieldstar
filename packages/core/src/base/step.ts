@@ -52,6 +52,14 @@ export class WorkflowDelay extends StepResponse {
   }
 }
 
+export class StepStoreWait extends StepResponse {
+  static type = "store-wait";
+  readonly type = "store-wait";
+  constructor() {
+    super();
+  }
+}
+
 export class WorkflowRestart extends StepResponse {
   static type = "workflow-restart";
   readonly type = "workflow-restart";

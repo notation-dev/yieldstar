@@ -1,13 +1,27 @@
 import {
+  cloneStoreState,
+  defineStore,
+  type Draft,
+  type StandardSchemaV1,
   StepResponse,
   StepKey,
   StepError,
   StepResult,
   StepDelay,
   StepCacheCheck,
+  StepStoreWait,
+  type StoreClient,
+  type StoreDefinition,
+  type StoreKey,
+  type StoreSelector,
+  type StoreSnapshot,
+  type StoreState,
+  type StoreUpdateResult,
+  trackStoreSelector,
 } from "@yieldstar/core";
 import { RetryableError } from "../exports/errors";
 import { getCallSiteHash } from "./utils";
+import type { WorkflowEvent } from "@yieldstar/core";
 
 /**
  * @description A library of step generators, each of which:
@@ -17,9 +31,171 @@ import { getCallSiteHash } from "./utils";
  * @throws any error caught when running the user-defined function,
  * once retries have been exhausted, or if there are no retry semantics
  */
-export const stepRunner = { run, delay, poll };
+export { defineStore };
 
-export type StepRunner = typeof stepRunner;
+export type WorkflowStore<T> = {
+  readonly definition: StoreDefinition<any>;
+  readonly id: string;
+  readonly key: StoreKey;
+  get(key?: string): AsyncGenerator<StepResponse, StoreSnapshot<T>>;
+  select<R>(
+    key: string,
+    selector: StoreSelector<T, R>
+  ): AsyncGenerator<StepResponse, R>;
+  update(
+    key: string,
+    updater: (draft: Draft<T>) => void | T | Promise<void | T>
+  ): AsyncGenerator<StepResponse, StoreUpdateResult<T>>;
+  onChange<R>(
+    selector: StoreSelector<T, R | undefined | null | false>
+  ): AsyncGenerator<StepResponse, NonNullable<R>>;
+  onChange<R>(
+    key: string,
+    selector: StoreSelector<T, R | undefined | null | false>
+  ): AsyncGenerator<StepResponse, NonNullable<R>>;
+};
+
+export type StepRunner = ReturnType<typeof createStepRunner>;
+
+export function createStepRunner(params: {
+  event: WorkflowEvent;
+  storeClient: StoreClient;
+}) {
+  const { event, storeClient } = params;
+
+  function store<Schema extends StandardSchemaV1>(
+    definition: StoreDefinition<Schema>,
+    params?: {
+      id?: string;
+      initial?:
+        | StoreState<Schema>
+        | (() => StoreState<Schema> | Promise<StoreState<Schema>>);
+    }
+  ): AsyncGenerator<StepResponse, WorkflowStore<StoreState<Schema>>> {
+    const id = params?.id ?? event.executionId;
+    const key = `store:${definition.name}:${id}`;
+
+    return storeStep({
+      key,
+      definition,
+      id,
+      event,
+      storeClient,
+      initial: params?.initial,
+    });
+  }
+
+  return { run, delay, poll, store };
+}
+
+async function* storeStep<Schema extends StandardSchemaV1>(params: {
+  key: string;
+  definition: StoreDefinition<Schema>;
+  id: string;
+  event: WorkflowEvent;
+  storeClient: StoreClient;
+  initial?:
+    | StoreState<Schema>
+    | (() => StoreState<Schema> | Promise<StoreState<Schema>>);
+}): AsyncGenerator<
+  StepResponse,
+  WorkflowStore<StoreState<Schema>>,
+  StepResult | StepError
+> {
+  const { key, definition, id, event, storeClient, initial } = params;
+
+  yield new StepKey(key);
+
+  const cached = yield new StepCacheCheck();
+
+  if (cached) {
+    yield cached;
+    if (cached instanceof StepError) {
+      throw cached.err;
+    }
+    return createWorkflowStore({
+      definition,
+      id,
+      event,
+      storeClient,
+    });
+  }
+
+  try {
+    await storeClient.getOrCreateStore({
+      definition,
+      id,
+      initial,
+    });
+    yield new StepResult({ storeName: definition.name, storeId: id });
+    return createWorkflowStore({
+      definition,
+      id,
+      event,
+      storeClient,
+    });
+  } catch (err: unknown) {
+    yield new StepError(err);
+    throw err;
+  }
+}
+
+function createWorkflowStore<T>(params: {
+  definition: StoreDefinition<any>;
+  id: string;
+  event: WorkflowEvent;
+  storeClient: StoreClient;
+}): WorkflowStore<T> {
+  const { definition, id, event, storeClient } = params;
+  const key = { storeName: definition.name, storeId: id };
+
+  return {
+    definition,
+    id,
+    key,
+    get(stepKey?: string) {
+      return durableStep<StoreSnapshot<T>>(stepKey ?? getCallSiteHash(this.get), async () =>
+        (await storeClient.getStore({ definition, id })) as StoreSnapshot<T>
+      );
+    },
+    select<R>(stepKey: string, selector: StoreSelector<T, R>) {
+      return durableStep(stepKey, async () => {
+        const snapshot = await storeClient.getStore({ definition, id });
+        return selector(snapshot.state as T);
+      });
+    },
+    update(stepKey, updater) {
+      return durableStep<StoreUpdateResult<T>>(stepKey, async () =>
+        (await storeClient.updateStore({
+          definition,
+          id,
+          updater: updater as any,
+        })) as StoreUpdateResult<T>
+      );
+    },
+    onChange<R>(
+      arg1:
+        | string
+        | StoreSelector<T, R | undefined | null | false>,
+      arg2?: StoreSelector<T, R | undefined | null | false>
+    ) {
+      const stepKey =
+        typeof arg1 === "string" ? arg1 : getCallSiteHash(this.onChange);
+      const selector = (
+        typeof arg1 === "string" ? arg2 : arg1
+      ) as StoreSelector<T, R | undefined | null | false>;
+
+      return onChangeStep({
+        definition,
+        id,
+        event,
+        storeClient,
+        stepKey,
+        selector,
+      });
+    },
+  };
+}
 
 function run<T extends any>(
   fn: () => T | Promise<T>,
@@ -46,35 +222,7 @@ async function* run<T extends any>(
 
   if (!key) key = getCallSiteHash(run);
 
-  yield new StepKey(key);
-
-  const cached = yield new StepCacheCheck();
-
-  if (cached) {
-    yield cached;
-    if (cached instanceof StepError) {
-      // unreachable – consumer calls throw() on the generator first
-      throw cached.err;
-    }
-    return cached.result;
-  }
-
-  try {
-    const result = await fn();
-    yield new StepResult(result);
-    return result;
-  } catch (err: unknown) {
-    if (err instanceof RetryableError) {
-      yield new StepError(err, {
-        maxAttempts: err.maxAttempts,
-        retryInterval: err.retryInterval,
-      });
-    } else {
-      yield new StepError(err);
-    }
-    // unreachable – consumer calls throw() on the generator first
-    throw err;
-  }
+  return yield* durableStep(key, fn);
 }
 
 function delay(retryInterval: number): any;
@@ -143,4 +291,88 @@ async function* poll(
   };
 
   yield* run(key, task, );
+}
+
+async function* durableStep<T extends any>(
+  key: string,
+  fn: () => T | Promise<T>
+): AsyncGenerator<StepResponse, T, StepResult | StepError> {
+  yield new StepKey(key);
+
+  const cached = yield new StepCacheCheck();
+
+  if (cached) {
+    yield cached;
+    if (cached instanceof StepError) {
+      // unreachable – consumer calls throw() on the generator first
+      throw cached.err;
+    }
+    return cached.result;
+  }
+
+  try {
+    const result = await fn();
+    yield new StepResult(result);
+    return result;
+  } catch (err: unknown) {
+    if (err instanceof RetryableError) {
+      yield new StepError(err, {
+        maxAttempts: err.maxAttempts,
+        retryInterval: err.retryInterval,
+      });
+    } else {
+      yield new StepError(err);
+    }
+    // unreachable – consumer calls throw() on the generator first
+    throw err;
+  }
+}
+
+async function* onChangeStep<T, R>(params: {
+  definition: StoreDefinition<any>;
+  id: string;
+  event: WorkflowEvent;
+  storeClient: StoreClient;
+  stepKey: string;
+  selector: StoreSelector<T, R | undefined | null | false>;
+}): AsyncGenerator<StepResponse, NonNullable<R>, StepResult | StepStoreWait> {
+  const { definition, id, event, storeClient, stepKey, selector } = params;
+
+  yield new StepKey(stepKey);
+
+  const cached = yield new StepCacheCheck();
+
+  if (cached) {
+    yield cached;
+    if (!(cached instanceof StepResult)) {
+      throw new Error("Store wait step cache must resolve to a step result");
+    }
+    return cached.result;
+  }
+
+  const snapshot = await storeClient.getStore({ definition, id });
+  const { result, readPaths } = trackStoreSelector(
+    cloneStoreState(snapshot.state as T),
+    selector
+  );
+
+  if (result !== undefined && result !== null && result !== false) {
+    yield new StepResult(result);
+    return result as NonNullable<R>;
+  }
+
+  await storeClient.registerWaiter({
+    workflowId: event.workflowId,
+    executionId: event.executionId,
+    stepKey,
+    event,
+    storeName: definition.name,
+    storeId: id,
+    sinceVersion: snapshot.version,
+    readPaths,
+  });
+
+  yield new StepStoreWait();
+
+  throw new Error("Store wait yielded control unexpectedly");
 }

@@ -23,7 +23,7 @@ const message = yield* store.onChange(s =>
 - If no store id is provided inside a workflow, the id defaults to `event.executionId`.
 - Reads inside workflows are yielded and durable.
 - Replaying a workflow must never observe a different value for an already completed read.
-- Updates are idempotent by step key or idempotency key.
+- Workflow updates are idempotent by step key.
 - Public APIs should not expose path lists for writes.
 - `onChange` should infer watched paths by running the selector against a tracking proxy.
 - Store schemas use Standard Schema, not Zod-specific APIs.
@@ -258,9 +258,9 @@ yield* store.update(`start:${message.id}`, draft => {
 })
 ```
 
-`update` is a durable step. The key is the idempotency key for that workflow execution.
+`update` is a durable step. The key is the workflow step key for that update.
 
-If replayed, the runtime does not apply the mutation twice. It returns the recorded `StoreUpdateResult`.
+If replayed, the workflow step cache returns the recorded `StoreUpdateResult` and the runtime does not call the store updater again.
 
 Public `paths` are not accepted. The runtime is responsible for deriving changed paths from the update itself, for example by producing patch paths from the draft operation.
 
@@ -363,10 +363,7 @@ interface RuntimeStore<T> {
   get(): Promise<StoreSnapshot<T>>
 
   update(
-    updater: (draft: Draft<T>) => void | T | Promise<void | T>,
-    options?: {
-      idempotencyKey?: string
-    }
+    updater: (draft: Draft<T>) => void | T | Promise<void | T>
   ): Promise<StoreUpdateResult<T>>
 }
 ```
@@ -376,19 +373,14 @@ Example:
 ```ts
 await runtime
   .store(ConversationStore, "conversation:123")
-  .update(
-    draft => {
-      draft.messages.push({
-        id: crypto.randomUUID(),
-        role: "user",
-        content: "hello",
-        processed: false,
-      })
-    },
-    {
-      idempotencyKey: "message:abc123",
-    }
-  )
+  .update(draft => {
+    draft.messages.push({
+      id: crypto.randomUUID(),
+      role: "user",
+      content: "hello",
+      processed: false,
+    })
+  })
 ```
 
 The update wakes matching `onChange` waiters using internally generated changed paths.
@@ -469,8 +461,8 @@ Required core changes:
 
 Required runtime changes:
 
-- Memory store state, update idempotency records, and waiters.
-- SQLite store tables, update records, waiter tables, and path indexes.
+- Memory store state and waiters.
+- SQLite store and waiter tables.
 - Atomic per-store update transactions.
 - Waiter wakeup by path intersection.
 - Event re-enqueue with the original workflow event.
@@ -489,7 +481,6 @@ Required tests:
 - durable `get` replay stability
 - durable `select` replay stability
 - workflow update idempotency
-- external update idempotency
 - schema validation on create and update
 - `onChange` returns immediately when selector matches
 - `onChange` waits when selector does not match

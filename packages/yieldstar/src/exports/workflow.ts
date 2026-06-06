@@ -11,7 +11,7 @@ import {
   deserializeStepResponse,
   serializeStepResponse,
 } from "../internal/serialise";
-import { stepRunner } from "../internal/step-runner";
+import { createStepRunner } from "../internal/step-runner";
 import {
   StepResponse,
   StepKey,
@@ -20,6 +20,7 @@ import {
   StepDelay,
   StepCacheCheck,
   StepInvalid,
+  StepStoreWait,
   WorkflowResult,
 } from "@yieldstar/core";
 
@@ -45,7 +46,8 @@ export function workflow<
    * yielding control to a workflow executor to do async work
    * @yields {StepResponse}
    */
-  return async function* workflowGenerator({ event, heapClient, logger }) {
+  return async function* workflowGenerator({ event, heapClient, storeClient, logger }) {
+    const stepRunner = createStepRunner({ event, storeClient });
     const workflowIterator = workflowFn(stepRunner, event, logger);
     const { executionId } = event;
 
@@ -170,6 +172,8 @@ export function workflow<
         stepResponse instanceof StepError &&
         // 1-indexed vs 0-indexed
         stepResponse.maxAttempts > stepAttempt + 1;
+      const needsWake =
+        !cached?.meta.done && stepResponse instanceof StepStoreWait;
 
       /**
        * If this step attempt is not already cached, cache it
@@ -179,7 +183,7 @@ export function workflow<
           executionId,
           stepKey,
           stepAttempt,
-          stepDone: !needsRetry,
+          stepDone: !needsRetry && !needsWake,
           stepResponseJson: serializeStepResponse(stepResponse),
         });
       }
