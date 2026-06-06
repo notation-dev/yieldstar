@@ -37,6 +37,7 @@ export function createSqliteDb(opts?: SqliteDbOpts) {
   if (mergedOpts.wal) {
     db.run("PRAGMA journal_mode = WAL");
   }
+  db.run("PRAGMA busy_timeout = 5000");
 
   return db;
 }

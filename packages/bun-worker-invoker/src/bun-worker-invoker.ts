@@ -20,7 +20,7 @@ export function createWorkflowInvoker(params: {
         ? fileURLToPath(workerPath)
         : workerPath;
 
-      const args = params.executable ? [filePath] : ["bun", filePath];
+      const args = params.executable ? [filePath] : [process.execPath, filePath];
 
       const childProcess = Bun.spawn(args, {
         ipc(message, childProcess) {
