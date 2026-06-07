@@ -357,8 +357,9 @@ async function* onChangeStep<T, R>(params: {
   );
 
   if (result !== undefined && result !== null && result !== false) {
-    yield new StepResult(result);
-    return result as NonNullable<R>;
+    const clonedResult = cloneStoreState(result);
+    yield new StepResult(clonedResult);
+    return clonedResult as NonNullable<R>;
   }
 
   await storeClient.registerWaiter({

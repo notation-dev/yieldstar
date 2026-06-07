@@ -38,6 +38,19 @@ export function createTestSdkFactory(params?: { logger?: Logger }) {
     });
 
     return {
+      async trigger<
+        K extends keyof W & string,
+        Params extends EventParamsOf<W[K]> = EventParamsOf<W[K]>
+      >(
+        event: TriggerEvent<K, Params>
+      ): Promise<void> {
+        const executionEvent = {
+          executionId: event.executionId ?? crypto.randomUUID(),
+          workflowId: event.workflowId,
+          params: event.params,
+        };
+        await invoker.execute(executionEvent);
+      },
       async triggerAndWait<
         K extends keyof W & string,
         Params extends EventParamsOf<W[K]> = EventParamsOf<W[K]>

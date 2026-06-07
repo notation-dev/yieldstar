@@ -76,16 +76,32 @@ export class SqliteStoreClient extends StoreClient {
         : initialValue;
     const state = await validateStoreState(params.definition, initial);
 
-    this.db
-      .query(
-        `INSERT INTO stores (store_name, store_id, version, state)
-         VALUES ($storeName, $storeId, 0, $state)`
-      )
-      .run({
-        $storeName: params.definition.name,
-        $storeId: params.id,
-        $state: JSON.stringify(state),
-      });
+    this.db.run("BEGIN IMMEDIATE");
+    try {
+      const existingTx = this.getStoreRow(params.definition.name, params.id);
+      if (existingTx) {
+        this.db.run("COMMIT");
+        return {
+          state: JSON.parse(existingTx.state),
+          version: existingTx.version,
+        };
+      }
+
+      this.db
+        .query(
+          `INSERT INTO stores (store_name, store_id, version, state)
+           VALUES ($storeName, $storeId, 0, $state)`
+        )
+        .run({
+          $storeName: params.definition.name,
+          $storeId: params.id,
+          $state: JSON.stringify(state),
+        });
+      this.db.run("COMMIT");
+    } catch (err) {
+      this.db.run("ROLLBACK");
+      throw err;
+    }
 
     return {
       state: cloneStoreState(state),

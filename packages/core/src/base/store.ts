@@ -122,6 +122,12 @@ export abstract class StoreClient {
     id: string;
   }): Promise<StoreSnapshot<StoreState<Schema>>>;
 
+  /**
+   * Updates a store's state atomically.
+   * NOTE: Updaters should ideally be synchronous. Although the signature allows async updaters,
+   * holding open transactions (e.g. SQLite BEGIN IMMEDIATE) across long-running async steps
+   * will block other clients from writing. Avoid network, timers, or other async tasks in updaters.
+   */
   abstract updateStore<Schema extends StandardSchemaV1>(params: {
     definition: StoreDefinition<Schema>;
     id: string;
@@ -149,7 +155,11 @@ export async function validateStoreState<Schema extends StandardSchemaV1>(
 
 export function cloneStoreState<T>(state: T): T {
   if (typeof structuredClone === "function") {
-    return structuredClone(state);
+    try {
+      return structuredClone(state);
+    } catch {
+      // Fallback if structuredClone fails (e.g. for Proxy objects in JavaScriptCore)
+    }
   }
 
   return JSON.parse(JSON.stringify(state));
