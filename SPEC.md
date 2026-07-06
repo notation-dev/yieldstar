@@ -23,7 +23,7 @@ const message = yield* store.when(s =>
 - If no store id is provided inside a workflow, the id defaults to `event.executionId`.
 - Reads inside workflows are yielded and durable.
 - Replaying a workflow must never observe a different value for an already completed read.
-- Workflow updates are idempotent by step key.
+- Workflow updates are idempotent by step key. This is enforced at two layers: the workflow heap caches completed step results, and the store itself keeps an applied-steps ledger written atomically with each commit, so a crash between the store commit and the heap write cannot re-apply an update on replay.
 - Public APIs should not expose path lists for writes.
 - `when` should infer watched paths by running the selector against a tracking proxy.
 - Store schemas use Standard Schema, not Zod-specific APIs.
@@ -266,7 +266,7 @@ yield* store.update(`start:${message.id}`, draft => {
 
 `update` is a durable step. The key is the workflow step key for that update.
 
-If replayed, the workflow step cache returns the recorded `StoreUpdateResult` and the runtime does not call the store updater again.
+If replayed, the workflow step cache returns the recorded `StoreUpdateResult` and the runtime does not call the store updater again. This holds even when the previous run crashed after the store commit but before the workflow heap write, because the store itself records the committed result in the applied-steps ledger (see below) inside the same transaction as the state change.
 
 Public `paths` are not accepted. The runtime is responsible for deriving changed paths from the update itself, for example by producing patch paths from the draft operation.
 
@@ -388,6 +388,23 @@ Selectors should be synchronous and pure:
 - no async work
 
 The runtime may reject async selectors. The selector result must be serializable, because successful `when` and `take` results are persisted.
+
+## Applied-Steps Ledger
+
+Workflow `update` and `take` steps commit to the store first and persist the step result to the workflow heap second. A crash between the two would otherwise make the operation at-least-once: replay would find no heap row, re-run the updater or claim, and apply the mutation twice.
+
+The store closes this gap with an applied-steps ledger it owns:
+
+- Every workflow-issued `update`/`take` carries a `stepId` (`executionId` + `stepKey`). External `runtime.store(...)` calls carry no `stepId` and never touch the ledger.
+- The ledger is keyed by `(storeName, storeId, executionId, stepKey)` and stores the serialized committed result (`StoreUpdateResult`, or the matched take outcome).
+- The ledger row is written ATOMICALLY with the state change: in SQLite, inside the same transaction as the state update and version bump; in memory, in the same critical section of the write queue. Either both commit or neither does.
+- On a repeated call with the same `stepId`, the store returns the recorded result verbatim without running the updater/selector/claim and without bumping the version.
+
+Convergence: crash after store commit but before heap write → replay cache-misses the heap → the store operation hits the ledger → the original recorded result is returned without re-applying → the generator writes the heap row it previously failed to write. From then on the ordinary heap cache takes over.
+
+Unmatched take outcomes are NOT recorded. An unmatched take commits nothing, registers a waiter, and suspends – it must remain free to re-evaluate the selector on every wake. Only committed (matched) outcomes enter the ledger.
+
+Ledger retention: ledger rows share the lifecycle of workflow execution retention. When executions are pruned, their ledger rows become unreachable (a replayed `stepId` requires a live execution) and can be deleted with them. Retention machinery is deferred to the execution-retention feature; no separate GC is built for the ledger.
 
 ## External Runtime API
 

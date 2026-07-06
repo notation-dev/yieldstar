@@ -15,6 +15,7 @@ import {
   type StoreSelector,
   type StoreSnapshot,
   type StoreState,
+  type StoreStepId,
   type StoreTakeResult,
   type StoreUpdateResult,
   type StoreWaiter,
@@ -28,6 +29,11 @@ type StoreRecord = {
 export class MemoryStoreClient extends StoreClient {
   private stores = new Map<string, StoreRecord>();
   private waiters = new Map<string, StoreWaiter>();
+  // Applied-steps ledger: (storeName, storeId, executionId, stepKey) ->
+  // serialized committed result. Written in the same synchronous critical
+  // section (within the write queue) as the state commit, so a retried
+  // workflow step returns the recorded result instead of re-applying.
+  private appliedSteps = new Map<string, string>();
   private schedulerClient: SchedulerClient;
   // Serializes writes so concurrent async updaters can't interleave between
   // reading a record's version and writing the incremented version back.
@@ -115,9 +121,21 @@ export class MemoryStoreClient extends StoreClient {
     updater: (
       draft: Draft<StoreState<Schema>>
     ) => void | StoreState<Schema> | Promise<void | StoreState<Schema>>;
+    stepId?: StoreStepId;
   }): Promise<StoreUpdateResult<StoreState<Schema>>> {
     return this.enqueueWrite(async () => {
       const key = this.storeKey(params.definition.name, params.id);
+
+      // Exactly-once: if this workflow step already committed, return the
+      // recorded result without re-running the updater.
+      if (params.stepId) {
+        const applied = this.appliedSteps.get(
+          this.appliedStepKey(params.definition.name, params.id, params.stepId)
+        );
+        if (applied) {
+          return JSON.parse(applied) as StoreUpdateResult<StoreState<Schema>>;
+        }
+      }
 
       const record = this.stores.get(key);
       if (!record) {
@@ -144,6 +162,21 @@ export class MemoryStoreClient extends StoreClient {
         previousState,
         nextState,
         previousVersion: record.version,
+        // Recorded in the same critical section as the state commit
+        appliedStep: params.stepId
+          ? {
+              key: this.appliedStepKey(
+                params.definition.name,
+                params.id,
+                params.stepId
+              ),
+              result: JSON.stringify({
+                state: nextState,
+                previousVersion: record.version,
+                version: record.version + 1,
+              }),
+            }
+          : undefined,
       });
 
       return {
@@ -162,9 +195,23 @@ export class MemoryStoreClient extends StoreClient {
       draft: Draft<StoreState<Schema>>,
       selected: NonNullable<R>
     ) => void;
+    stepId?: StoreStepId;
   }): Promise<StoreTakeResult<R>> {
     return this.enqueueWrite(async () => {
       const key = this.storeKey(params.definition.name, params.id);
+
+      // Exactly-once: if this workflow step already committed a claim,
+      // return the recorded outcome without re-running selector/claim.
+      // Only matched takes are recorded – an unmatched take commits
+      // nothing and must be free to re-evaluate on the next wake.
+      if (params.stepId) {
+        const applied = this.appliedSteps.get(
+          this.appliedStepKey(params.definition.name, params.id, params.stepId)
+        );
+        if (applied) {
+          return JSON.parse(applied) as StoreTakeResult<R>;
+        }
+      }
 
       const record = this.stores.get(key);
       if (!record) {
@@ -212,6 +259,21 @@ export class MemoryStoreClient extends StoreClient {
         previousState,
         nextState,
         previousVersion: record.version,
+        // Recorded in the same critical section as the claim commit
+        appliedStep: params.stepId
+          ? {
+              key: this.appliedStepKey(
+                params.definition.name,
+                params.id,
+                params.stepId
+              ),
+              result: JSON.stringify({
+                matched: true,
+                selected: selectedSnapshot,
+                version: record.version + 1,
+              }),
+            }
+          : undefined,
       });
 
       return {
@@ -233,6 +295,7 @@ export class MemoryStoreClient extends StoreClient {
     previousState: unknown;
     nextState: unknown;
     previousVersion: number;
+    appliedStep?: { key: string; result: string };
   }): Promise<number> {
     const changedPaths = diffStorePaths(params.previousState, params.nextState);
     const version = params.previousVersion + 1;
@@ -241,6 +304,11 @@ export class MemoryStoreClient extends StoreClient {
       state: cloneStoreState(params.nextState),
       version,
     });
+
+    // Ledger entry lands in the same synchronous section as the state write
+    if (params.appliedStep) {
+      this.appliedSteps.set(params.appliedStep.key, params.appliedStep.result);
+    }
 
     await this.wakeWaiters({
       storeName: params.storeName,
@@ -297,6 +365,19 @@ export class MemoryStoreClient extends StoreClient {
 
   private storeKey(storeName: string, storeId: string) {
     return `${storeName}:${storeId}`;
+  }
+
+  private appliedStepKey(
+    storeName: string,
+    storeId: string,
+    stepId: StoreStepId
+  ) {
+    return JSON.stringify([
+      storeName,
+      storeId,
+      stepId.executionId,
+      stepId.stepKey,
+    ]);
   }
 
   private waiterKey(

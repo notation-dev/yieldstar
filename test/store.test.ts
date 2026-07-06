@@ -620,6 +620,68 @@ test("async claim rejected", async () => {
   expect(snapshot.version).toBe(0);
 });
 
+test("store update converges exactly-once when the heap write is lost", async () => {
+  let workflowUpdaterRuns = 0;
+
+  const testWorkflow = workflow(async function* (step) {
+    const store = yield* step.store(ConversationStore, {
+      id: "crash-gap",
+      initial: { messages: [], status: "idle" },
+    });
+
+    return yield* store.update("append-once", (draft) => {
+      workflowUpdaterRuns++;
+      draft.messages.push({
+        id: "msg-1",
+        content: "hello",
+        processed: false,
+      });
+    });
+  });
+
+  const sdk = createSdk({ workflow: testWorkflow });
+
+  // Simulate a previous run that crashed AFTER the store commit but BEFORE
+  // the heap write: the store has already applied this execution's
+  // "append-once" step (recorded in the applied-steps ledger), but the
+  // workflow heap has no record of it, so replay cache-misses.
+  await sdk.storeClient.getOrCreateStore({
+    definition: ConversationStore,
+    id: "crash-gap",
+    initial: { messages: [], status: "idle" },
+  });
+  const original = await sdk.storeClient.updateStore({
+    definition: ConversationStore,
+    id: "crash-gap",
+    updater: (draft) => {
+      draft.messages.push({
+        id: "msg-1",
+        content: "hello",
+        processed: false,
+      });
+    },
+    stepId: { executionId: "crash-replay", stepKey: "append-once" },
+  });
+
+  // Replay: the workflow runs from scratch with the same execution id
+  const result = await sdk.triggerAndWait({
+    workflowId: "workflow",
+    executionId: "crash-replay",
+  });
+
+  // The workflow's updater never ran – the ledger returned the recorded
+  // result, and the generator wrote the heap row it previously failed to
+  expect(workflowUpdaterRuns).toBe(0);
+  expect(result).toEqual(original);
+
+  // The mutation was applied exactly once
+  const snapshot = await sdk.store(ConversationStore, "crash-gap").get();
+  expect(snapshot.version).toBe(1);
+  expect(snapshot.state.messages).toEqual([
+    { id: "msg-1", content: "hello", processed: false },
+  ]);
+});
+
 function schema<T>(): StandardSchemaV1<unknown, T> {
   return {
     "~standard": {

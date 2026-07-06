@@ -271,6 +271,208 @@ test("take rejects async claims without committing", async () => {
   expect(snapshot.state.messages[0]!.claimedBy).toBeUndefined();
 });
 
+test("updateStore with a stepId is exactly-once: the ledger replays the recorded result", async () => {
+  const { client } = createClient();
+  const stepId = { executionId: "exec-1", stepKey: "append-once" };
+
+  await client.getOrCreateStore({
+    definition: TakeStore,
+    id: "ledger-update",
+    initial: { messages: [] },
+  });
+
+  let updaterRuns = 0;
+  const updateOnce = () =>
+    client.updateStore({
+      definition: TakeStore,
+      id: "ledger-update",
+      updater(draft) {
+        updaterRuns++;
+        draft.messages.push({ id: "msg-1" });
+      },
+      stepId,
+    });
+
+  const first = await updateOnce();
+  // Simulates a crash between store commit and heap write: replay
+  // cache-misses and re-issues the same update with the same stepId
+  const second = await updateOnce();
+
+  expect(updaterRuns).toBe(1);
+  expect(second).toEqual(first);
+  expect(first.previousVersion).toBe(0);
+  expect(first.version).toBe(1);
+
+  const snapshot = await client.getStore({
+    definition: TakeStore,
+    id: "ledger-update",
+  });
+  // Version bumped exactly once
+  expect(snapshot.version).toBe(1);
+  expect(snapshot.state.messages).toEqual([{ id: "msg-1" }]);
+});
+
+test("updateStore without a stepId never consults the ledger", async () => {
+  const { client } = createClient();
+
+  await client.getOrCreateStore({
+    definition: TakeStore,
+    id: "ledger-external",
+    initial: { messages: [] },
+  });
+
+  let updaterRuns = 0;
+  const updateOnce = () =>
+    client.updateStore({
+      definition: TakeStore,
+      id: "ledger-external",
+      updater(draft) {
+        updaterRuns++;
+        draft.messages.push({ id: `msg-${updaterRuns}` });
+      },
+    });
+
+  await updateOnce();
+  await updateOnce();
+
+  expect(updaterRuns).toBe(2);
+  const snapshot = await client.getStore({
+    definition: TakeStore,
+    id: "ledger-external",
+  });
+  expect(snapshot.version).toBe(2);
+  expect(snapshot.state.messages).toHaveLength(2);
+});
+
+test("takeFromStore with a stepId is exactly-once for matched takes", async () => {
+  const { client } = createClient();
+  const stepId = { executionId: "exec-1", stepKey: "take-once" };
+
+  await client.getOrCreateStore({
+    definition: TakeStore,
+    id: "ledger-take",
+    initial: { messages: [{ id: "msg-1" }, { id: "msg-2" }] },
+  });
+
+  let selectorRuns = 0;
+  let claimRuns = 0;
+  const takeOnce = () =>
+    client.takeFromStore({
+      definition: TakeStore,
+      id: "ledger-take",
+      selector: (s) => {
+        selectorRuns++;
+        return s.messages.find((m) => !m.claimedBy);
+      },
+      claim: (draft, msg) => {
+        claimRuns++;
+        msg.claimedBy = "exec-1";
+      },
+      stepId,
+    });
+
+  const first = await takeOnce();
+  // Replay after a crash between store commit and heap write
+  const second = await takeOnce();
+
+  expect(selectorRuns).toBe(1);
+  expect(claimRuns).toBe(1);
+  expect(second).toEqual(first);
+  if (!first.matched || !second.matched) throw new Error("takes must match");
+  // The recorded outcome replays verbatim – NOT a re-claim of msg-2
+  expect(second.selected).toEqual({ id: "msg-1", claimedBy: "exec-1" });
+  expect(second.version).toBe(1);
+
+  const snapshot = await client.getStore({
+    definition: TakeStore,
+    id: "ledger-take",
+  });
+  expect(snapshot.version).toBe(1);
+  expect(snapshot.state.messages).toEqual([
+    { id: "msg-1", claimedBy: "exec-1" },
+    { id: "msg-2" },
+  ]);
+});
+
+test("unmatched takes are not recorded in the ledger and re-evaluate", async () => {
+  const { client } = createClient();
+  const stepId = { executionId: "exec-1", stepKey: "take-when-ready" };
+
+  await client.getOrCreateStore({
+    definition: TakeStore,
+    id: "ledger-take-miss",
+    initial: { messages: [] },
+  });
+
+  const takeOnce = () =>
+    client.takeFromStore({
+      definition: TakeStore,
+      id: "ledger-take-miss",
+      selector: (s) => s.messages.find((m) => !m.claimedBy),
+      claim: (draft, msg) => {
+        msg.claimedBy = "exec-1";
+      },
+      stepId,
+    });
+
+  const miss = await takeOnce();
+  expect(miss.matched).toBe(false);
+
+  // The unmatched outcome must NOT be replayed from the ledger – after the
+  // store gains a message, the same step must be able to claim it
+  await client.updateStore({
+    definition: TakeStore,
+    id: "ledger-take-miss",
+    updater(draft) {
+      draft.messages.push({ id: "msg-1" });
+    },
+  });
+
+  const hit = await takeOnce();
+  expect(hit.matched).toBe(true);
+  if (!hit.matched) throw new Error("unreachable");
+  expect(hit.selected).toEqual({ id: "msg-1", claimedBy: "exec-1" });
+
+  // ...and once matched, the outcome IS recorded
+  const replay = await takeOnce();
+  expect(replay).toEqual(hit);
+});
+
+test("ledger entries are scoped per execution and step key", async () => {
+  const { client } = createClient();
+
+  await client.getOrCreateStore({
+    definition: TakeStore,
+    id: "ledger-scope",
+    initial: { messages: [] },
+  });
+
+  const updateAs = (executionId: string, stepKey: string) =>
+    client.updateStore({
+      definition: TakeStore,
+      id: "ledger-scope",
+      updater(draft) {
+        draft.messages.push({ id: `${executionId}:${stepKey}` });
+      },
+      stepId: { executionId, stepKey },
+    });
+
+  await updateAs("exec-1", "step-a");
+  await updateAs("exec-1", "step-b");
+  await updateAs("exec-2", "step-a");
+
+  const snapshot = await client.getStore({
+    definition: TakeStore,
+    id: "ledger-scope",
+  });
+  expect(snapshot.version).toBe(3);
+  expect(snapshot.state.messages.map((m) => m.id)).toEqual([
+    "exec-1:step-a",
+    "exec-1:step-b",
+    "exec-2:step-a",
+  ]);
+});
+
 function schema<T>(): StandardSchemaV1<unknown, T> {
   return {
     "~standard": {

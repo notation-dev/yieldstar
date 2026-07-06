@@ -12,6 +12,7 @@ export type {
   StoreSelector,
   StoreSnapshot,
   StoreState,
+  StoreStepId,
   StoreTakeResult,
   StoreUpdateResult,
   StoreVersion,

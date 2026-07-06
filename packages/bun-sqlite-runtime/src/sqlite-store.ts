@@ -17,6 +17,7 @@ import {
   type StoreSelector,
   type StoreSnapshot,
   type StoreState,
+  type StoreStepId,
   type StoreTakeResult,
   type StoreUpdateResult,
   type StoreWaiter,
@@ -25,6 +26,10 @@ import {
 class StoreRow {
   state!: string;
   version!: number;
+}
+
+class AppliedStepRow {
+  result!: string;
 }
 
 class WaiterRow {
@@ -151,6 +156,7 @@ export class SqliteStoreClient extends StoreClient {
     updater: (
       draft: Draft<StoreState<Schema>>
     ) => void | StoreState<Schema> | Promise<void | StoreState<Schema>>;
+    stepId?: StoreStepId;
   }): Promise<StoreUpdateResult<StoreState<Schema>>> {
     return this.enqueueWrite(async () => {
       let result: StoreUpdateResult<StoreState<Schema>>;
@@ -159,6 +165,22 @@ export class SqliteStoreClient extends StoreClient {
       this.db.run("BEGIN IMMEDIATE");
 
       try {
+        // Exactly-once: if this workflow step already committed, return the
+        // recorded result without re-running the updater.
+        if (params.stepId) {
+          const applied = this.getAppliedStepRow({
+            storeName: params.definition.name,
+            storeId: params.id,
+            stepId: params.stepId,
+          });
+          if (applied) {
+            this.db.run("COMMIT");
+            return JSON.parse(applied.result) as StoreUpdateResult<
+              StoreState<Schema>
+            >;
+          }
+        }
+
         const row = this.getStoreRow(params.definition.name, params.id);
         if (!row) {
           throw new Error(
@@ -190,6 +212,20 @@ export class SqliteStoreClient extends StoreClient {
           version: committed.version,
         };
 
+        // Ledger row commits atomically with the state update
+        if (params.stepId) {
+          this.insertAppliedStepRow({
+            storeName: params.definition.name,
+            storeId: params.id,
+            stepId: params.stepId,
+            result: JSON.stringify({
+              state: nextState,
+              previousVersion: row.version,
+              version: committed.version,
+            }),
+          });
+        }
+
         this.db.run("COMMIT");
       } catch (err) {
         this.db.run("ROLLBACK");
@@ -214,6 +250,7 @@ export class SqliteStoreClient extends StoreClient {
       draft: Draft<StoreState<Schema>>,
       selected: NonNullable<R>
     ) => void;
+    stepId?: StoreStepId;
   }): Promise<StoreTakeResult<R>> {
     return this.enqueueWrite(async () => {
       let result: StoreTakeResult<R>;
@@ -222,6 +259,22 @@ export class SqliteStoreClient extends StoreClient {
       this.db.run("BEGIN IMMEDIATE");
 
       try {
+        // Exactly-once: if this workflow step already committed a claim,
+        // return the recorded outcome without re-running selector/claim.
+        // Only matched takes are recorded – an unmatched take commits
+        // nothing and must be free to re-evaluate on the next wake.
+        if (params.stepId) {
+          const applied = this.getAppliedStepRow({
+            storeName: params.definition.name,
+            storeId: params.id,
+            stepId: params.stepId,
+          });
+          if (applied) {
+            this.db.run("COMMIT");
+            return JSON.parse(applied.result) as StoreTakeResult<R>;
+          }
+        }
+
         const row = this.getStoreRow(params.definition.name, params.id);
         if (!row) {
           throw new Error(
@@ -276,6 +329,16 @@ export class SqliteStoreClient extends StoreClient {
           selected: selectedSnapshot,
           version: committed.version,
         };
+
+        // Ledger row commits atomically with the claim
+        if (params.stepId) {
+          this.insertAppliedStepRow({
+            storeName: params.definition.name,
+            storeId: params.id,
+            stepId: params.stepId,
+            result: JSON.stringify(result),
+          });
+        }
 
         this.db.run("COMMIT");
       } catch (err) {
@@ -431,7 +494,60 @@ export class SqliteStoreClient extends StoreClient {
         read_paths TEXT NOT NULL,
         PRIMARY KEY (store_name, store_id, execution_id, step_key)
       );
+
+      CREATE TABLE IF NOT EXISTS store_applied_steps (
+        store_name TEXT NOT NULL,
+        store_id TEXT NOT NULL,
+        execution_id TEXT NOT NULL,
+        step_key TEXT NOT NULL,
+        result TEXT NOT NULL,
+        PRIMARY KEY (store_name, store_id, execution_id, step_key)
+      );
     `);
+  }
+
+  private getAppliedStepRow(params: {
+    storeName: string;
+    storeId: string;
+    stepId: StoreStepId;
+  }) {
+    return this.db
+      .query(
+        `SELECT result FROM store_applied_steps
+         WHERE store_name = $storeName
+           AND store_id = $storeId
+           AND execution_id = $executionId
+           AND step_key = $stepKey`
+      )
+      .as(AppliedStepRow)
+      .get({
+        $storeName: params.storeName,
+        $storeId: params.storeId,
+        $executionId: params.stepId.executionId,
+        $stepKey: params.stepId.stepKey,
+      });
+  }
+
+  private insertAppliedStepRow(params: {
+    storeName: string;
+    storeId: string;
+    stepId: StoreStepId;
+    result: string;
+  }) {
+    this.db
+      .query(
+        `INSERT INTO store_applied_steps
+           (store_name, store_id, execution_id, step_key, result)
+         VALUES
+           ($storeName, $storeId, $executionId, $stepKey, $result)`
+      )
+      .run({
+        $storeName: params.storeName,
+        $storeId: params.storeId,
+        $executionId: params.stepId.executionId,
+        $stepKey: params.stepId.stepKey,
+        $result: params.result,
+      });
   }
 
   private getStoreRow(storeName: string, storeId: string) {

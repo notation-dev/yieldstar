@@ -179,6 +179,10 @@ function createWorkflowStore<T>(params: {
           definition,
           id,
           updater: updater as any,
+          // Exactly-once across the store-commit/heap-write gap: on replay
+          // after a crash, the store's applied-steps ledger returns the
+          // recorded result instead of re-running the updater.
+          stepId: { executionId: event.executionId, stepKey },
         })) as StoreUpdateResult<T>
       );
     },
@@ -446,6 +450,10 @@ async function* takeStep<T, R>(params: {
       id,
       selector: selector as any,
       claim: claim as any,
+      // Exactly-once across the store-commit/heap-write gap: on replay
+      // after a crash, the store's applied-steps ledger returns the
+      // recorded (matched) outcome instead of re-running selector/claim.
+      stepId: { executionId: event.executionId, stepKey },
     });
   } catch (err: unknown) {
     yield new StepError(err);

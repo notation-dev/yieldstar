@@ -68,6 +68,7 @@ export function createTestSdkFactory(params?: { logger?: Logger }) {
         return result;
       },
       store: storeClient.store.bind(storeClient),
+      storeClient,
     };
   };
 }

@@ -51,6 +51,21 @@ export type StoreKey = {
   storeId: string;
 };
 
+/**
+ * Identifies the durable workflow step performing a store operation.
+ * When provided to `updateStore`/`takeFromStore`, the store client records
+ * the committed result in an applied-steps ledger keyed by
+ * (storeName, storeId, executionId, stepKey), written atomically with the
+ * state change. A retried call with the same StoreStepId returns the recorded
+ * result without re-running the updater/selector/claim, making the operation
+ * exactly-once even if the caller crashes before persisting its own record
+ * of the result (e.g. the workflow heap write).
+ */
+export type StoreStepId = {
+  executionId: string;
+  stepKey: string;
+};
+
 export type StoreSnapshot<T> = {
   state: T;
   version: StoreVersion;
@@ -131,6 +146,12 @@ export abstract class StoreClient {
    * NOTE: Updaters should ideally be synchronous. Although the signature allows async updaters,
    * holding open transactions (e.g. SQLite BEGIN IMMEDIATE) across long-running async steps
    * will block other clients from writing. Avoid network, timers, or other async tasks in updaters.
+   *
+   * When `stepId` is provided the update is exactly-once per
+   * (executionId, stepKey): the committed StoreUpdateResult is recorded in
+   * the applied-steps ledger inside the same transaction as the state change,
+   * and a repeated call with the same stepId returns the recorded result
+   * verbatim without running the updater or bumping the version.
    */
   abstract updateStore<Schema extends StandardSchemaV1>(params: {
     definition: StoreDefinition<Schema>;
@@ -138,6 +159,7 @@ export abstract class StoreClient {
     updater: (
       draft: Draft<StoreState<Schema>>
     ) => void | StoreState<Schema> | Promise<void | StoreState<Schema>>;
+    stepId?: StoreStepId;
   }): Promise<StoreUpdateResult<StoreState<Schema>>>;
 
   /**
@@ -150,6 +172,13 @@ export abstract class StoreClient {
    *
    * `claim` must be synchronous – implementations must reject (throw) if it
    * returns a Promise.
+   *
+   * When `stepId` is provided, a MATCHED (committed) take is recorded in the
+   * applied-steps ledger inside the same transaction as the claim commit, and
+   * a repeated call with the same stepId returns the recorded outcome without
+   * re-running the selector or claim. Unmatched outcomes are NOT recorded:
+   * an unmatched take commits nothing and registers a waiter, so it must
+   * remain free to re-evaluate the selector on every wake.
    */
   abstract takeFromStore<Schema extends StandardSchemaV1, R>(params: {
     definition: StoreDefinition<Schema>;
@@ -159,6 +188,7 @@ export abstract class StoreClient {
       draft: Draft<StoreState<Schema>>,
       selected: NonNullable<R>
     ) => void;
+    stepId?: StoreStepId;
   }): Promise<StoreTakeResult<R>>;
 
   abstract registerWaiter(waiter: StoreWaiter): Promise<void>;
