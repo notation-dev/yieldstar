@@ -237,6 +237,14 @@ export function cloneStoreState<T>(state: T): T {
 
 /**
  * Diffs two store states and returns the set of changed paths.
+ *
+ * This is O(total state size), so it is no longer the primary source of
+ * changed paths – `trackStoreUpdater` records write paths in O(changes)
+ * while the updater runs. The diff remains as the fallback for the cases a
+ * recording proxy cannot observe:
+ * - the updater RETURNED a replacement state instead of mutating the draft
+ * - schema validation returned a transformed copy of the draft
+ *
  * NOTE: array splices (insert/remove in the middle) report all shifted
  * indices as changed, which can over-wake waiters. This is safe – wakes are
  * spurious at worst, since replay re-evaluates the selector.
@@ -270,11 +278,12 @@ export function diffStorePaths(previous: unknown, next: unknown): StorePath[] {
 const TRACKING_TARGET = Symbol("yieldstar.trackingTarget");
 
 /**
- * Unwraps a value produced by a `trackStoreSelector` selector back to the
- * underlying (mutable) target object. When the selected value is a reference
- * into the tracked state this returns that state object itself, so claim
- * mutations applied through it land on the draft. Derived values (fresh
- * arrays/objects built inside the selector) are returned as-is.
+ * Unwraps a tracking proxy (`trackStoreSelector` or `trackStoreUpdater`)
+ * one level, back to the object it wraps. When a selector runs over a
+ * write-recording draft, the selected value unwraps to the RECORDING proxy,
+ * so claim mutations applied through it land on the draft AND are recorded
+ * as write paths. Derived values (fresh arrays/objects built inside the
+ * selector) are returned as-is.
  */
 export function unwrapTrackedValue<V>(value: V): V {
   if (isDiffableObject(value)) {
@@ -331,6 +340,105 @@ export function trackStoreSelector<T, R>(
   return {
     result,
     readPaths: collapseStorePaths(paths),
+  };
+}
+
+export type TrackedStoreUpdater<T> = {
+  /** Write-recording proxy over the raw draft. Hand this to the updater. */
+  draft: T;
+  /** The collapsed set of paths written so far (O(changes), not O(state)). */
+  writePaths(): StorePath[];
+};
+
+/**
+ * Wraps a draft in a write-recording Proxy so changed paths can be derived
+ * from the updater's own mutations in O(changes) instead of deep-diffing the
+ * whole previous/next state (O(state size) – see `diffStorePaths`).
+ *
+ * - Every `set` and `deleteProperty` through the proxy records its full
+ *   path. Mutating array methods are trapped naturally via the index/length
+ *   sets they perform: a push onto `messages` records ["messages", 3] (and
+ *   ["messages", "length"]), preserving prefix-match wake semantics – a
+ *   waiter on ["messages"] still wakes via prefix intersection.
+ * - Reads return proxied children so nested mutations are captured, but the
+ *   mutation itself lands on the underlying raw draft (Reflect.set on the
+ *   target), because the mutated draft becomes the next state.
+ * - Values assigned through the proxy are unwrapped (top-level) so the raw
+ *   draft never stores a proxy wrapper for the common `draft.a = draft.b`
+ *   case. Deeper wrappers (a proxy nested inside a fresh object) are
+ *   laundered at commit time: `cloneStoreState` always produces fresh plain
+ *   objects (structuredClone rejects proxies and falls back to JSON), and
+ *   the SQLite client serializes state through JSON.stringify.
+ * - Ambiguous traps (`defineProperty`) record conservatively. Changed paths
+ *   only affect wake precision, never state correctness: an extra path is a
+ *   spurious wake (safe – replay re-evaluates the selector), while a missed
+ *   path would lose a wakeup. When in doubt, over-report.
+ *
+ * IMPORTANT: this only observes MUTATIONS of the draft. If the updater
+ * RETURNS a replacement state instead of mutating (the
+ * `updated === undefined ? draft : updated` contract), no writes go through
+ * the proxy – callers must detect that case and fall back to
+ * `diffStorePaths(previousState, replacement)`.
+ */
+export function trackStoreUpdater<T>(target: T): TrackedStoreUpdater<T> {
+  const paths: StorePath[] = [];
+  const proxies = new WeakMap<object, unknown>();
+
+  function record(path: StorePath, property: PropertyKey) {
+    if (typeof property === "symbol") {
+      // Symbol-keyed writes are invisible to JSON state and read paths;
+      // record the parent path so any waiter on it still wakes.
+      paths.push(path);
+      return;
+    }
+    paths.push([...path, arrayKeyToPathSegment(String(property))]);
+  }
+
+  function track(value: unknown, path: StorePath): unknown {
+    if (!isDiffableObject(value)) return value;
+
+    const cached = proxies.get(value);
+    if (cached) return cached;
+
+    const proxy = new Proxy(value, {
+      get(target, property, receiver) {
+        if (typeof property === "symbol") {
+          if (property === TRACKING_TARGET) return target;
+          return Reflect.get(target, property, receiver);
+        }
+
+        // Read without the proxy receiver so any getters run against the
+        // raw draft, then wrap the child so nested mutations are captured.
+        const child = Reflect.get(target, property);
+        return track(child, [...path, arrayKeyToPathSegment(property)]);
+      },
+      set(target, property, value) {
+        record(path, property);
+        // Unwrap so the raw draft never stores a proxy wrapper, and set on
+        // the raw target (no proxy receiver) so the draft receives the
+        // mutation directly.
+        return Reflect.set(target, property, unwrapTrackedValue(value));
+      },
+      deleteProperty(target, property) {
+        record(path, property);
+        return Reflect.deleteProperty(target, property);
+      },
+      defineProperty(target, property, descriptor) {
+        record(path, property);
+        if ("value" in descriptor) {
+          descriptor = { ...descriptor, value: unwrapTrackedValue(descriptor.value) };
+        }
+        return Reflect.defineProperty(target, property, descriptor);
+      },
+    });
+
+    proxies.set(value, proxy);
+    return proxy;
+  }
+
+  return {
+    draft: track(target, []) as T,
+    writePaths: () => collapseStorePaths(paths),
   };
 }
 

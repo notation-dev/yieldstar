@@ -17,6 +17,7 @@ export type {
   StoreUpdateResult,
   StoreVersion,
   StoreWaiter,
+  TrackedStoreUpdater,
 } from "./base/store";
 export {
   StoreClient,
@@ -27,6 +28,7 @@ export {
   isStoreSelectorMatch,
   storePathsIntersect,
   trackStoreSelector,
+  trackStoreUpdater,
   unwrapTrackedValue,
   validateStoreState,
 } from "./base/store";

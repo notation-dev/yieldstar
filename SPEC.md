@@ -45,8 +45,8 @@ References:
 The useful shape for YieldStar is:
 
 - Run `when` selectors against a read-tracking proxy.
-- Run `update` functions against a draft that can produce write patches.
-- Wake waiters when write patches intersect selector-read paths.
+- Run `update` functions against a write-recording proxy over the draft, recording the path of every write.
+- Wake waiters when recorded write paths intersect selector-read paths.
 - Replay the workflow and re-run the selector rather than serializing selector functions.
 
 This keeps the magical part local and inspectable: selectors are ordinary functions, but the runtime derives their dependencies from actual reads.
@@ -268,7 +268,7 @@ yield* store.update(`start:${message.id}`, draft => {
 
 If replayed, the workflow step cache returns the recorded `StoreUpdateResult` and the runtime does not call the store updater again. This holds even when the previous run crashed after the store commit but before the workflow heap write, because the store itself records the committed result in the applied-steps ledger (see below) inside the same transaction as the state change.
 
-Public `paths` are not accepted. The runtime is responsible for deriving changed paths from the update itself, for example by producing patch paths from the draft operation.
+Public `paths` are not accepted. The runtime derives changed paths from the update itself: the updater runs against a write-recording proxy over the draft, and every `set`/`deleteProperty` through the proxy records its full path (mutating array methods are captured naturally via the index/length writes they perform). This makes path derivation O(changes) rather than O(state size). If the updater returns a replacement state instead of mutating the draft, the runtime falls back to deep-diffing the previous and next states. Changed paths only affect wake precision, never state correctness, so ambiguous operations are recorded conservatively – an extra path is at worst a spurious wake, which replay absorbs.
 
 Update semantics:
 
@@ -515,6 +515,10 @@ export const agent = workflow(async function* (step, event) {
   }
 })
 ```
+
+## Intended Evolution (Non-Normative)
+
+The blob-per-store storage model (one row holding the full JSON state, rewritten on every commit) is a v1 simplification. The intended future shape is log-structured: each commit appends a patch row (the recorded write paths plus their new values) and the runtime writes periodic snapshots, so reads reconstruct state from the latest snapshot plus subsequent patches, waiter matching runs directly against patch paths, and history older than the last snapshot is truncatable. The write-recording proxy already produces the per-commit path information this model needs; nothing in this section is required for conformance.
 
 ## Runtime Work
 

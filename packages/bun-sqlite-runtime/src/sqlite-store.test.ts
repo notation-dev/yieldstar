@@ -505,6 +505,139 @@ test("ledger entries are scoped per execution and step key", async () => {
   ]);
 });
 
+test("an updater that returns a replacement state wakes waiters via the diff fallback", async () => {
+  const db = new Database(":memory:");
+  const events: WorkflowEvent[] = [];
+  const schedulerClient: SchedulerClient = {
+    async requestWakeUp(event) {
+      events.push(event);
+    },
+  };
+  const client = new SqliteStoreClient({ db, schedulerClient });
+  const event = {
+    workflowId: "workflow",
+    executionId: "execution",
+    params: undefined,
+    context: new Map(),
+  };
+
+  await client.getOrCreateStore({
+    definition: Store,
+    id: "replace",
+    initial: { messages: [] },
+  });
+  await client.registerWaiter({
+    workflowId: event.workflowId,
+    executionId: event.executionId,
+    stepKey: "next-message",
+    event,
+    storeName: Store.name,
+    storeId: "replace",
+    sinceVersion: 0,
+    readPaths: [["messages"]],
+  });
+
+  // Returns a fresh state instead of mutating the draft – no writes go
+  // through the recording proxy, so the client falls back to diffing.
+  await client.updateStore({
+    definition: Store,
+    id: "replace",
+    updater: () => ({ messages: [{ id: "msg-1" }] }),
+  });
+
+  expect(events).toEqual([event]);
+  const snapshot = await client.getStore({ definition: Store, id: "replace" });
+  expect(snapshot.state).toEqual({ messages: [{ id: "msg-1" }] });
+});
+
+test("committed state is proxy-free and structuredClone-able", async () => {
+  const db = new Database(":memory:");
+  const schedulerClient: SchedulerClient = {
+    async requestWakeUp() {},
+  };
+  const client = new SqliteStoreClient({ db, schedulerClient });
+
+  await client.getOrCreateStore({
+    definition: Store,
+    id: "laundered",
+    initial: { messages: [{ id: "msg-1" }] },
+  });
+
+  // Read a child through the recording proxy and store it elsewhere in the
+  // draft – the committed state must contain no proxy wrappers.
+  const result = await client.updateStore({
+    definition: Store,
+    id: "laundered",
+    updater(draft) {
+      (draft as Record<string, unknown>).lastMessage = draft.messages[0];
+      (draft as Record<string, unknown>).wrapped = { inner: draft.messages };
+    },
+  });
+
+  expect(() => structuredClone(result.state)).not.toThrow();
+
+  const snapshot = await client.getStore({
+    definition: Store,
+    id: "laundered",
+  });
+  expect(() => structuredClone(snapshot.state)).not.toThrow();
+  expect((snapshot.state as Record<string, unknown>).lastMessage).toEqual({
+    id: "msg-1",
+  });
+  expect((snapshot.state as Record<string, unknown>).wrapped).toEqual({
+    inner: [{ id: "msg-1" }],
+  });
+});
+
+test("a take claim's mutations are recorded and wake matching waiters", async () => {
+  const db = new Database(":memory:");
+  const events: WorkflowEvent[] = [];
+  const schedulerClient: SchedulerClient = {
+    async requestWakeUp(event) {
+      events.push(event);
+    },
+  };
+  const client = new SqliteStoreClient({ db, schedulerClient });
+  const event = {
+    workflowId: "workflow",
+    executionId: "execution",
+    params: undefined,
+    context: new Map(),
+  };
+
+  type TakeState = { messages: { id: string; claimedBy?: string }[] };
+  const TakeStore = defineStore("sqlite-take-paths", schema<TakeState>());
+
+  await client.getOrCreateStore({
+    definition: TakeStore,
+    id: "take-wake",
+    initial: { messages: [{ id: "msg-1" }] },
+  });
+  await client.registerWaiter({
+    workflowId: event.workflowId,
+    executionId: event.executionId,
+    stepKey: "watch-claims",
+    event,
+    storeName: TakeStore.name,
+    storeId: "take-wake",
+    sinceVersion: 0,
+    readPaths: [["messages", 0, "claimedBy"]],
+  });
+
+  const outcome = await client.takeFromStore({
+    definition: TakeStore,
+    id: "take-wake",
+    selector: (s) => s.messages.find((m) => !m.claimedBy),
+    claim: (draft, msg) => {
+      msg.claimedBy = "worker";
+    },
+  });
+
+  if (!outcome.matched) throw new Error("take should match");
+  expect(outcome.selected).toEqual({ id: "msg-1", claimedBy: "worker" });
+  expect(events).toEqual([event]);
+});
+
 function schema<T>(): StandardSchemaV1<unknown, T> {
   return {
     "~standard": {

@@ -8,6 +8,7 @@ import {
   StoreClient,
   storePathsIntersect,
   trackStoreSelector,
+  trackStoreUpdater,
   unwrapTrackedValue,
   validateStoreState,
   type Draft,
@@ -192,15 +193,27 @@ export class SqliteStoreClient extends StoreClient {
         const draft = cloneStoreState(previousState) as Draft<
           StoreState<Schema>
         >;
-        const updated = await params.updater(draft);
+        // The updater runs against a write-recording proxy so changed paths
+        // are derived from its mutations in O(changes) – the full-state deep
+        // diff is only needed when the updater returns a replacement state
+        // (or validation returns a transformed copy).
+        const tracked = trackStoreUpdater(draft);
+        const updated = await params.updater(tracked.draft);
+        const returned =
+          updated === undefined ? undefined : unwrapTrackedValue(updated);
+        const isReplacement = returned !== undefined && returned !== draft;
         const nextState = await validateStoreState(
           params.definition,
-          updated === undefined ? draft : updated
+          isReplacement ? returned : draft
         );
+        const changedPaths =
+          !isReplacement && (nextState as unknown) === draft
+            ? tracked.writePaths()
+            : diffStorePaths(previousState, nextState);
         const committed = this.commitNextState({
           storeName: params.definition.name,
           storeId: params.id,
-          previousState,
+          changedPaths,
           nextState,
           previousVersion: row.version,
         });
@@ -286,12 +299,16 @@ export class SqliteStoreClient extends StoreClient {
         const draft = cloneStoreState(previousState) as Draft<
           StoreState<Schema>
         >;
+        // Wrap the draft in a write-recording proxy so the claim's mutations
+        // produce the changed paths (O(changes) instead of a full-state diff).
+        const tracked = trackStoreUpdater(draft);
 
         // Run the selector against the mutable draft (through the
-        // read-tracking proxy) so a selected value that is a reference into
-        // state observes the claim mutation before it is snapshotted.
+        // read-tracking proxy over the recording proxy) so a selected value
+        // that is a reference into state observes the claim mutation before
+        // it is snapshotted – and so mutations through it are recorded.
         const { result: selectedResult, readPaths } = trackStoreSelector(
-          draft as StoreState<Schema>,
+          tracked.draft as StoreState<Schema>,
           params.selector
         );
 
@@ -304,21 +321,29 @@ export class SqliteStoreClient extends StoreClient {
           };
         }
 
+        // Unwraps the selector proxy to the RECORDING proxy, so mutations
+        // via the selected reference are captured as write paths.
         const selected = unwrapTrackedValue(
           selectedResult
         ) as NonNullable<R>;
 
-        assertSynchronousClaim(params.claim(draft, selected));
+        assertSynchronousClaim(
+          params.claim(tracked.draft as Draft<StoreState<Schema>>, selected)
+        );
 
         const nextState = await validateStoreState(params.definition, draft);
         // Snapshot AFTER the claim ran (and unwrap any tracking proxies) so
         // a selected reference into state reflects the claim mutation.
         const selectedSnapshot = cloneStoreState(selected);
+        const changedPaths =
+          (nextState as unknown) === draft
+            ? tracked.writePaths()
+            : diffStorePaths(previousState, nextState);
 
         const committed = this.commitNextState({
           storeName: params.definition.name,
           storeId: params.id,
-          previousState,
+          changedPaths,
           nextState,
           previousVersion: row.version,
         });
@@ -363,11 +388,11 @@ export class SqliteStoreClient extends StoreClient {
   private commitNextState(params: {
     storeName: string;
     storeId: string;
-    previousState: unknown;
+    changedPaths: StorePath[];
     nextState: unknown;
     previousVersion: number;
   }): { version: number; waitersToWake: MatchedWaiter[] } {
-    const changedPaths = diffStorePaths(params.previousState, params.nextState);
+    const { changedPaths } = params;
     const version = params.previousVersion + 1;
 
     this.db

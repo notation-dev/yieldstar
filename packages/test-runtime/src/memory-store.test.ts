@@ -1,4 +1,5 @@
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
+import * as core from "@yieldstar/core";
 import {
   defineStore,
   type SchedulerClient,
@@ -471,6 +472,159 @@ test("ledger entries are scoped per execution and step key", async () => {
     "exec-1:step-b",
     "exec-2:step-a",
   ]);
+});
+
+test("an updater that returns a replacement state wakes waiters via the diff fallback", async () => {
+  const { client, events } = createClient();
+
+  await client.getOrCreateStore({
+    definition: Store,
+    id: "replace",
+    initial: { messages: [] },
+  });
+  await client.registerWaiter({
+    workflowId: event.workflowId,
+    executionId: event.executionId,
+    stepKey: "next-message",
+    event,
+    storeName: Store.name,
+    storeId: "replace",
+    sinceVersion: 0,
+    readPaths: [["messages"]],
+  });
+
+  const diffSpy = spyOn(core, "diffStorePaths");
+  try {
+    // Returns a fresh state instead of mutating the draft – no writes go
+    // through the recording proxy, so the client must fall back to diffing.
+    await client.updateStore({
+      definition: Store,
+      id: "replace",
+      updater: () => ({ messages: [{ id: "msg-1" }] }),
+    });
+    expect(diffSpy).toHaveBeenCalledTimes(1);
+  } finally {
+    diffSpy.mockRestore();
+  }
+
+  expect(events).toEqual([event]);
+  const snapshot = await client.getStore({ definition: Store, id: "replace" });
+  expect(snapshot.state).toEqual({ messages: [{ id: "msg-1" }] });
+});
+
+test("mutating updates derive changed paths from recorded writes, not a full-state diff", async () => {
+  const { client, events } = createClient();
+
+  // A large store: deriving paths must not deep-diff the whole state
+  const messages = Array.from({ length: 5000 }, (_, i) => ({
+    id: `msg-${i}`,
+  }));
+  await client.getOrCreateStore({
+    definition: Store,
+    id: "large",
+    initial: { messages },
+  });
+  await client.registerWaiter({
+    workflowId: event.workflowId,
+    executionId: event.executionId,
+    stepKey: "next-message",
+    event,
+    storeName: Store.name,
+    storeId: "large",
+    sinceVersion: 0,
+    readPaths: [["messages"]],
+  });
+
+  const diffSpy = spyOn(core, "diffStorePaths");
+  try {
+    await client.updateStore({
+      definition: Store,
+      id: "large",
+      updater(draft) {
+        draft.messages.push({ id: "msg-new" });
+      },
+    });
+    await client.takeFromStore({
+      definition: Store,
+      id: "large",
+      selector: (s) => s.messages[0],
+      claim: (draft, msg) => {
+        (msg as { claimedBy?: string }).claimedBy = "worker";
+      },
+    });
+    // Only reachable from the replacement-state branch
+    expect(diffSpy).not.toHaveBeenCalled();
+  } finally {
+    diffSpy.mockRestore();
+  }
+
+  expect(events).toEqual([event]);
+});
+
+test("committed state is proxy-free and structuredClone-able", async () => {
+  const { client } = createClient();
+
+  await client.getOrCreateStore({
+    definition: Store,
+    id: "laundered",
+    initial: { messages: [{ id: "msg-1" }] },
+  });
+
+  // Read a child through the recording proxy and store it elsewhere in the
+  // draft – the committed state must contain no proxy wrappers.
+  await client.updateStore({
+    definition: Store,
+    id: "laundered",
+    updater(draft) {
+      (draft as Record<string, unknown>).lastMessage = draft.messages[0];
+      (draft as Record<string, unknown>).wrapped = { inner: draft.messages };
+    },
+  });
+
+  const snapshot = await client.getStore({ definition: Store, id: "laundered" });
+  expect(() => structuredClone(snapshot.state)).not.toThrow();
+  expect((snapshot.state as Record<string, unknown>).lastMessage).toEqual({
+    id: "msg-1",
+  });
+  expect((snapshot.state as Record<string, unknown>).wrapped).toEqual({
+    inner: [{ id: "msg-1" }],
+  });
+});
+
+test("a take claim that splices the array wakes waiters on shifted indices", async () => {
+  const { client, events } = createClient();
+
+  await client.getOrCreateStore({
+    definition: TakeStore,
+    id: "take-splice",
+    initial: { messages: [{ id: "msg-1" }, { id: "msg-2" }] },
+  });
+  await client.registerWaiter({
+    workflowId: event.workflowId,
+    executionId: event.executionId,
+    stepKey: "watch-first",
+    event,
+    storeName: TakeStore.name,
+    storeId: "take-splice",
+    sinceVersion: 0,
+    readPaths: [["messages", 0, "id"]],
+  });
+
+  await client.takeFromStore({
+    definition: TakeStore,
+    id: "take-splice",
+    selector: (s) => s.messages.find((m) => !m.claimedBy),
+    claim: (draft) => {
+      draft.messages.splice(0, 1);
+    },
+  });
+
+  expect(events).toEqual([event]);
+  const snapshot = await client.getStore({
+    definition: TakeStore,
+    id: "take-splice",
+  });
+  expect(snapshot.state.messages).toEqual([{ id: "msg-2" }]);
 });
 
 function schema<T>(): StandardSchemaV1<unknown, T> {
