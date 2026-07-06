@@ -1,4 +1,3 @@
-import { Database } from "bun:sqlite";
 import { expect, test } from "bun:test";
 import {
   defineStore,
@@ -6,29 +5,33 @@ import {
   type StandardSchemaV1,
   type WorkflowEvent,
 } from "@yieldstar/core";
-import { SqliteStoreClient } from "./sqlite-store";
+import { MemoryStoreClient } from "./memory-store";
 
 type State = {
   messages: { id: string }[];
 };
 
-const Store = defineStore("sqlite-test", schema<State>());
+const Store = defineStore("memory-test", schema<State>());
 
-test("sqlite store updates wake matching waiters", async () => {
-  const db = new Database(":memory:");
+function createClient() {
   const events: WorkflowEvent[] = [];
   const schedulerClient: SchedulerClient = {
     async requestWakeUp(event) {
       events.push(event);
     },
   };
-  const client = new SqliteStoreClient({ db, schedulerClient });
-  const event = {
-    workflowId: "workflow",
-    executionId: "execution",
-    params: undefined,
-    context: new Map(),
-  };
+  return { client: new MemoryStoreClient({ schedulerClient }), events };
+}
+
+const event = {
+  workflowId: "workflow",
+  executionId: "execution",
+  params: undefined,
+  context: new Map(),
+};
+
+test("memory store updates wake matching waiters", async () => {
+  const { client, events } = createClient();
 
   await client.getOrCreateStore({
     definition: Store,
@@ -57,20 +60,7 @@ test("sqlite store updates wake matching waiters", async () => {
 });
 
 test("registering a waiter with a stale sinceVersion triggers an immediate wake", async () => {
-  const db = new Database(":memory:");
-  const events: WorkflowEvent[] = [];
-  const schedulerClient: SchedulerClient = {
-    async requestWakeUp(event) {
-      events.push(event);
-    },
-  };
-  const client = new SqliteStoreClient({ db, schedulerClient });
-  const event = {
-    workflowId: "workflow",
-    executionId: "execution",
-    params: undefined,
-    context: new Map(),
-  };
+  const { client, events } = createClient();
 
   await client.getOrCreateStore({
     definition: Store,
@@ -112,12 +102,8 @@ test("registering a waiter with a stale sinceVersion triggers an immediate wake"
   expect(events).toEqual([]);
 });
 
-test("concurrent async updaters on one client both commit", async () => {
-  const db = new Database(":memory:");
-  const schedulerClient: SchedulerClient = {
-    async requestWakeUp() {},
-  };
-  const client = new SqliteStoreClient({ db, schedulerClient });
+test("concurrent async updaters both commit", async () => {
+  const { client } = createClient();
 
   await client.getOrCreateStore({
     definition: Store,

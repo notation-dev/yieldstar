@@ -23,10 +23,19 @@ export class MemoryStoreClient extends StoreClient {
   private stores = new Map<string, StoreRecord>();
   private waiters = new Map<string, StoreWaiter>();
   private schedulerClient: SchedulerClient;
+  // Serializes writes so concurrent async updaters can't interleave between
+  // reading a record's version and writing the incremented version back.
+  private writeLock: Promise<unknown> = Promise.resolve();
 
   constructor(params: { schedulerClient: SchedulerClient }) {
     super();
     this.schedulerClient = params.schedulerClient;
+  }
+
+  private enqueueWrite<R>(fn: () => Promise<R>): Promise<R> {
+    const result = this.writeLock.then(fn, fn);
+    this.writeLock = result.catch(() => {});
+    return result;
   }
 
   async getOrCreateStore<Schema extends StandardSchemaV1>(params: {
@@ -101,49 +110,72 @@ export class MemoryStoreClient extends StoreClient {
       draft: Draft<StoreState<Schema>>
     ) => void | StoreState<Schema> | Promise<void | StoreState<Schema>>;
   }): Promise<StoreUpdateResult<StoreState<Schema>>> {
-    const key = this.storeKey(params.definition.name, params.id);
+    return this.enqueueWrite(async () => {
+      const key = this.storeKey(params.definition.name, params.id);
 
-    const record = this.stores.get(key);
-    if (!record) {
-      throw new Error(
-        `Store "${params.definition.name}:${params.id}" does not exist`
+      const record = this.stores.get(key);
+      if (!record) {
+        throw new Error(
+          `Store "${params.definition.name}:${params.id}" does not exist`
+        );
+      }
+
+      const previousState = cloneStoreState(
+        record.state
+      ) as StoreState<Schema>;
+      const draft = cloneStoreState(previousState) as Draft<
+        StoreState<Schema>
+      >;
+      const updated = await params.updater(draft);
+      const nextState = await validateStoreState(
+        params.definition,
+        updated === undefined ? draft : updated
       );
-    }
+      const changedPaths = diffStorePaths(previousState, nextState);
+      const version = record.version + 1;
 
-    const previousState = cloneStoreState(record.state) as StoreState<Schema>;
-    const draft = cloneStoreState(previousState) as Draft<StoreState<Schema>>;
-    const updated = await params.updater(draft);
-    const nextState = await validateStoreState(
-      params.definition,
-      updated === undefined ? draft : updated
-    );
-    const changedPaths = diffStorePaths(previousState, nextState);
-    const result = {
-      state: cloneStoreState(nextState),
-      previousVersion: record.version,
-      version: record.version + 1,
-    };
+      this.stores.set(key, {
+        state: cloneStoreState(nextState),
+        version,
+      });
 
-    this.stores.set(key, {
-      state: cloneStoreState(nextState),
-      version: result.version,
+      await this.wakeWaiters({
+        storeName: params.definition.name,
+        storeId: params.id,
+        version,
+        changedPaths,
+      });
+
+      return {
+        state: cloneStoreState(nextState),
+        previousVersion: record.version,
+        version,
+      };
     });
-
-    await this.wakeWaiters({
-      storeName: params.definition.name,
-      storeId: params.id,
-      version: result.version,
-      changedPaths,
-    });
-
-    return result;
   }
 
   async registerWaiter(waiter: StoreWaiter): Promise<void> {
-    this.waiters.set(
-      this.waiterKey(waiter.storeName, waiter.storeId, waiter.executionId, waiter.stepKey),
-      cloneStoreState(waiter)
-    );
+    return this.enqueueWrite(async () => {
+      const key = this.waiterKey(
+        waiter.storeName,
+        waiter.storeId,
+        waiter.executionId,
+        waiter.stepKey
+      );
+      this.waiters.set(key, cloneStoreState(waiter));
+
+      // Lost-wakeup guard: if an update landed between the caller's getStore
+      // and this registration, the version has already advanced. Wake
+      // immediately – replay re-evaluates the selector, so a spurious wake
+      // is safe.
+      const record = this.stores.get(
+        this.storeKey(waiter.storeName, waiter.storeId)
+      );
+      if (record && record.version > waiter.sinceVersion) {
+        this.waiters.delete(key);
+        await this.schedulerClient.requestWakeUp(waiter.event);
+      }
+    });
   }
 
   private async wakeWaiters(params: {

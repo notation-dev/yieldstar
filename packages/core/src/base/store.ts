@@ -165,6 +165,12 @@ export function cloneStoreState<T>(state: T): T {
   return JSON.parse(JSON.stringify(state));
 }
 
+/**
+ * Diffs two store states and returns the set of changed paths.
+ * NOTE: array splices (insert/remove in the middle) report all shifted
+ * indices as changed, which can over-wake waiters. This is safe – wakes are
+ * spurious at worst, since replay re-evaluates the selector.
+ */
 export function diffStorePaths(previous: unknown, next: unknown): StorePath[] {
   const paths: StorePath[] = [];
 

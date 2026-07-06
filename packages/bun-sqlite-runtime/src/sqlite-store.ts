@@ -35,12 +35,22 @@ class WaiterRow {
 export class SqliteStoreClient extends StoreClient {
   private db: Database;
   private schedulerClient: SchedulerClient;
+  // Serializes all write operations on this client. bun:sqlite uses a single
+  // connection, so awaiting an async updater between BEGIN IMMEDIATE and COMMIT
+  // would let a second concurrent write issue a nested BEGIN and throw.
+  private writeLock: Promise<unknown> = Promise.resolve();
 
   constructor(params: { db: Database; schedulerClient: SchedulerClient }) {
     super();
     this.db = params.db;
     this.schedulerClient = params.schedulerClient;
     this.setupDb();
+  }
+
+  private enqueueWrite<R>(fn: () => Promise<R>): Promise<R> {
+    const result = this.writeLock.then(fn, fn);
+    this.writeLock = result.catch(() => {});
+    return result;
   }
 
   async getOrCreateStore<Schema extends StandardSchemaV1>(params: {
@@ -76,37 +86,39 @@ export class SqliteStoreClient extends StoreClient {
         : initialValue;
     const state = await validateStoreState(params.definition, initial);
 
-    this.db.run("BEGIN IMMEDIATE");
-    try {
-      const existingTx = this.getStoreRow(params.definition.name, params.id);
-      if (existingTx) {
+    return this.enqueueWrite(async () => {
+      this.db.run("BEGIN IMMEDIATE");
+      try {
+        const existingTx = this.getStoreRow(params.definition.name, params.id);
+        if (existingTx) {
+          this.db.run("COMMIT");
+          return {
+            state: JSON.parse(existingTx.state),
+            version: existingTx.version,
+          };
+        }
+
+        this.db
+          .query(
+            `INSERT INTO stores (store_name, store_id, version, state)
+             VALUES ($storeName, $storeId, 0, $state)`
+          )
+          .run({
+            $storeName: params.definition.name,
+            $storeId: params.id,
+            $state: JSON.stringify(state),
+          });
         this.db.run("COMMIT");
-        return {
-          state: JSON.parse(existingTx.state),
-          version: existingTx.version,
-        };
+      } catch (err) {
+        this.db.run("ROLLBACK");
+        throw err;
       }
 
-      this.db
-        .query(
-          `INSERT INTO stores (store_name, store_id, version, state)
-           VALUES ($storeName, $storeId, 0, $state)`
-        )
-        .run({
-          $storeName: params.definition.name,
-          $storeId: params.id,
-          $state: JSON.stringify(state),
-        });
-      this.db.run("COMMIT");
-    } catch (err) {
-      this.db.run("ROLLBACK");
-      throw err;
-    }
-
-    return {
-      state: cloneStoreState(state),
-      version: 0,
-    };
+      return {
+        state: cloneStoreState(state),
+        version: 0,
+      };
+    });
   }
 
   async getStore<Schema extends StandardSchemaV1>(params: {
@@ -134,90 +146,152 @@ export class SqliteStoreClient extends StoreClient {
       draft: Draft<StoreState<Schema>>
     ) => void | StoreState<Schema> | Promise<void | StoreState<Schema>>;
   }): Promise<StoreUpdateResult<StoreState<Schema>>> {
-    let result: StoreUpdateResult<StoreState<Schema>>;
-    let eventsToWake: WorkflowEvent[] = [];
+    return this.enqueueWrite(async () => {
+      let result: StoreUpdateResult<StoreState<Schema>>;
+      let waitersToWake: MatchedWaiter[] = [];
 
-    this.db.run("BEGIN IMMEDIATE");
+      this.db.run("BEGIN IMMEDIATE");
 
-    try {
-      const row = this.getStoreRow(params.definition.name, params.id);
-      if (!row) {
-        throw new Error(
-          `Store "${params.definition.name}:${params.id}" does not exist`
+      try {
+        const row = this.getStoreRow(params.definition.name, params.id);
+        if (!row) {
+          throw new Error(
+            `Store "${params.definition.name}:${params.id}" does not exist`
+          );
+        }
+
+        const previousState = JSON.parse(row.state) as StoreState<Schema>;
+        const draft = cloneStoreState(previousState) as Draft<
+          StoreState<Schema>
+        >;
+        const updated = await params.updater(draft);
+        const nextState = await validateStoreState(
+          params.definition,
+          updated === undefined ? draft : updated
         );
-      }
+        const changedPaths = diffStorePaths(previousState, nextState);
+        const version = row.version + 1;
 
-      const previousState = JSON.parse(row.state) as StoreState<Schema>;
-      const draft = cloneStoreState(previousState) as Draft<StoreState<Schema>>;
-      const updated = await params.updater(draft);
-      const nextState = await validateStoreState(
-        params.definition,
-        updated === undefined ? draft : updated
-      );
-      const changedPaths = diffStorePaths(previousState, nextState);
+        this.db
+          .query(
+            `UPDATE stores
+             SET version = $version, state = $state
+             WHERE store_name = $storeName AND store_id = $storeId`
+          )
+          .run({
+            $storeName: params.definition.name,
+            $storeId: params.id,
+            $version: version,
+            $state: JSON.stringify(nextState),
+          });
 
-      result = {
-        state: cloneStoreState(nextState),
-        previousVersion: row.version,
-        version: row.version + 1,
-      };
-
-      this.db
-        .query(
-          `UPDATE stores
-           SET version = $version, state = $state
-           WHERE store_name = $storeName AND store_id = $storeId`
-        )
-        .run({
-          $storeName: params.definition.name,
-          $storeId: params.id,
-          $version: result.version,
-          $state: JSON.stringify(nextState),
+        waitersToWake = this.selectMatchingWaiters({
+          storeName: params.definition.name,
+          storeId: params.id,
+          version,
+          changedPaths,
         });
 
-      eventsToWake = this.deleteMatchingWaiters({
+        result = {
+          state: cloneStoreState(nextState),
+          previousVersion: row.version,
+          version,
+        };
+
+        this.db.run("COMMIT");
+      } catch (err) {
+        this.db.run("ROLLBACK");
+        throw err;
+      }
+
+      await this.wakeWaiters({
         storeName: params.definition.name,
         storeId: params.id,
-        version: result.version,
-        changedPaths,
+        waiters: waitersToWake,
       });
 
-      this.db.run("COMMIT");
-    } catch (err) {
-      this.db.run("ROLLBACK");
-      throw err;
-    }
+      return result;
+    });
+  }
 
-    for (const event of eventsToWake) {
-      await this.schedulerClient.requestWakeUp(event);
+  /**
+   * Wake durability: the waiter row is only deleted after the wake has
+   * been enqueued. If the process crashes between COMMIT and enqueue, the
+   * waiter survives and is woken by the next matching update. This may
+   * produce a duplicate wake, which is safe – replay re-evaluates the
+   * selector and re-registers if it still doesn't match.
+   */
+  private async wakeWaiters(params: {
+    storeName: string;
+    storeId: string;
+    waiters: MatchedWaiter[];
+  }) {
+    for (const waiter of params.waiters) {
+      await this.schedulerClient.requestWakeUp(waiter.event);
+      this.deleteWaiterRow({
+        storeName: params.storeName,
+        storeId: params.storeId,
+        executionId: waiter.executionId,
+        stepKey: waiter.stepKey,
+      });
     }
-
-    return result;
   }
 
   async registerWaiter(waiter: StoreWaiter): Promise<void> {
-    this.db
-      .query(
-        `INSERT INTO store_waiters
-           (workflow_id, execution_id, step_key, event, store_name, store_id, since_version, read_paths)
-         VALUES
-           ($workflowId, $executionId, $stepKey, $event, $storeName, $storeId, $sinceVersion, $readPaths)
-         ON CONFLICT(store_name, store_id, execution_id, step_key)
-         DO UPDATE SET
-           event = excluded.event,
-           since_version = excluded.since_version,
-           read_paths = excluded.read_paths`
-      )
-      .run({
-        $workflowId: waiter.workflowId,
-        $executionId: waiter.executionId,
-        $stepKey: waiter.stepKey,
-        $event: JSON.stringify(serializeEvent(waiter.event)),
-        $storeName: waiter.storeName,
-        $storeId: waiter.storeId,
-        $sinceVersion: waiter.sinceVersion,
-        $readPaths: JSON.stringify(waiter.readPaths),
-      });
+    return this.enqueueWrite(async () => {
+      let versionAdvanced = false;
+
+      this.db.run("BEGIN IMMEDIATE");
+      try {
+        this.db
+          .query(
+            `INSERT INTO store_waiters
+               (workflow_id, execution_id, step_key, event, store_name, store_id, since_version, read_paths)
+             VALUES
+               ($workflowId, $executionId, $stepKey, $event, $storeName, $storeId, $sinceVersion, $readPaths)
+             ON CONFLICT(store_name, store_id, execution_id, step_key)
+             DO UPDATE SET
+               event = excluded.event,
+               since_version = excluded.since_version,
+               read_paths = excluded.read_paths`
+          )
+          .run({
+            $workflowId: waiter.workflowId,
+            $executionId: waiter.executionId,
+            $stepKey: waiter.stepKey,
+            $event: JSON.stringify(serializeEvent(waiter.event)),
+            $storeName: waiter.storeName,
+            $storeId: waiter.storeId,
+            $sinceVersion: waiter.sinceVersion,
+            $readPaths: JSON.stringify(waiter.readPaths),
+          });
+
+        // Lost-wakeup guard: if an update committed between the caller's
+        // getStore and this registration, the version has already advanced
+        // past sinceVersion and no future update is guaranteed. Trigger an
+        // immediate wake – the replay re-evaluates the selector, so a
+        // spurious wake is safe.
+        const row = this.getStoreRow(waiter.storeName, waiter.storeId);
+        if (row && row.version > waiter.sinceVersion) {
+          versionAdvanced = true;
+        }
+
+        this.db.run("COMMIT");
+      } catch (err) {
+        this.db.run("ROLLBACK");
+        throw err;
+      }
+
+      if (versionAdvanced) {
+        await this.schedulerClient.requestWakeUp(waiter.event);
+        this.deleteWaiterRow({
+          storeName: waiter.storeName,
+          storeId: waiter.storeId,
+          executionId: waiter.executionId,
+          stepKey: waiter.stepKey,
+        });
+      }
+    });
   }
 
   private setupDb() {
@@ -257,13 +331,13 @@ export class SqliteStoreClient extends StoreClient {
       });
   }
 
-  private deleteMatchingWaiters(params: {
+  private selectMatchingWaiters(params: {
     storeName: string;
     storeId: string;
     version: number;
     changedPaths: StorePath[];
-  }): WorkflowEvent[] {
-    const events: WorkflowEvent[] = [];
+  }): MatchedWaiter[] {
+    const waiters: MatchedWaiter[] = [];
     const rows = this.db
       .query(
         `SELECT * FROM store_waiters
@@ -281,27 +355,44 @@ export class SqliteStoreClient extends StoreClient {
       const readPaths = JSON.parse(row.read_paths) as StorePath[];
       if (!storePathsIntersect(readPaths, params.changedPaths)) continue;
 
-      this.db
-        .query(
-          `DELETE FROM store_waiters
-           WHERE store_name = $storeName
-             AND store_id = $storeId
-             AND execution_id = $executionId
-             AND step_key = $stepKey`
-        )
-        .run({
-          $storeName: params.storeName,
-          $storeId: params.storeId,
-          $executionId: row.execution_id,
-          $stepKey: row.step_key,
-        });
-
-      events.push(deserializeEvent(JSON.parse(row.event)));
+      waiters.push({
+        executionId: row.execution_id,
+        stepKey: row.step_key,
+        event: deserializeEvent(JSON.parse(row.event)),
+      });
     }
 
-    return events;
+    return waiters;
+  }
+
+  private deleteWaiterRow(params: {
+    storeName: string;
+    storeId: string;
+    executionId: string;
+    stepKey: string;
+  }) {
+    this.db
+      .query(
+        `DELETE FROM store_waiters
+         WHERE store_name = $storeName
+           AND store_id = $storeId
+           AND execution_id = $executionId
+           AND step_key = $stepKey`
+      )
+      .run({
+        $storeName: params.storeName,
+        $storeId: params.storeId,
+        $executionId: params.executionId,
+        $stepKey: params.stepKey,
+      });
   }
 }
+
+type MatchedWaiter = {
+  executionId: string;
+  stepKey: string;
+  event: WorkflowEvent;
+};
 
 function serializeEvent(event: WorkflowEvent) {
   return {

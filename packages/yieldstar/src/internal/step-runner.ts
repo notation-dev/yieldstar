@@ -161,7 +161,10 @@ function createWorkflowStore<T>(params: {
     select<R>(stepKey: string, selector: StoreSelector<T, R>) {
       return durableStep(stepKey, async () => {
         const snapshot = await storeClient.getStore({ definition, id });
-        return selector(snapshot.state as T);
+        // Run the selector against a clone so accidental mutation cannot
+        // corrupt shared state (consistent with onChange, which throws via
+        // its tracking proxy).
+        return selector(cloneStoreState(snapshot.state as T));
       });
     },
     update(stepKey, updater) {

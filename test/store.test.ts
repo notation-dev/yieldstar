@@ -359,6 +359,34 @@ test("replacing an ancestor path wakes descendant waiters", async () => {
   await expect(resultPromise).resolves.toBe("done");
 });
 
+test("select runs against a clone so mutation cannot corrupt store state", async () => {
+  const testWorkflow = workflow(async function* (step) {
+    const store = yield* step.store(ConversationStore, {
+      id: "select-mutation",
+      initial: { messages: [], status: "idle" },
+    });
+
+    const selected = yield* store.select("mutate-select", (state) => {
+      // Mutating the selected state must not affect the stored state
+      (state as ConversationState).status = "working";
+      (state as ConversationState).messages.push({
+        id: "rogue",
+        content: "oops",
+        processed: false,
+      });
+      return state.status;
+    });
+
+    const snapshot = yield* store.get("after-select");
+    return { selected, state: snapshot.state };
+  });
+
+  const sdk = createSdk({ workflow: testWorkflow });
+  const result = await sdk.triggerAndWait({ workflowId: "workflow" });
+
+  expect(result.state).toEqual({ messages: [], status: "idle" });
+});
+
 function schema<T>(): StandardSchemaV1<unknown, T> {
   return {
     "~standard": {
