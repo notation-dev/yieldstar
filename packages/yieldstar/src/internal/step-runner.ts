@@ -230,7 +230,13 @@ function run<T extends any>(
   fn: () => T | Promise<T>,
 ): AsyncGenerator<StepResponse, T, StepResult | StepError>;
 
-async function* run<T extends any>(
+// NOTE: run/delay/poll are plain (synchronous) functions that delegate to
+// async generators. This matters for keyless steps: the call-site hash must be
+// captured while the user's call site is still on the stack. An async
+// generator body doesn't execute until its first .next(), which happens inside
+// the workflow driver, so hashing there would give every keyless step the same
+// key.
+function run<T extends any>(
   arg1: string | (() => T | Promise<T>),
   arg2?: (() => T | Promise<T>) | string,
 ): AsyncGenerator<StepResponse, T, StepResult | StepError> {
@@ -246,13 +252,13 @@ async function* run<T extends any>(
 
   if (!key) key = getCallSiteHash(run);
 
-  return yield* durableStep(key, fn);
+  return durableStep(key, fn);
 }
 
 function delay(retryInterval: number): any;
 function delay(key: string, retryInterval: number): any;
 
-async function* delay(
+function delay(
   arg1: string | number,
   arg2?: number
 ): AsyncGenerator<any, void, StepDelay> {
@@ -268,6 +274,13 @@ async function* delay(
 
   if (!key) key = getCallSiteHash(delay);
 
+  return delayStep(key, retryInterval);
+}
+
+async function* delayStep(
+  key: string,
+  retryInterval: number
+): AsyncGenerator<any, void, StepDelay> {
   yield new StepKey(key);
 
   const cached = yield new StepCacheCheck();
@@ -285,7 +298,7 @@ type PollPredicate = () => boolean | Promise<boolean>;
 function poll(opts: PollOpts, predicate: PollPredicate): any;
 function poll(key: string, opts: PollOpts, predicate: PollPredicate): any;
 
-async function* poll(
+function poll(
   arg1: string | PollOpts,
   arg2: PollOpts | PollPredicate,
   arg3?: PollPredicate
@@ -314,7 +327,7 @@ async function* poll(
     }
   };
 
-  yield* run(key, task, );
+  return run(key, task);
 }
 
 async function* durableStep<T extends any>(
