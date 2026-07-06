@@ -11,7 +11,7 @@ const store = yield* step.store(StoreDef, { id })
 yield* store.update("append:message-1", draft => {
   draft.messages.push(message)
 })
-const message = yield* store.onChange(s =>
+const message = yield* store.when(s =>
   s.messages.find(m => !m.processed)
 )
 ```
@@ -25,7 +25,7 @@ const message = yield* store.onChange(s =>
 - Replaying a workflow must never observe a different value for an already completed read.
 - Workflow updates are idempotent by step key.
 - Public APIs should not expose path lists for writes.
-- `onChange` should infer watched paths by running the selector against a tracking proxy.
+- `when` should infer watched paths by running the selector against a tracking proxy.
 - Store schemas use Standard Schema, not Zod-specific APIs.
 
 ## Prior Art
@@ -44,7 +44,7 @@ References:
 
 The useful shape for YieldStar is:
 
-- Run `onChange` selectors against a read-tracking proxy.
+- Run `when` selectors against a read-tracking proxy.
 - Run `update` functions against a draft that can produce write patches.
 - Wake waiters when write patches intersect selector-read paths.
 - Replay the workflow and re-run the selector rather than serializing selector functions.
@@ -191,13 +191,19 @@ interface WorkflowStore<T> {
     updater: (draft: Draft<T>) => void | T | Promise<void | T>
   ): AsyncGenerator<StepResponse, StoreUpdateResult<T>>
 
-  onChange<R>(
+  when<R>(
     selector: StoreSelector<T, R | undefined | null | false>
   ): AsyncGenerator<StepResponse, NonNullable<R>>
 
-  onChange<R>(
+  when<R>(
     key: string,
     selector: StoreSelector<T, R | undefined | null | false>
+  ): AsyncGenerator<StepResponse, NonNullable<R>>
+
+  take<R>(
+    key: string,
+    selector: StoreSelector<T, R | undefined | null | false>,
+    claim: (draft: Draft<T>, selected: NonNullable<R>) => void
   ): AsyncGenerator<StepResponse, NonNullable<R>>
 }
 ```
@@ -272,20 +278,20 @@ Update semantics:
 - The update result records `previousVersion` and `version`.
 - The runtime records changed paths internally for waiter wakeups.
 
-## `onChange`
+## `when`
 
-`onChange` is the durable wait primitive.
+`when` is the durable wait primitive. It waits once for a condition and returns the selected value – it is not a subscription. It is the pure observe primitive: the store is never mutated by a `when`.
 
 ```ts
-const message = yield* store.onChange(s =>
+const message = yield* store.when(s =>
   s.messages.find(m => !m.processed)
 )
 ```
 
-The selector-only form uses the call-site hash as the durable step key. The keyed form is required when the same workflow can reach the same `onChange` call site more than once before yielding:
+The selector-only form uses the call-site hash as the durable step key. The keyed form is required when the same workflow can reach the same `when` call site more than once before yielding:
 
 ```ts
-const message = yield* store.onChange(`next-message:${turn}`, s =>
+const message = yield* store.when(`next-message:${turn}`, s =>
   s.messages.find(m => !m.processed)
 )
 ```
@@ -311,18 +317,54 @@ Semantics:
 
 The selector is not serialized. The runtime wakes coarsely from stored read paths, then the workflow replay evaluates the actual condition.
 
-### Path Tracking
+## `take`
 
-`onChange` tracks paths by observing property reads:
+`take` is the atomic wait-and-consume primitive. It atomically selects and claims: the selector and the claim mutation run inside the SAME store update transaction, committing as one version bump. This is the primitive for multi-consumer mailboxes and queues where exactly one execution must win each item; `when` remains the pure observe primitive.
 
 ```ts
-yield* store.onChange("wait-status", s => s.status === "idle")
+const msg = yield* store.take(
+  `next-message:${turn}`,
+  s => s.messages.find(m => !m.claimedBy && !m.processed),
+  (draft, msg) => {
+    msg.claimedBy = event.executionId
+  }
+)
+```
+
+```ts
+take<R>(
+  key: string,
+  selector: StoreSelector<T, R | undefined | null | false>,
+  claim: (draft: Draft<T>, selected: NonNullable<R>) => void
+): AsyncGenerator<StepResponse, NonNullable<R>>
+```
+
+The key is REQUIRED – takes live in loops, and a call-site-hash default would silently return the same cached item every iteration.
+
+Semantics:
+
+- `take` is a durable step: on cache hit, replay returns the recorded selected value; the selector and claim never re-run.
+- On first execution, within the store's write transaction:
+  1. Run the selector against the current state via the read-tracking proxy.
+  2. If the selector returns a truthy value: apply `claim(draft, selected)`, validate the resulting state against the schema, commit as a single update (version + 1), compute changed paths and wake other waiters exactly like `update` does, persist the selected value as the step result, and return it.
+  3. If the selector returns a falsy value: commit nothing, register a waiter with the tracked read paths and the version observed inside the transaction (so the sinceVersion is exact by construction, closing the lost-wakeup gap), and suspend.
+- On wake, replay re-runs the whole take. A competing consumer may have already claimed the item – the selector then misses and the waiter re-registers. Spurious wakes are safe.
+- Return value (reference-snapshot rule): the selector runs against the draft, so a selected value that is a reference into state is snapshotted AFTER the claim runs – e.g. a claimed message is returned with `claimedBy` populated. A derived value (a `filter().length`, a mapped object) is returned as computed; the claim cannot appear in it. The selector cannot be re-run post-claim, because a correct claim makes the selector stop matching.
+- `claim` must be synchronous. The runtime rejects (throws) if it returns a Promise.
+- Contract: `claim` must falsify the selector for the selected item (e.g. set `processed` or `claimedBy`), otherwise the workflow spins, re-taking the same item forever. The runtime does not verify this.
+
+### Path Tracking
+
+`when` and `take` track paths by observing property reads:
+
+```ts
+yield* store.when("wait-status", s => s.status === "idle")
 ```
 
 tracks `["status"]`.
 
 ```ts
-yield* store.onChange("next-message", s =>
+yield* store.when("next-message", s =>
   s.messages.find(m => !m.processed)
 )
 ```
@@ -345,7 +387,7 @@ Selectors should be synchronous and pure:
 - no reads from external mutable state
 - no async work
 
-The runtime may reject async selectors. The selector result must be serializable, because successful `onChange` results are persisted.
+The runtime may reject async selectors. The selector result must be serializable, because successful `when` and `take` results are persisted.
 
 ## External Runtime API
 
@@ -383,7 +425,7 @@ await runtime
   })
 ```
 
-The update wakes matching `onChange` waiters using internally generated changed paths.
+The update wakes matching `when` and `take` waiters using internally generated changed paths.
 
 ## Store Lifetime
 
@@ -424,8 +466,15 @@ export const agent = workflow(async function* (step, event) {
   let turn = 0
 
   while (true) {
-    const msg = yield* store.onChange(`next-message:${turn++}`, s =>
-      s.messages.find(m => !m.processed)
+    // `take` atomically claims the next message, so multiple agent
+    // executions (a worker pool) can share one mailbox without two workers
+    // processing the same message. The claim falsifies the selector.
+    const msg = yield* store.take(
+      `next-message:${turn++}`,
+      s => s.messages.find(m => !m.claimedBy && !m.processed),
+      (draft, msg) => {
+        msg.claimedBy = event.executionId
+      }
     )
 
     yield* store.update(`start:${msg.id}`, draft => {
@@ -442,6 +491,10 @@ export const agent = workflow(async function* (step, event) {
       message.response = response.text
       draft.status = "idle"
     })
+
+    // `when` fits where the workflow only observes – e.g. pausing until an
+    // operator flips the store back to idle. Nothing is claimed.
+    yield* store.when(`resume:${msg.id}`, s => s.status === "idle")
   }
 })
 ```
@@ -482,11 +535,17 @@ Required tests:
 - durable `select` replay stability
 - workflow update idempotency
 - schema validation on create and update
-- `onChange` returns immediately when selector matches
-- `onChange` waits when selector does not match
+- `when` returns immediately when selector matches
+- `when` waits when selector does not match
 - external update wakes a waiting workflow
 - workflow update wakes another waiting workflow
 - array append wakes selector tracking the array
 - unrelated paths do not wake waiters
 - replacing an ancestor path wakes descendant waiters
 - concurrent updates serialize per store
+- take returns immediately and claims
+- take waits then claims on external update
+- two concurrent takers never claim the same item
+- take replay idempotency
+- claim validation failure leaves item unclaimed
+- async claim rejected

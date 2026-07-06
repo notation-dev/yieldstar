@@ -1,15 +1,21 @@
 import type { SchedulerClient } from "@yieldstar/core";
 import {
+  assertSynchronousClaim,
   cloneStoreState,
   diffStorePaths,
+  isStoreSelectorMatch,
   StoreClient,
   storePathsIntersect,
+  trackStoreSelector,
+  unwrapTrackedValue,
   validateStoreState,
   type Draft,
   type StandardSchemaV1,
   type StoreDefinition,
+  type StoreSelector,
   type StoreSnapshot,
   type StoreState,
+  type StoreTakeResult,
   type StoreUpdateResult,
   type StoreWaiter,
 } from "@yieldstar/core";
@@ -131,19 +137,13 @@ export class MemoryStoreClient extends StoreClient {
         params.definition,
         updated === undefined ? draft : updated
       );
-      const changedPaths = diffStorePaths(previousState, nextState);
-      const version = record.version + 1;
-
-      this.stores.set(key, {
-        state: cloneStoreState(nextState),
-        version,
-      });
-
-      await this.wakeWaiters({
+      const version = await this.commitNextState({
+        key,
         storeName: params.definition.name,
         storeId: params.id,
-        version,
-        changedPaths,
+        previousState,
+        nextState,
+        previousVersion: record.version,
       });
 
       return {
@@ -152,6 +152,104 @@ export class MemoryStoreClient extends StoreClient {
         version,
       };
     });
+  }
+
+  async takeFromStore<Schema extends StandardSchemaV1, R>(params: {
+    definition: StoreDefinition<Schema>;
+    id: string;
+    selector: StoreSelector<StoreState<Schema>, R>;
+    claim: (
+      draft: Draft<StoreState<Schema>>,
+      selected: NonNullable<R>
+    ) => void;
+  }): Promise<StoreTakeResult<R>> {
+    return this.enqueueWrite(async () => {
+      const key = this.storeKey(params.definition.name, params.id);
+
+      const record = this.stores.get(key);
+      if (!record) {
+        throw new Error(
+          `Store "${params.definition.name}:${params.id}" does not exist`
+        );
+      }
+
+      const previousState = cloneStoreState(
+        record.state
+      ) as StoreState<Schema>;
+      const draft = cloneStoreState(previousState) as Draft<
+        StoreState<Schema>
+      >;
+
+      // Run the selector against the mutable draft (through the
+      // read-tracking proxy) so a selected value that is a reference into
+      // state observes the claim mutation before it is snapshotted.
+      const { result: selectedResult, readPaths } = trackStoreSelector(
+        draft as StoreState<Schema>,
+        params.selector
+      );
+
+      if (!isStoreSelectorMatch(selectedResult)) {
+        return {
+          matched: false,
+          version: record.version,
+          readPaths,
+        };
+      }
+
+      const selected = unwrapTrackedValue(selectedResult) as NonNullable<R>;
+
+      assertSynchronousClaim(params.claim(draft, selected));
+
+      const nextState = await validateStoreState(params.definition, draft);
+      // Snapshot AFTER the claim ran (and unwrap any tracking proxies) so a
+      // selected reference into state reflects the claim mutation.
+      const selectedSnapshot = cloneStoreState(selected);
+
+      const version = await this.commitNextState({
+        key,
+        storeName: params.definition.name,
+        storeId: params.id,
+        previousState,
+        nextState,
+        previousVersion: record.version,
+      });
+
+      return {
+        matched: true,
+        selected: selectedSnapshot,
+        version,
+      };
+    });
+  }
+
+  /**
+   * Commits the next state (version + 1) and wakes waiters matching the
+   * changed paths. Must be called while holding the write lock.
+   */
+  private async commitNextState(params: {
+    key: string;
+    storeName: string;
+    storeId: string;
+    previousState: unknown;
+    nextState: unknown;
+    previousVersion: number;
+  }): Promise<number> {
+    const changedPaths = diffStorePaths(params.previousState, params.nextState);
+    const version = params.previousVersion + 1;
+
+    this.stores.set(params.key, {
+      state: cloneStoreState(params.nextState),
+      version,
+    });
+
+    await this.wakeWaiters({
+      storeName: params.storeName,
+      storeId: params.storeId,
+      version,
+      changedPaths,
+    });
+
+    return version;
   }
 
   async registerWaiter(waiter: StoreWaiter): Promise<void> {

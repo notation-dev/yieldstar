@@ -64,6 +64,10 @@ export type StoreUpdateResult<T> = {
 
 export type StoreSelector<T, R> = (state: Readonly<T>) => R;
 
+export type StoreTakeResult<R> =
+  | { matched: true; selected: NonNullable<R>; version: StoreVersion }
+  | { matched: false; version: StoreVersion; readPaths: StorePath[] };
+
 export type StoreWaiter = {
   workflowId: string;
   executionId: string;
@@ -136,7 +140,43 @@ export abstract class StoreClient {
     ) => void | StoreState<Schema> | Promise<void | StoreState<Schema>>;
   }): Promise<StoreUpdateResult<StoreState<Schema>>>;
 
+  /**
+   * Atomically selects and claims from a store. The selector and claim
+   * mutation run inside the SAME store update transaction, committing as a
+   * single version bump. If the selector does not match, nothing is
+   * committed and the store's current version plus the selector's tracked
+   * read paths are returned so the caller can register a waiter with the
+   * correct sinceVersion (closing the lost-wakeup gap by construction).
+   *
+   * `claim` must be synchronous – implementations must reject (throw) if it
+   * returns a Promise.
+   */
+  abstract takeFromStore<Schema extends StandardSchemaV1, R>(params: {
+    definition: StoreDefinition<Schema>;
+    id: string;
+    selector: StoreSelector<StoreState<Schema>, R>;
+    claim: (
+      draft: Draft<StoreState<Schema>>,
+      selected: NonNullable<R>
+    ) => void;
+  }): Promise<StoreTakeResult<R>>;
+
   abstract registerWaiter(waiter: StoreWaiter): Promise<void>;
+}
+
+export function isStoreSelectorMatch<R>(
+  result: R
+): result is Exclude<R, undefined | null | false> {
+  return result !== undefined && result !== null && result !== false;
+}
+
+export function assertSynchronousClaim(claimResult: unknown): void {
+  if (
+    claimResult &&
+    typeof (claimResult as PromiseLike<unknown>).then === "function"
+  ) {
+    throw new Error("Store take claims must be synchronous");
+  }
 }
 
 export async function validateStoreState<Schema extends StandardSchemaV1>(
@@ -197,6 +237,25 @@ export function diffStorePaths(previous: unknown, next: unknown): StorePath[] {
   return collapseStorePaths(paths);
 }
 
+const TRACKING_TARGET = Symbol("yieldstar.trackingTarget");
+
+/**
+ * Unwraps a value produced by a `trackStoreSelector` selector back to the
+ * underlying (mutable) target object. When the selected value is a reference
+ * into the tracked state this returns that state object itself, so claim
+ * mutations applied through it land on the draft. Derived values (fresh
+ * arrays/objects built inside the selector) are returned as-is.
+ */
+export function unwrapTrackedValue<V>(value: V): V {
+  if (isDiffableObject(value)) {
+    const target = (value as Record<PropertyKey, unknown>)[
+      TRACKING_TARGET as unknown as string
+    ];
+    if (target !== undefined) return target as V;
+  }
+  return value;
+}
+
 export function trackStoreSelector<T, R>(
   state: T,
   selector: StoreSelector<T, R>
@@ -213,6 +272,7 @@ export function trackStoreSelector<T, R>(
     const proxy = new Proxy(value, {
       get(target, property, receiver) {
         if (typeof property === "symbol") {
+          if (property === TRACKING_TARGET) return target;
           return Reflect.get(target, property, receiver);
         }
 

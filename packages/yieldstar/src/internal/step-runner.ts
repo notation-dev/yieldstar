@@ -16,6 +16,7 @@ import {
   type StoreSelector,
   type StoreSnapshot,
   type StoreState,
+  type StoreTakeResult,
   type StoreUpdateResult,
   trackStoreSelector,
 } from "@yieldstar/core";
@@ -46,12 +47,17 @@ export type WorkflowStore<T> = {
     key: string,
     updater: (draft: Draft<T>) => void | T | Promise<void | T>
   ): AsyncGenerator<StepResponse, StoreUpdateResult<T>>;
-  onChange<R>(
+  when<R>(
     selector: StoreSelector<T, R | undefined | null | false>
   ): AsyncGenerator<StepResponse, NonNullable<R>>;
-  onChange<R>(
+  when<R>(
     key: string,
     selector: StoreSelector<T, R | undefined | null | false>
+  ): AsyncGenerator<StepResponse, NonNullable<R>>;
+  take<R>(
+    key: string,
+    selector: StoreSelector<T, R | undefined | null | false>,
+    claim: (draft: Draft<T>, selected: NonNullable<R>) => void
   ): AsyncGenerator<StepResponse, NonNullable<R>>;
 };
 
@@ -162,7 +168,7 @@ function createWorkflowStore<T>(params: {
       return durableStep(stepKey, async () => {
         const snapshot = await storeClient.getStore({ definition, id });
         // Run the selector against a clone so accidental mutation cannot
-        // corrupt shared state (consistent with onChange, which throws via
+        // corrupt shared state (consistent with when, which throws via
         // its tracking proxy).
         return selector(cloneStoreState(snapshot.state as T));
       });
@@ -176,25 +182,40 @@ function createWorkflowStore<T>(params: {
         })) as StoreUpdateResult<T>
       );
     },
-    onChange<R>(
+    when<R>(
       arg1:
         | string
         | StoreSelector<T, R | undefined | null | false>,
       arg2?: StoreSelector<T, R | undefined | null | false>
     ) {
       const stepKey =
-        typeof arg1 === "string" ? arg1 : getCallSiteHash(this.onChange);
+        typeof arg1 === "string" ? arg1 : getCallSiteHash(this.when);
       const selector = (
         typeof arg1 === "string" ? arg2 : arg1
       ) as StoreSelector<T, R | undefined | null | false>;
 
-      return onChangeStep({
+      return whenStep({
         definition,
         id,
         event,
         storeClient,
         stepKey,
         selector,
+      });
+    },
+    take<R>(
+      stepKey: string,
+      selector: StoreSelector<T, R | undefined | null | false>,
+      claim: (draft: Draft<T>, selected: NonNullable<R>) => void
+    ) {
+      return takeStep({
+        definition,
+        id,
+        event,
+        storeClient,
+        stepKey,
+        selector,
+        claim,
       });
     },
   };
@@ -331,7 +352,7 @@ async function* durableStep<T extends any>(
   }
 }
 
-async function* onChangeStep<T, R>(params: {
+async function* whenStep<T, R>(params: {
   definition: StoreDefinition<any>;
   id: string;
   event: WorkflowEvent;
@@ -379,4 +400,63 @@ async function* onChangeStep<T, R>(params: {
   yield new StepStoreWait();
 
   throw new Error("Store wait yielded control unexpectedly");
+}
+
+async function* takeStep<T, R>(params: {
+  definition: StoreDefinition<any>;
+  id: string;
+  event: WorkflowEvent;
+  storeClient: StoreClient;
+  stepKey: string;
+  selector: StoreSelector<T, R | undefined | null | false>;
+  claim: (draft: Draft<T>, selected: NonNullable<R>) => void;
+}): AsyncGenerator<StepResponse, NonNullable<R>, StepResult | StepStoreWait> {
+  const { definition, id, event, storeClient, stepKey, selector, claim } =
+    params;
+
+  yield new StepKey(stepKey);
+
+  const cached = yield new StepCacheCheck();
+
+  if (cached) {
+    yield cached;
+    if (!(cached instanceof StepResult)) {
+      throw new Error("Store take step cache must resolve to a step result");
+    }
+    return cached.result;
+  }
+
+  let outcome: StoreTakeResult<R>;
+  try {
+    outcome = await storeClient.takeFromStore({
+      definition,
+      id,
+      selector: selector as any,
+      claim: claim as any,
+    });
+  } catch (err: unknown) {
+    yield new StepError(err);
+    // unreachable – consumer calls throw() on the generator first
+    throw err;
+  }
+
+  if (outcome.matched) {
+    yield new StepResult(outcome.selected);
+    return outcome.selected as NonNullable<R>;
+  }
+
+  await storeClient.registerWaiter({
+    workflowId: event.workflowId,
+    executionId: event.executionId,
+    stepKey,
+    event,
+    storeName: definition.name,
+    storeId: id,
+    sinceVersion: outcome.version,
+    readPaths: outcome.readPaths,
+  });
+
+  yield new StepStoreWait();
+
+  throw new Error("Store take yielded control unexpectedly");
 }

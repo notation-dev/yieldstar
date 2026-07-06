@@ -1,17 +1,23 @@
 import type { Database } from "bun:sqlite";
 import type { SchedulerClient, WorkflowEvent } from "@yieldstar/core";
 import {
+  assertSynchronousClaim,
   cloneStoreState,
   diffStorePaths,
+  isStoreSelectorMatch,
   StoreClient,
   storePathsIntersect,
+  trackStoreSelector,
+  unwrapTrackedValue,
   validateStoreState,
   type Draft,
   type StandardSchemaV1,
   type StoreDefinition,
   type StorePath,
+  type StoreSelector,
   type StoreSnapshot,
   type StoreState,
+  type StoreTakeResult,
   type StoreUpdateResult,
   type StoreWaiter,
 } from "@yieldstar/core";
@@ -169,33 +175,19 @@ export class SqliteStoreClient extends StoreClient {
           params.definition,
           updated === undefined ? draft : updated
         );
-        const changedPaths = diffStorePaths(previousState, nextState);
-        const version = row.version + 1;
-
-        this.db
-          .query(
-            `UPDATE stores
-             SET version = $version, state = $state
-             WHERE store_name = $storeName AND store_id = $storeId`
-          )
-          .run({
-            $storeName: params.definition.name,
-            $storeId: params.id,
-            $version: version,
-            $state: JSON.stringify(nextState),
-          });
-
-        waitersToWake = this.selectMatchingWaiters({
+        const committed = this.commitNextState({
           storeName: params.definition.name,
           storeId: params.id,
-          version,
-          changedPaths,
+          previousState,
+          nextState,
+          previousVersion: row.version,
         });
+        waitersToWake = committed.waitersToWake;
 
         result = {
           state: cloneStoreState(nextState),
           previousVersion: row.version,
-          version,
+          version: committed.version,
         };
 
         this.db.run("COMMIT");
@@ -212,6 +204,130 @@ export class SqliteStoreClient extends StoreClient {
 
       return result;
     });
+  }
+
+  async takeFromStore<Schema extends StandardSchemaV1, R>(params: {
+    definition: StoreDefinition<Schema>;
+    id: string;
+    selector: StoreSelector<StoreState<Schema>, R>;
+    claim: (
+      draft: Draft<StoreState<Schema>>,
+      selected: NonNullable<R>
+    ) => void;
+  }): Promise<StoreTakeResult<R>> {
+    return this.enqueueWrite(async () => {
+      let result: StoreTakeResult<R>;
+      let waitersToWake: MatchedWaiter[] = [];
+
+      this.db.run("BEGIN IMMEDIATE");
+
+      try {
+        const row = this.getStoreRow(params.definition.name, params.id);
+        if (!row) {
+          throw new Error(
+            `Store "${params.definition.name}:${params.id}" does not exist`
+          );
+        }
+
+        const previousState = JSON.parse(row.state) as StoreState<Schema>;
+        const draft = cloneStoreState(previousState) as Draft<
+          StoreState<Schema>
+        >;
+
+        // Run the selector against the mutable draft (through the
+        // read-tracking proxy) so a selected value that is a reference into
+        // state observes the claim mutation before it is snapshotted.
+        const { result: selectedResult, readPaths } = trackStoreSelector(
+          draft as StoreState<Schema>,
+          params.selector
+        );
+
+        if (!isStoreSelectorMatch(selectedResult)) {
+          this.db.run("COMMIT");
+          return {
+            matched: false,
+            version: row.version,
+            readPaths,
+          };
+        }
+
+        const selected = unwrapTrackedValue(
+          selectedResult
+        ) as NonNullable<R>;
+
+        assertSynchronousClaim(params.claim(draft, selected));
+
+        const nextState = await validateStoreState(params.definition, draft);
+        // Snapshot AFTER the claim ran (and unwrap any tracking proxies) so
+        // a selected reference into state reflects the claim mutation.
+        const selectedSnapshot = cloneStoreState(selected);
+
+        const committed = this.commitNextState({
+          storeName: params.definition.name,
+          storeId: params.id,
+          previousState,
+          nextState,
+          previousVersion: row.version,
+        });
+        waitersToWake = committed.waitersToWake;
+
+        result = {
+          matched: true,
+          selected: selectedSnapshot,
+          version: committed.version,
+        };
+
+        this.db.run("COMMIT");
+      } catch (err) {
+        this.db.run("ROLLBACK");
+        throw err;
+      }
+
+      await this.wakeWaiters({
+        storeName: params.definition.name,
+        storeId: params.id,
+        waiters: waitersToWake,
+      });
+
+      return result;
+    });
+  }
+
+  /**
+   * Writes the next state (version + 1) and collects the waiters woken by
+   * the changed paths. Must be called inside an open transaction.
+   */
+  private commitNextState(params: {
+    storeName: string;
+    storeId: string;
+    previousState: unknown;
+    nextState: unknown;
+    previousVersion: number;
+  }): { version: number; waitersToWake: MatchedWaiter[] } {
+    const changedPaths = diffStorePaths(params.previousState, params.nextState);
+    const version = params.previousVersion + 1;
+
+    this.db
+      .query(
+        `UPDATE stores
+         SET version = $version, state = $state
+         WHERE store_name = $storeName AND store_id = $storeId`
+      )
+      .run({
+        $storeName: params.storeName,
+        $storeId: params.storeId,
+        $version: version,
+        $state: JSON.stringify(params.nextState),
+      });
+
+    const waitersToWake = this.selectMatchingWaiters({
+      storeName: params.storeName,
+      storeId: params.storeId,
+      version,
+      changedPaths,
+    });
+
+    return { version, waitersToWake };
   }
 
   /**

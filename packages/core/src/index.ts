@@ -12,17 +12,21 @@ export type {
   StoreSelector,
   StoreSnapshot,
   StoreState,
+  StoreTakeResult,
   StoreUpdateResult,
   StoreVersion,
   StoreWaiter,
 } from "./base/store";
 export {
   StoreClient,
+  assertSynchronousClaim,
   cloneStoreState,
   defineStore,
   diffStorePaths,
+  isStoreSelectorMatch,
   storePathsIntersect,
   trackStoreSelector,
+  unwrapTrackedValue,
   validateStoreState,
 } from "./base/store";
 export type {

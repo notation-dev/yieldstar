@@ -8,6 +8,7 @@ type Message = {
   id: string;
   content: string;
   processed: boolean;
+  claimedBy?: string;
 };
 
 type ConversationState = {
@@ -94,14 +95,14 @@ test("workflow store updates are idempotent across replay", async () => {
   ]);
 });
 
-test("external store updates wake onChange waiters", async () => {
+test("external store updates wake when waiters", async () => {
   const testWorkflow = workflow(async function* (step) {
     const store = yield* step.store(ConversationStore, {
       id: "external-wake",
       initial: { messages: [], status: "idle" },
     });
 
-    return yield* store.onChange("next-message", (state) =>
+    return yield* store.when("next-message", (state) =>
       state.messages.find((message) => !message.processed)
     );
   });
@@ -238,7 +239,7 @@ test("schema validation on create and update", async () => {
   expect((result2 as Error).message).toMatch(/Invalid store state/);
 });
 
-test("onChange returns immediately when selector matches", async () => {
+test("when returns immediately when selector matches", async () => {
   let ranStep = false;
   const testWorkflow = workflow(async function* (step) {
     const store = yield* step.store(ConversationStore, {
@@ -246,7 +247,7 @@ test("onChange returns immediately when selector matches", async () => {
       initial: { messages: [], status: "working" },
     });
 
-    const status = yield* store.onChange("wait-working", (s) =>
+    const status = yield* store.when("wait-working", (s) =>
       s.status === "working" ? s.status : false
     );
 
@@ -268,7 +269,7 @@ test("workflow update wakes another waiting workflow", async () => {
       initial: { messages: [], status: "idle" },
     });
 
-    return yield* store.onChange("wait-status", (s) =>
+    return yield* store.when("wait-status", (s) =>
       s.status === "working" ? s.status : false
     );
   });
@@ -309,7 +310,7 @@ test("unrelated paths do not wake waiters", async () => {
 
     wakeCount++;
 
-    return yield* store.onChange("wait-messages", (state) =>
+    return yield* store.when("wait-messages", (state) =>
       state.messages.length > 0 ? state.messages : false
     );
   });
@@ -342,7 +343,7 @@ test("replacing an ancestor path wakes descendant waiters", async () => {
       initial: { messages: [{ id: "msg-1", content: "hello", processed: false }], status: "idle" },
     });
 
-    return yield* store.onChange("wait-descendant", (state) =>
+    return yield* store.when("wait-descendant", (state) =>
       state.messages[0]?.processed ? "done" : false
     );
   });
@@ -385,6 +386,238 @@ test("select runs against a clone so mutation cannot corrupt store state", async
   const result = await sdk.triggerAndWait({ workflowId: "workflow" });
 
   expect(result.state).toEqual({ messages: [], status: "idle" });
+});
+
+test("take returns immediately and claims", async () => {
+  const testWorkflow = workflow(async function* (step, event) {
+    const store = yield* step.store(ConversationStore, {
+      id: "take-immediate",
+      initial: {
+        messages: [{ id: "msg-1", content: "hello", processed: false }],
+        status: "idle",
+      },
+    });
+
+    return yield* store.take(
+      "take-next",
+      (s) => s.messages.find((m) => !m.claimedBy),
+      (draft, msg) => {
+        msg.claimedBy = event.executionId;
+      }
+    );
+  });
+
+  const sdk = createSdk({ workflow: testWorkflow });
+  const result = await sdk.triggerAndWait({
+    workflowId: "workflow",
+    executionId: "taker-1",
+  });
+
+  // Reference-snapshot rule: the returned value reflects the claim
+  expect(result).toEqual({
+    id: "msg-1",
+    content: "hello",
+    processed: false,
+    claimedBy: "taker-1",
+  });
+
+  const snapshot = await sdk.store(ConversationStore, "take-immediate").get();
+  expect(snapshot.state.messages[0]!.claimedBy).toBe("taker-1");
+  expect(snapshot.version).toBe(1);
+});
+
+test("take waits then claims on external update", async () => {
+  const testWorkflow = workflow(async function* (step, event) {
+    const store = yield* step.store(ConversationStore, {
+      id: "take-wait",
+      initial: { messages: [], status: "idle" },
+    });
+
+    return yield* store.take(
+      "take-next",
+      (s) => s.messages.find((m) => !m.claimedBy),
+      (draft, msg) => {
+        msg.claimedBy = event.executionId;
+      }
+    );
+  });
+
+  const sdk = createSdk({ workflow: testWorkflow });
+  const resultPromise = sdk.triggerAndWait({
+    workflowId: "workflow",
+    executionId: "taker-1",
+  });
+
+  await sleep(5);
+
+  await sdk.store(ConversationStore, "take-wait").update((draft) => {
+    draft.messages.push({ id: "msg-1", content: "hello", processed: false });
+  });
+
+  await expect(resultPromise).resolves.toEqual({
+    id: "msg-1",
+    content: "hello",
+    processed: false,
+    claimedBy: "taker-1",
+  });
+
+  const snapshot = await sdk.store(ConversationStore, "take-wait").get();
+  expect(snapshot.state.messages[0]!.claimedBy).toBe("taker-1");
+});
+
+test("two concurrent takers never claim the same item", async () => {
+  const testWorkflow = workflow(async function* (step, event) {
+    const store = yield* step.store(ConversationStore, {
+      id: "take-race",
+      initial: {
+        messages: [
+          { id: "msg-1", content: "one", processed: false },
+          { id: "msg-2", content: "two", processed: false },
+        ],
+        status: "idle",
+      },
+    });
+
+    return yield* store.take(
+      "take-next",
+      (s) => s.messages.find((m) => !m.claimedBy),
+      (draft, msg) => {
+        msg.claimedBy = event.executionId;
+      }
+    );
+  });
+
+  const sdk = createSdk({ workflow: testWorkflow });
+
+  const [first, second] = await Promise.all([
+    sdk.triggerAndWait({ workflowId: "workflow", executionId: "taker-a" }),
+    sdk.triggerAndWait({ workflowId: "workflow", executionId: "taker-b" }),
+  ]);
+
+  expect(first.id).not.toBe(second.id);
+  expect([first.id, second.id].sort()).toEqual(["msg-1", "msg-2"]);
+
+  const snapshot = await sdk.store(ConversationStore, "take-race").get();
+  const claimants = snapshot.state.messages.map((m) => m.claimedBy).sort();
+  expect(claimants).toEqual(["taker-a", "taker-b"]);
+});
+
+test("take replay idempotency", async () => {
+  let selectorCalls = 0;
+  let claimCalls = 0;
+
+  const testWorkflow = workflow(async function* (step, event) {
+    const store = yield* step.store(ConversationStore, {
+      id: "take-replay",
+      initial: {
+        messages: [{ id: "msg-1", content: "hello", processed: false }],
+        status: "idle",
+      },
+    });
+
+    const taken = yield* store.take(
+      "take-next",
+      (s) => {
+        selectorCalls++;
+        return s.messages.find((m) => !m.claimedBy);
+      },
+      (draft, msg) => {
+        claimCalls++;
+        msg.claimedBy = event.executionId;
+      }
+    );
+
+    yield* step.delay("replay-boundary", 1);
+
+    return taken;
+  });
+
+  const sdk = createSdk({ workflow: testWorkflow });
+  const result = await sdk.triggerAndWait({
+    workflowId: "workflow",
+    executionId: "taker-1",
+  });
+
+  expect(result).toEqual({
+    id: "msg-1",
+    content: "hello",
+    processed: false,
+    claimedBy: "taker-1",
+  });
+  expect(selectorCalls).toBe(1);
+  expect(claimCalls).toBe(1);
+
+  const snapshot = await sdk.store(ConversationStore, "take-replay").get();
+  // A single version bump: select + claim committed atomically, once
+  expect(snapshot.version).toBe(1);
+});
+
+test("claim validation failure leaves item unclaimed", async () => {
+  const strictStateSchema = strictSchema<{
+    messages: { id: string; claimedBy?: string }[];
+  }>((val: any) => {
+    if (val?.messages?.some((m: any) => m.claimedBy === 42)) {
+      return "claimedBy must be a string";
+    }
+    return undefined;
+  });
+
+  const StrictStore = defineStore("strict-take-store", strictStateSchema);
+
+  const testWorkflow = workflow(async function* (step) {
+    const store = yield* step.store(StrictStore, {
+      id: "take-invalid",
+      initial: { messages: [{ id: "msg-1" }] },
+    });
+
+    yield* store.take(
+      "take-next",
+      (s) => s.messages.find((m) => !m.claimedBy),
+      (draft, msg) => {
+        msg.claimedBy = 42 as any;
+      }
+    );
+  });
+
+  const sdk = createSdk({ workflow: testWorkflow });
+  const result = await sdk.triggerAndWait({ workflowId: "workflow" });
+
+  expect(result).toBeInstanceOf(Error);
+  expect((result as Error).message).toMatch(/Invalid store state/);
+
+  const snapshot = await sdk.store(StrictStore, "take-invalid").get();
+  expect(snapshot.state.messages).toEqual([{ id: "msg-1" }]);
+  expect(snapshot.version).toBe(0);
+});
+
+test("async claim rejected", async () => {
+  const testWorkflow = workflow(async function* (step) {
+    const store = yield* step.store(ConversationStore, {
+      id: "take-async-claim",
+      initial: {
+        messages: [{ id: "msg-1", content: "hello", processed: false }],
+        status: "idle",
+      },
+    });
+
+    yield* store.take(
+      "take-next",
+      (s) => s.messages.find((m) => !m.claimedBy),
+      (async (draft: any, msg: any) => {
+        msg.claimedBy = "async";
+      }) as any
+    );
+  });
+
+  const sdk = createSdk({ workflow: testWorkflow });
+  const result = await sdk.triggerAndWait({ workflowId: "workflow" });
+
+  expect(result).toBeInstanceOf(Error);
+  expect((result as Error).message).toMatch(/synchronous/);
+
+  const snapshot = await sdk.store(ConversationStore, "take-async-claim").get();
+  expect(snapshot.state.messages[0]!.claimedBy).toBeUndefined();
+  expect(snapshot.version).toBe(0);
 });
 
 function schema<T>(): StandardSchemaV1<unknown, T> {
