@@ -1,6 +1,6 @@
 # @yieldstar/bun-sqlite-runtime
 
-SQLite-backed implementations of the heap, scheduler, task queue, timers, and event loop. Provides all persistence and scheduling infrastructure for running workflows locally.
+SQLite-backed implementations of the heap, scheduler, task queue, timers, durable stores, and event loop. Provides all persistence and scheduling infrastructure for running workflows locally.
 
 ## Install
 
@@ -44,6 +44,18 @@ const schedulerClient = new SqliteSchedulerClient({
   timersClient: new SqliteTimersClient(db),
 });
 ```
+
+## `SqliteStoreClient`
+
+`StoreClient` implementation backed by SQLite. Owns the `stores`, `store_waiters`, and `store_applied_steps` tables – state, version, waiter wake-ups, and the exactly-once ledger all commit in one transaction.
+
+```ts
+import { SqliteStoreClient } from "@yieldstar/bun-sqlite-runtime";
+
+const storeClient = new SqliteStoreClient({ db, schedulerClient });
+```
+
+It takes the scheduler because store writes wake waiting workflows by re-enqueuing their events. Writes are serialised through an internal queue, so concurrent updates in one process never nest transactions.
 
 ## `SqliteEventLoop`
 

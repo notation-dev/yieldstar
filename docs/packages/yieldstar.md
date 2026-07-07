@@ -14,9 +14,10 @@ bun add yieldstar
 import { workflow, createWorkflow } from "yieldstar";
 import { createWorkflowRouter } from "yieldstar";
 import { RetryableError } from "yieldstar";
+import { defineStore } from "yieldstar";
 import { createLocalSdk } from "yieldstar";
 import { createHttpSdkFactory } from "yieldstar";
-import type { WorkflowFn } from "yieldstar";
+import type { WorkflowFn, WorkflowStore } from "yieldstar";
 ```
 
 ## `workflow(fn)` / `createWorkflow(fn)`
@@ -68,6 +69,14 @@ Creates a local SDK client. See [Local SDK](../manual/sdk-local.md).
 
 Returns a factory for HTTP SDK clients. See [HTTP SDK](../manual/sdk-http.md).
 
+## `defineStore(name, schema)`
+
+Defines a durable store type from a name and any Standard Schema. See [Durable Stores](../manual/stores.md).
+
+```ts
+const ConversationStore = defineStore("conversation", schema);
+```
+
 ## Step runner
 
 Available on the first argument of a workflow function:
@@ -81,4 +90,8 @@ yield * step.delay("key", ms);
 
 yield * step.poll(opts, predicate);
 yield * step.poll("key", opts, predicate);
+
+yield * step.store(definition, { id, initial });
 ```
+
+`step.store` returns a `WorkflowStore` handle with `get`, `select`, `update`, `when`, and `take` – see [Durable Stores](../manual/stores.md) and [Waiting on State](../manual/store-waiting.md).

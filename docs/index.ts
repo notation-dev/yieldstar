@@ -24,6 +24,15 @@ export const categories: DocCategory[] = [
         ],
       },
       {
+        heading: "State",
+        icon: "database",
+        links: [
+          { label: "Durable Stores", slug: "manual/stores" },
+          { label: "Waiting on State", slug: "manual/store-waiting" },
+          { label: "External Store Access", slug: "manual/store-external" },
+        ],
+      },
+      {
         heading: "Workers",
         icon: "layers",
         links: [

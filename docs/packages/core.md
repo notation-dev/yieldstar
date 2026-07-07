@@ -19,6 +19,7 @@ const runner = new WorkflowRunner({
   router,
   heapClient,
   schedulerClient,
+  storeClient,
   logger,
 });
 ```
@@ -28,6 +29,7 @@ const runner = new WorkflowRunner({
 | `router`          | `WorkflowRouter`  | Map of workflow IDs to generators |
 | `heapClient`      | `HeapClient`      | Step cache implementation         |
 | `schedulerClient` | `SchedulerClient` | Timer/wake-up implementation      |
+| `storeClient`     | `StoreClient`     | Durable store implementation      |
 | `logger`          | `Logger`          | Pino logger                       |
 
 ## `HeapClient` (abstract class)
@@ -65,6 +67,43 @@ interface SchedulerClient {
   requestWakeUp(event: WorkflowEvent, resumeIn?: number): Promise<void>;
 }
 ```
+
+## `StoreClient` (abstract class)
+
+Persistence layer for [durable stores](../manual/stores.md). Implementations own store state, versioning, waiter registration, and the applied-steps ledger that makes workflow updates exactly-once.
+
+```ts
+abstract getOrCreateStore(params: {
+  definition: StoreDefinition;
+  id: string;
+  initial?: State | (() => State | Promise<State>);
+}): Promise<StoreSnapshot>;
+
+abstract getStore(params: {
+  definition: StoreDefinition;
+  id: string;
+}): Promise<StoreSnapshot>;
+
+abstract updateStore(params: {
+  definition: StoreDefinition;
+  id: string;
+  updater: (draft: Draft) => void | State;
+  stepId?: StoreStepId; // exactly-once ledger key for workflow steps
+}): Promise<StoreUpdateResult>;
+
+abstract takeFromStore(params): Promise<StoreTakeResult>;
+
+abstract registerWaiter(waiter: StoreWaiter): Promise<void>;
+```
+
+The base class also provides `storeClient.store(definition, id)`, the external read/write handle described in [External Store Access](../manual/store-external.md).
+
+Guarantees an implementation must uphold:
+
+- Updates are atomic per store and bump the version by exactly one.
+- When `stepId` is provided, a repeated call returns the recorded result without re-running the updater.
+- `registerWaiter` must wake the waiter immediately if the store version has already advanced past `sinceVersion`.
+- Waiters are removed only after their wake-up is durably enqueued.
 
 ## `WorkflowInvoker` (type)
 
