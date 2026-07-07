@@ -3,11 +3,12 @@ import type {
   WorkflowGenerator,
   HeapClient,
   SchedulerClient,
+  StoreClient,
   EventProcessor,
   WorkflowEvent,
   EventParams,
 } from "..";
-import { StepDelay, WorkflowDelay, WorkflowResult } from "..";
+import { StepDelay, StepStoreWait, WorkflowDelay, WorkflowResult } from "..";
 import { EventContext } from "../base/event";
 
 export class WorkflowRunner<
@@ -15,16 +16,19 @@ export class WorkflowRunner<
 > {
   private heapClient: HeapClient;
   private schedulerClient: SchedulerClient;
+  private storeClient: StoreClient;
   private router: Router;
 
   constructor(params: {
     heapClient: HeapClient;
     schedulerClient: SchedulerClient;
+    storeClient: StoreClient;
     router: Router;
     logger: Logger;
   }) {
     this.heapClient = params.heapClient;
     this.schedulerClient = params.schedulerClient;
+    this.storeClient = params.storeClient;
     this.router = params.router;
   }
 
@@ -49,6 +53,9 @@ export class WorkflowRunner<
         case "workflow-delay":
           this.schedulerClient.requestWakeUp(event, response.resumeIn);
           break;
+
+        case "store-wait":
+          break;
       }
     } catch (err) {
       // todo: distinguish between a workflow error and a system error
@@ -64,12 +71,13 @@ export class WorkflowRunner<
     workflow: WorkflowGenerator<Params, Result, Context>;
     event: WorkflowEvent<Params, Context>;
     logger: Logger;
-  }): Promise<WorkflowResult<Result> | WorkflowDelay> {
+  }): Promise<WorkflowResult<Result> | WorkflowDelay | StepStoreWait> {
     const { workflow, event, logger } = params;
 
     const workflowIterator = workflow({
       event,
       heapClient: this.heapClient,
+      storeClient: this.storeClient,
       logger,
     });
 
@@ -83,6 +91,10 @@ export class WorkflowRunner<
 
     if (stageResponse instanceof StepDelay) {
       return new WorkflowDelay(stageResponse.resumeIn - Date.now());
+    }
+
+    if (stageResponse instanceof StepStoreWait) {
+      return stageResponse;
     }
 
     throw new Error(

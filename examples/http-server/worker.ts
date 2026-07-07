@@ -4,6 +4,7 @@ import { createWorkflowWorker } from "@yieldstar/bun-worker-invoker";
 import {
   SqliteSchedulerClient,
   SqliteHeapClient,
+  SqliteStoreClient,
   SqliteTaskQueueClient,
   SqliteTimersClient,
 } from "@yieldstar/bun-sqlite-runtime";
@@ -16,10 +17,15 @@ const schedulerClient = new SqliteSchedulerClient({
   taskQueueClient: new SqliteTaskQueueClient(runtimeDb),
   timersClient: new SqliteTimersClient(runtimeDb),
 });
+const storeClient = new SqliteStoreClient({
+  db: runtimeDb,
+  schedulerClient,
+});
 
 const workflowRunner = new WorkflowRunner({
   heapClient,
   schedulerClient,
+  storeClient,
   router: workflowRouter,
   logger,
 });

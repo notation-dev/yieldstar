@@ -3,8 +3,14 @@ import { errorWithOriginalStack } from "./error";
 export class ReadOnlyMap<K, V> implements ReadonlyMap<K, V> {
   private sourceMap: Map<K, V>;
 
-  constructor(sourceMap: Map<K, V>) {
-    this.sourceMap = sourceMap;
+  constructor(sourceMap: Map<K, V> | Record<any, any> | undefined) {
+    if (sourceMap instanceof Map) {
+      this.sourceMap = sourceMap;
+    } else if (typeof sourceMap === "object" && sourceMap !== null) {
+      this.sourceMap = new Map(Object.entries(sourceMap)) as Map<K, V>;
+    } else {
+      this.sourceMap = new Map();
+    }
   }
 
   get(key: K): V | undefined {

@@ -12,6 +12,7 @@ import {
   MemoryEventLoop,
   MemorySchedulerClient,
   MemoryHeapClient,
+  MemoryStoreClient,
 } from "@yieldstar/test-runtime";
 import { createLocalSdk } from "yieldstar";
 
@@ -20,10 +21,13 @@ export function createTestSdkFactory(params?: { logger?: Logger }) {
 
   return <W extends WorkflowRouter>(workflowRouter: W) => {
     const memoryEventLoop = new MemoryEventLoop(logger);
+    const schedulerClient = new MemorySchedulerClient(memoryEventLoop);
+    const storeClient = new MemoryStoreClient({ schedulerClient });
 
     const workflowRunner = new WorkflowRunner({
       heapClient: new MemoryHeapClient(),
-      schedulerClient: new MemorySchedulerClient(memoryEventLoop),
+      schedulerClient,
+      storeClient,
       router: workflowRouter,
       logger,
     });
@@ -34,6 +38,19 @@ export function createTestSdkFactory(params?: { logger?: Logger }) {
     });
 
     return {
+      async trigger<
+        K extends keyof W & string,
+        Params extends EventParamsOf<W[K]> = EventParamsOf<W[K]>
+      >(
+        event: TriggerEvent<K, Params>
+      ): Promise<void> {
+        const executionEvent = {
+          executionId: event.executionId ?? crypto.randomUUID(),
+          workflowId: event.workflowId,
+          params: event.params,
+        };
+        await invoker.execute(executionEvent);
+      },
       async triggerAndWait<
         K extends keyof W & string,
         Params extends EventParamsOf<W[K]> = EventParamsOf<W[K]>
@@ -50,6 +67,8 @@ export function createTestSdkFactory(params?: { logger?: Logger }) {
 
         return result;
       },
+      store: storeClient.store.bind(storeClient),
+      storeClient,
     };
   };
 }

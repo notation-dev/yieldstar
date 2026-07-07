@@ -3,6 +3,7 @@ import {
   StepError,
   StepResult,
   StepResponse,
+  StepStoreWait,
   WorkflowResult,
 } from "@yieldstar/core";
 import { isErrorLike, serializeError, deserializeError } from "serialize-error";
@@ -36,6 +37,8 @@ export function deserializeStepResponse(jsonString: string): StepResponse {
       return new StepDelay(stepResponse.resumeIn);
     case "step-result":
       return new StepResult(stepResponse.result);
+    case "store-wait":
+      return new StepStoreWait();
     case "workflow-result":
       return new WorkflowResult(stepResponse.result);
     default:

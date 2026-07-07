@@ -1,0 +1,91 @@
+# Durable Stores
+
+A store is schema-validated state that lives outside any single workflow execution. Workflows read and update it through durable steps; external code can write to it too. This one primitive covers long-lived agents, mailboxes, shared project state, and human approval flows – without a separate concept for each.
+
+## Defining a store
+
+`defineStore` creates a store _type_, not an instance. It takes a name and any [Standard Schema](https://standardschema.dev/) – Zod, Valibot, and ArkType all work.
+
+```ts
+import { defineStore } from "yieldstar";
+import * as v from "valibot";
+
+const ConversationStore = defineStore(
+  "conversation",
+  v.object({
+    messages: v.array(
+      v.object({
+        id: v.string(),
+        content: v.string(),
+        processed: v.optional(v.boolean(), false),
+      })
+    ),
+    status: v.picklist(["idle", "working"]),
+  })
+);
+```
+
+The runtime validates state against the schema when a store is created, and again on every update before it commits. So a bad write fails upfront, rather than leaving invalid state behind.
+
+## Creating and opening a store
+
+`step.store` returns a handle. If the store does not exist yet, the runtime creates it from `initial`; if it does, the existing store is returned and `initial` is ignored.
+
+```ts
+const store = yield* step.store(ConversationStore, {
+  id: event.params.conversationId,
+  initial: { messages: [], status: "idle" },
+});
+```
+
+Store identity is `name + id`. Omit the `id` and it defaults to `event.executionId`, giving you execution-local state:
+
+```ts
+const store = yield* step.store(ScratchStore, { initial: {} });
+```
+
+Pass an explicit `id` to share one store across executions – a conversation id, an agent id, a project id. If the store does not exist and no `initial` is provided, the step fails.
+
+## Reading
+
+`store.get` returns a snapshot: the state plus a version number that increments on each update.
+
+```ts
+const { state, version } = yield* store.get("load");
+```
+
+`store.select` runs a pure selector and persists only the selected value:
+
+```ts
+const unprocessed = yield* store.select("unprocessed", (s) =>
+  s.messages.filter((m) => !m.processed)
+);
+```
+
+Reads are durable steps. The first time a read step runs, it reads the latest committed state, and the runtime records the snapshot under the step key. On replay, the runtime returns the recorded snapshot – not whatever the store contains by then.
+
+A _new_ read step may observe newer state. Workflows are long-running, so this is deliberate: each completed read is stable across replays, but the workflow as a whole is not one big snapshot transaction.
+
+## Updating
+
+`store.update` mutates a draft:
+
+```ts
+yield* store.update(`finish:${msg.id}`, (draft) => {
+  const message = draft.messages.find((m) => m.id === msg.id)!;
+  message.processed = true;
+  draft.status = "idle";
+});
+```
+
+Each update runs in a single store transaction. The new state is validated against the schema before it commits, and the version increments by one.
+
+Updates are idempotent by step key. On replay, the runtime returns the cached result and skips the updater.
+
+What if the process crashes after the store commits, but before the step result is recorded? The store covers this case itself. Every workflow update writes a row to an applied-steps ledger, in the same transaction as the state change. When the workflow replays, the store finds the ledger row and returns the recorded result, rather than running the updater a second time.
+
+Keep updaters synchronous and pure. The signature allows async, but an updater holds the store's write transaction open while it runs – no network calls, no timers.
+
+## Waiting
+
+To pause a workflow until the store reaches some condition, see [Waiting on State](./store-waiting.md).
