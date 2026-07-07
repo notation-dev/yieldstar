@@ -70,7 +70,7 @@ interface SchedulerClient {
 
 ## `StoreClient` (abstract class)
 
-Persistence layer for [durable stores](../manual/stores.md). Implementations own store state, versioning, waiter registration, and the applied-steps ledger that makes workflow updates exactly-once.
+Persistence layer for [durable stores](../manual/stores.md). An implementation owns three things: store state and versions, the waiters created when `when`/`take` suspends a workflow, and an applied-steps ledger. The ledger records the result of each committed workflow update, keyed by `(executionId, stepKey)`, so that a replayed step can return the recorded result instead of running its updater again.
 
 ```ts
 abstract getOrCreateStore(params: {
@@ -88,7 +88,7 @@ abstract updateStore(params: {
   definition: StoreDefinition;
   id: string;
   updater: (draft: Draft) => void | State;
-  stepId?: StoreStepId; // exactly-once ledger key for workflow steps
+  stepId?: StoreStepId; // identifies the workflow step; keys the applied-steps ledger
 }): Promise<StoreUpdateResult>;
 
 abstract takeFromStore(params): Promise<StoreTakeResult>;
@@ -98,12 +98,12 @@ abstract registerWaiter(waiter: StoreWaiter): Promise<void>;
 
 The base class also provides `storeClient.store(definition, id)`, the external read/write handle described in [External Store Access](../manual/store-external.md).
 
-Guarantees an implementation must uphold:
+An implementation must uphold four contracts:
 
-- Updates are atomic per store and bump the version by exactly one.
-- When `stepId` is provided, a repeated call returns the recorded result without re-running the updater.
-- `registerWaiter` must wake the waiter immediately if the store version has already advanced past `sinceVersion`.
-- Waiters are removed only after their wake-up is durably enqueued.
+- Each update commits in a single per-store transaction and increments the version by one.
+- When `stepId` is provided and the ledger already holds that step, the implementation returns the recorded result and does not run the updater.
+- `registerWaiter` compares the store's current version with the waiter's `sinceVersion`; if the store has moved on, it wakes the waiter immediately rather than leaving it to sleep through a write that already happened.
+- A waiter is removed only after its wake-up is queued. A crash in between produces a duplicate wake, which replay absorbs – the reverse order would lose the wake entirely.
 
 ## `WorkflowInvoker` (type)
 

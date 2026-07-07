@@ -1,6 +1,6 @@
 # External Store Access
 
-Stores are not workflow-only. Any code with a `StoreClient` – an HTTP handler, a webhook receiver, a CLI – can read and write a store directly. This is how events get _into_ the system: an external write wakes any workflow waiting on the paths it changed.
+Stores are not workflow-only. Any code with a `StoreClient` – an HTTP handler, a webhook receiver, a CLI – can read and write a store directly. This is how events get _into_ the system: an external write wakes any workflow that is waiting on the state it changed.
 
 ## Getting a handle
 
@@ -15,7 +15,7 @@ const storeClient = new SqliteStoreClient({ db, schedulerClient });
 const conversation = storeClient.store(ConversationStore, "conversation:123");
 ```
 
-The client needs the scheduler because writes wake waiting workflows – see [Local Runtime](./local-runtime.md) for the full wiring.
+The constructor takes a scheduler as well as the database. When a write changes state that a suspended workflow is waiting on, the store client hands that workflow's event to the scheduler, which queues it for re-execution. See [Local Runtime](./local-runtime.md) for the full wiring.
 
 ## Reading
 
@@ -25,7 +25,7 @@ const { state, version } = await conversation.get();
 
 ## Writing
 
-`update` takes the same draft-mutating updater as the workflow API. It is atomic, schema-validated, and bumps the version by one.
+`update` takes the same draft-mutating updater as the workflow API. The write commits in a single transaction, validated against the schema, and increments the version by one.
 
 ```ts
 await conversation.update((draft) => {
@@ -62,4 +62,4 @@ const msg = yield* store.take(
 );
 ```
 
-External updates do not participate in workflow step caching – there is no step key, so each call applies once, when it runs. Idempotency across retries of your _own_ handlers is yours to manage.
+External updates sit outside workflow step caching. There is no step key, so each call applies once, when it runs. If your handler retries, idempotency is yours to manage.

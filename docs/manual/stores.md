@@ -25,11 +25,11 @@ const ConversationStore = defineStore(
 );
 ```
 
-The schema is validated when a store is created and after every update – a bad write fails before it commits, never after.
+The runtime validates state against the schema when a store is created, and again on every update before it commits. So a bad write fails upfront, rather than leaving invalid state behind.
 
 ## Creating and opening a store
 
-`step.store` returns a handle. If the store does not exist yet, it is created from `initial`; if it does, the existing store is returned and `initial` is ignored.
+`step.store` returns a handle. If the store does not exist yet, the runtime creates it from `initial`; if it does, the existing store is returned and `initial` is ignored.
 
 ```ts
 const store = yield* step.store(ConversationStore, {
@@ -48,7 +48,7 @@ Pass an explicit `id` to share one store across executions – a conversation id
 
 ## Reading
 
-`store.get` returns a snapshot: the state plus a monotonic version number.
+`store.get` returns a snapshot: the state plus a version number that increments on each update.
 
 ```ts
 const { state, version } = yield* store.get("load");
@@ -62,11 +62,13 @@ const unprocessed = yield* store.select("unprocessed", (s) =>
 );
 ```
 
-Reads are durable steps. The first execution reads the latest committed state; replays return the recorded snapshot, never whatever the store contains later. A _new_ read step may observe newer state – workflows are long-running, so this is deliberate. Each completed read is replay-stable; the workflow as a whole is not one big snapshot transaction.
+Reads are durable steps. The first time a read step runs, it reads the latest committed state, and the runtime records the snapshot under the step key. On replay, the runtime returns the recorded snapshot – not whatever the store contains by then.
+
+A _new_ read step may observe newer state. Workflows are long-running, so this is deliberate: each completed read is stable across replays, but the workflow as a whole is not one big snapshot transaction.
 
 ## Updating
 
-`store.update` mutates a draft. The update is atomic, schema-validated, and bumps the version by exactly one.
+`store.update` mutates a draft:
 
 ```ts
 yield* store.update(`finish:${msg.id}`, (draft) => {
@@ -76,7 +78,11 @@ yield* store.update(`finish:${msg.id}`, (draft) => {
 });
 ```
 
-Updates are exactly-once per step key. On replay the cached result is returned and the updater does not re-run – and this holds even if the previous run crashed between committing the store and recording the step, because the store keeps its own ledger of applied steps inside the same transaction as the state change.
+Each update runs in a single store transaction. The new state is validated against the schema before it commits, and the version increments by one.
+
+Updates are idempotent by step key. On replay, the runtime returns the cached result and skips the updater.
+
+What if the process crashes after the store commits, but before the step result is recorded? The store covers this case itself. Every workflow update writes a row to an applied-steps ledger, in the same transaction as the state change. When the workflow replays, the store finds the ledger row and returns the recorded result, rather than running the updater a second time.
 
 Keep updaters synchronous and pure. The signature allows async, but an updater holds the store's write transaction open while it runs – no network calls, no timers.
 

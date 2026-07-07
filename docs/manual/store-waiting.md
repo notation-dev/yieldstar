@@ -1,10 +1,10 @@
 # Waiting on State
 
-Two primitives suspend a workflow until a store reaches some condition: `when` observes, `take` consumes. Neither polls – the workflow terminates, and the runtime wakes it when a relevant write commits.
+Two primitives suspend a workflow until a store reaches some condition: `when` observes, `take` consumes. Neither polls. The execution terminates, and the runtime re-invokes it when a relevant write commits.
 
 ## `store.when`
 
-`when` waits once for a condition and returns the selected value. It never mutates the store.
+`when` waits once for a condition and returns the selected value. It does not mutate the store.
 
 ```ts
 const message = yield* store.when((s) =>
@@ -12,7 +12,7 @@ const message = yield* store.when((s) =>
 );
 ```
 
-If the selector already returns a truthy value, the workflow continues immediately. Otherwise the execution suspends until a write touches something the selector read, then replays and re-evaluates.
+If the selector already returns a truthy value, the workflow continues immediately. Otherwise the execution suspends. When a later write touches something the selector read, the workflow replays and the selector re-evaluates.
 
 Inside a loop, pass an explicit key – the same call site is reached more than once, so the call-site key collides:
 
@@ -24,15 +24,17 @@ const message = yield* store.when(`next-message:${turn}`, (s) =>
 
 ## How wake-ups work
 
-The selector runs against a tracking proxy that records which paths it read. A write wakes the waiter when a written path and a read path overlap – appending to `messages` wakes a selector that read `s.messages`, and replacing `profile` wakes a selector that read `s.profile.name`.
+The selector runs against a tracking proxy – a wrapper around the state that records which paths the selector read. If the selector does not match, the runtime stores those paths alongside the suspended execution.
 
-Why does this matter? Because the selector is never serialised. The recorded paths are only a wake-up filter; on wake, the workflow replays and the selector re-runs against the real committed state. A spurious wake just re-suspends. Unrelated writes – `status` changing while you wait on `messages` – do not wake anything.
+When an update later writes to an overlapping path, the runtime re-enqueues the workflow. Appending to `messages` wakes a selector that read `s.messages`; replacing `profile` wakes a selector that read `s.profile.name`. A write to `status` does not wake a selector that only read `messages`.
+
+Why does this matter? Because the selector itself is never serialised. The recorded paths are only a wake-up filter – on wake, the workflow replays and the selector re-runs against the real committed state. If a wake turns out to be spurious, the selector re-evaluates to falsy and the execution suspends again.
 
 Selectors must be synchronous and pure: no network, no timers, no mutation (the proxy throws if you try). The selected value is persisted as the step result, so it must be serialisable.
 
 ## `store.take`
 
-`when` observes; it does not claim. If two executions both `when` on the same unprocessed message, both receive it. For mailboxes and queues where exactly one consumer must win each item, use `take`:
+`when` observes; it does not claim. If two executions both `when` on the same unprocessed message, both receive it. For mailboxes and queues where exactly one consumer should win each item, use `take`:
 
 ```ts
 const msg = yield* store.take(
@@ -44,7 +46,7 @@ const msg = yield* store.take(
 );
 ```
 
-The selector and the claim run inside the _same_ store transaction, committing as one version bump. When two workers race, one commits the claim and the other's selector re-evaluates against the claimed state – it can never receive the same message.
+The selector and the claim run inside the _same_ store transaction, committing as one version bump. When two workers race, one commits its claim first. The other's selector then re-evaluates against the claimed state, finds the message already processed, and moves on – so both workers cannot receive the same message.
 
 `take` requires an explicit key, and the claim mutation follows the same rules as an updater.
 

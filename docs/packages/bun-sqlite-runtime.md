@@ -47,7 +47,7 @@ const schedulerClient = new SqliteSchedulerClient({
 
 ## `SqliteStoreClient`
 
-`StoreClient` implementation backed by SQLite. Owns the `stores`, `store_waiters`, and `store_applied_steps` tables – state, version, waiter wake-ups, and the exactly-once ledger all commit in one transaction.
+`StoreClient` implementation backed by SQLite. Store state, waiting workflows, and the applied-steps ledger live in three tables (`stores`, `store_waiters`, `store_applied_steps`). Each update writes to all three inside a single transaction.
 
 ```ts
 import { SqliteStoreClient } from "@yieldstar/bun-sqlite-runtime";
@@ -55,7 +55,9 @@ import { SqliteStoreClient } from "@yieldstar/bun-sqlite-runtime";
 const storeClient = new SqliteStoreClient({ db, schedulerClient });
 ```
 
-It takes the scheduler because store writes wake waiting workflows by re-enqueuing their events. Writes are serialised through an internal queue, so concurrent updates in one process never nest transactions.
+The constructor takes a scheduler as well as the database. When an update changes state that a suspended workflow is waiting on, the client hands that workflow's event to the scheduler, which queues it for re-execution.
+
+Updaters may be async, and an async updater could otherwise let a second update begin while the first transaction is still open. To prevent this, the client pushes every write through an internal queue and runs them one at a time.
 
 ## `SqliteEventLoop`
 
