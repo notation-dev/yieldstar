@@ -346,6 +346,36 @@ export class MemoryStoreClient extends StoreClient {
     return version;
   }
 
+  async listStores<Schema extends StandardSchemaV1>(
+    definition: StoreDefinition<Schema>
+  ): Promise<string[]> {
+    const prefix = `${definition.name}:`;
+    const ids: string[] = [];
+    for (const key of this.stores.keys()) {
+      if (key.startsWith(prefix)) ids.push(key.slice(prefix.length));
+    }
+    return ids.sort();
+  }
+
+  async deleteStore<Schema extends StandardSchemaV1>(params: {
+    definition: StoreDefinition<Schema>;
+    id: string;
+  }): Promise<void> {
+    return this.enqueueWrite(async () => {
+      const { name } = params.definition;
+      this.stores.delete(this.storeKey(name, params.id));
+      for (const [key, waiter] of [...this.waiters.entries()]) {
+        if (waiter.storeName === name && waiter.storeId === params.id) {
+          this.waiters.delete(key);
+        }
+      }
+      const ledgerPrefix = `[${JSON.stringify(name)},${JSON.stringify(params.id)},`;
+      for (const key of [...this.appliedSteps.keys()]) {
+        if (key.startsWith(ledgerPrefix)) this.appliedSteps.delete(key);
+      }
+    });
+  }
+
   async registerWaiter(waiter: StoreWaiter): Promise<void> {
     return this.enqueueWrite(async () => {
       const key = this.waiterKey(

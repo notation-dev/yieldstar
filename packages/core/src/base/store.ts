@@ -192,6 +192,23 @@ export abstract class StoreClient {
   }): Promise<StoreTakeResult<R>>;
 
   abstract registerWaiter(waiter: StoreWaiter): Promise<void>;
+
+  /**
+   * Enumerates the ids of every store created under a given definition name.
+   * Needed by external consumers (e.g. Notation's state backend) that treat a
+   * store name as a collection of instances and must list them. Order is
+   * ascending by id so callers get a deterministic sequence.
+   */
+  abstract listStores(definition: StoreDefinition): Promise<string[]>;
+
+  /**
+   * Removes a store instance and all of its associated rows (state, waiters,
+   * applied-steps ledger). A no-op if the store does not exist.
+   */
+  abstract deleteStore(params: {
+    definition: StoreDefinition;
+    id: string;
+  }): Promise<void>;
 }
 
 export function isStoreSelectorMatch<R>(

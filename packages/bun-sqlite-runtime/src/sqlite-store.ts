@@ -33,6 +33,10 @@ class AppliedStepRow {
   result!: string;
 }
 
+class StoreIdRow {
+  store_id!: string;
+}
+
 class WaiterRow {
   workflow_id!: string;
   execution_id!: string;
@@ -439,6 +443,54 @@ export class SqliteStoreClient extends StoreClient {
         stepKey: waiter.stepKey,
       });
     }
+  }
+
+  async listStores<Schema extends StandardSchemaV1>(
+    definition: StoreDefinition<Schema>
+  ): Promise<string[]> {
+    const rows = this.db
+      .query(
+        `SELECT store_id FROM stores
+         WHERE store_name = $storeName
+         ORDER BY store_id ASC`
+      )
+      .as(StoreIdRow)
+      .all({ $storeName: definition.name });
+    return rows.map((row) => row.store_id);
+  }
+
+  async deleteStore<Schema extends StandardSchemaV1>(params: {
+    definition: StoreDefinition<Schema>;
+    id: string;
+  }): Promise<void> {
+    return this.enqueueWrite(async () => {
+      const bindings = {
+        $storeName: params.definition.name,
+        $storeId: params.id,
+      };
+      this.db.run("BEGIN IMMEDIATE");
+      try {
+        this.db
+          .query(
+            `DELETE FROM stores WHERE store_name = $storeName AND store_id = $storeId`
+          )
+          .run(bindings);
+        this.db
+          .query(
+            `DELETE FROM store_waiters WHERE store_name = $storeName AND store_id = $storeId`
+          )
+          .run(bindings);
+        this.db
+          .query(
+            `DELETE FROM store_applied_steps WHERE store_name = $storeName AND store_id = $storeId`
+          )
+          .run(bindings);
+        this.db.run("COMMIT");
+      } catch (err) {
+        this.db.run("ROLLBACK");
+        throw err;
+      }
+    });
   }
 
   async registerWaiter(waiter: StoreWaiter): Promise<void> {
