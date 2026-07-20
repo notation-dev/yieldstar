@@ -51,10 +51,11 @@ test("workflow stores can be created, read, and updated", async () => {
   const sdk = createSdk({ workflow: testWorkflow });
   const result = await sdk.triggerAndWait({ workflowId: "workflow" });
 
-  expect(result.initial).toEqual({
+  expect(result.initial).toMatchObject({
     state: { messages: [], status: "idle" },
     version: 0,
   });
+  expect(result.initial.storePk).toMatch(/^[0-9a-f-]+$/);
   expect(result.update.previousVersion).toBe(0);
   expect(result.update.version).toBe(1);
   expect(result.current).toEqual({
@@ -62,6 +63,7 @@ test("workflow stores can be created, read, and updated", async () => {
       messages: [{ id: "msg-1", content: "hello", processed: false }],
       status: "idle",
     },
+    storePk: result.initial.storePk,
     version: 1,
   });
 });
@@ -115,11 +117,13 @@ test("workflow stores can conditionally update from a snapshot", async () => {
   const sdk = createSdk({ workflow: testWorkflow });
   const result = await sdk.triggerAndWait({ workflowId: "workflow" });
 
-  expect(result).toEqual({
+  expect(result).toMatchObject({
     updated: false,
     expectedVersion: 0,
     actualVersion: 1,
   });
+  if (result.updated) throw new Error("update should conflict");
+  expect(result.actualStorePk).toBe(result.expectedStorePk);
 });
 
 test("external store updates wake when waiters", async () => {
@@ -713,6 +717,7 @@ test("updateFrom replay returns its committed result after the store advances", 
   let updaterRuns = 0;
   let originalSnapshot: {
     state: ConversationState;
+    storePk: string;
     version: number;
   };
 
@@ -783,6 +788,69 @@ test("updateFrom replay returns its committed result after the store advances", 
   expect(current.state.messages).toEqual([
     { id: "msg-after", content: "later", processed: false },
   ]);
+});
+
+test("deleteFrom replay returns its committed result without deleting a new incarnation", async () => {
+  const executionId = "delete-crash-replay";
+  const storeId = "delete-crash-gap";
+  const testWorkflow = workflow(async function* (step) {
+    const store = yield* step.store(ConversationStore, { id: storeId });
+    const snapshot = yield* store.get("delete-snapshot");
+    return yield* store.deleteFrom("delete-store", snapshot);
+  });
+  const sdk = createSdk({ workflow: testWorkflow });
+  const snapshot = await sdk.storeClient.getOrCreateStore({
+    definition: ConversationStore,
+    id: storeId,
+    initial: { messages: [], status: "idle" },
+  });
+
+  // These earlier workflow steps were durably recorded before the deletion.
+  await sdk.heapClient.writeStep({
+    executionId,
+    stepKey: `store:${ConversationStore.name}:${storeId}`,
+    stepAttempt: 0,
+    stepDone: true,
+    stepResponseJson: JSON.stringify({
+      type: "step-result",
+      result: { storeName: ConversationStore.name, storeId },
+    }),
+  });
+  await sdk.heapClient.writeStep({
+    executionId,
+    stepKey: "delete-snapshot",
+    stepAttempt: 0,
+    stepDone: true,
+    stepResponseJson: JSON.stringify({
+      type: "step-result",
+      result: snapshot,
+    }),
+  });
+
+  const committed = await sdk.storeClient.deleteStoreFrom({
+    definition: ConversationStore,
+    id: storeId,
+    snapshot,
+    stepId: { executionId, stepKey: "delete-store" },
+  });
+  expect(committed).toEqual({ deleted: true });
+
+  const recreated = await sdk.storeClient.getOrCreateStore({
+    definition: ConversationStore,
+    id: storeId,
+    initial: { messages: [], status: "working" },
+  });
+  expect(recreated.storePk).not.toBe(snapshot.storePk);
+
+  const replayed = await sdk.triggerAndWait({
+    workflowId: "workflow",
+    executionId,
+  });
+  expect(replayed).toEqual({ deleted: true });
+  expect(await sdk.storeClient.getStore({
+    definition: ConversationStore,
+    id: storeId,
+  })).toEqual(recreated);
 });
 
 function schema<T>(): StandardSchemaV1<unknown, T> {

@@ -11,6 +11,7 @@ export type {
   RuntimeStore,
   StandardSchemaV1,
   StoreDefinition,
+  StoreDeleteFromResult,
   StoreKey,
   StorePath,
   StoreSelector,

@@ -68,6 +68,7 @@ export type StoreStepId = {
 
 export type StoreSnapshot<T> = {
   state: T;
+  storePk: string;
   version: StoreVersion;
 };
 
@@ -81,15 +82,44 @@ export type StoreUpdateFromResult<T> =
   | ({ updated: true } & StoreUpdateResult<T>)
   | {
       updated: false;
+      expectedStorePk: string;
+      actualStorePk: string;
       expectedVersion: StoreVersion;
       actualVersion: StoreVersion;
+    };
+
+export type StoreDeleteFromResult =
+  | { deleted: true }
+  | {
+      deleted: false;
+      reason: "conflict";
+      expectedStorePk: string;
+      actualStorePk: string;
+      expectedVersion: StoreVersion;
+      actualVersion: StoreVersion;
+    }
+  | {
+      deleted: false;
+      reason: "not-found";
+      expectedStorePk: string;
+      expectedVersion: StoreVersion;
     };
 
 export type StoreSelector<T, R> = (state: Readonly<T>) => R;
 
 export type StoreTakeResult<R> =
-  | { matched: true; selected: NonNullable<R>; version: StoreVersion }
-  | { matched: false; version: StoreVersion; readPaths: StorePath[] };
+  | {
+      matched: true;
+      selected: NonNullable<R>;
+      storePk: string;
+      version: StoreVersion;
+    }
+  | {
+      matched: false;
+      storePk: string;
+      version: StoreVersion;
+      readPaths: StorePath[];
+    };
 
 export type StoreWaiter = {
   workflowId: string;
@@ -98,6 +128,7 @@ export type StoreWaiter = {
   event: WorkflowEvent;
   storeName: string;
   storeId: string;
+  storePk: string;
   sinceVersion: StoreVersion;
   readPaths: StorePath[];
 };
@@ -111,6 +142,7 @@ export type RuntimeStore<T> = {
     snapshot: StoreSnapshot<T>,
     updater: (draft: Draft<T>) => void | T | Promise<void | T>
   ): Promise<StoreUpdateFromResult<T>>;
+  deleteFrom(snapshot: StoreSnapshot<T>): Promise<StoreDeleteFromResult>;
 };
 
 export function defineStore<Schema extends StandardSchemaV1>(
@@ -143,6 +175,12 @@ export abstract class StoreClient {
           id,
           snapshot,
           updater,
+        }),
+      deleteFrom: (snapshot) =>
+        this.deleteStoreFrom({
+          definition,
+          id,
+          snapshot,
         }),
     };
   }
@@ -244,6 +282,14 @@ export abstract class StoreClient {
     definition: StoreDefinition;
     id: string;
   }): Promise<void>;
+
+  /** Deletes a store only if it is still the supplied snapshot incarnation and version. */
+  abstract deleteStoreFrom(params: {
+    definition: StoreDefinition;
+    id: string;
+    snapshot: StoreSnapshot<unknown>;
+    stepId?: StoreStepId;
+  }): Promise<StoreDeleteFromResult>;
 }
 
 export function isStoreSelectorMatch<R>(

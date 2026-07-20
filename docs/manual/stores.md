@@ -48,10 +48,12 @@ Pass an explicit `id` to share one store across executions – a conversation id
 
 ## Reading
 
-`store.get` returns a snapshot: the state plus a version number that increments on each update.
+`store.get` returns a snapshot containing the state, a version number that
+increments on each update, and an internal UUIDv7 `storePk` identifying this
+physical incarnation of the logical `(definition, id)` store.
 
 ```ts
-const { state, version } = yield* store.get("load");
+const { state, storePk, version } = yield* store.get("load");
 ```
 
 `store.select` runs a pure selector and persists only the selected value:
@@ -109,10 +111,35 @@ if (!result.updated) {
 ```
 
 The successful branch contains the same state and version fields as
-`store.update`, plus `updated: true`. A conflict returns `updated: false`, the
-snapshot's `expectedVersion`, and the store's `actualVersion`. Both outcomes
-are durable step results. A retry after a conflict must use a fresh read and a
-new step key.
+`store.update`, plus `updated: true`. A conflict returns `updated: false` and
+the expected and actual primary keys and versions. Comparing both values
+prevents an old snapshot from matching a deleted and recreated store whose
+version happens to be the same. Both outcomes are durable step results. A
+retry after a conflict must use a fresh read and a new step key.
+
+## Deleting
+
+Use `deleteFrom` when deletion is based on a snapshot:
+
+```ts
+const snapshot = yield* store.get("load-before-delete");
+const result = yield* store.deleteFrom("delete", snapshot);
+
+if (!result.deleted) {
+  // The store changed, was recreated, or was already removed.
+}
+```
+
+The store is deleted only when both its UUIDv7 primary key and version still
+match the snapshot. Successful workflow deletions are written to the
+applied-steps ledger before commit, and that ledger entry survives deletion.
+Replay therefore returns the committed result without deleting a newer store
+created under the same logical ID.
+
+Runtime integrations can call `listStores(definition)` to get the definition's
+live logical IDs in ascending order, and `deleteStore({ definition, id })` for
+an unconditional, idempotent administrative deletion. Prefer `deleteFrom`
+when the deletion decision was made from previously read state.
 
 ## Waiting
 

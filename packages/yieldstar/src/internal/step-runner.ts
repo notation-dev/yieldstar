@@ -12,6 +12,7 @@ import {
   StepStoreWait,
   type StoreClient,
   type StoreDefinition,
+  type StoreDeleteFromResult,
   type StoreKey,
   type StoreSelector,
   type StoreSnapshot,
@@ -53,6 +54,10 @@ export type WorkflowStore<T> = {
     snapshot: StoreSnapshot<T>,
     updater: (draft: Draft<T>) => void | T | Promise<void | T>
   ): AsyncGenerator<StepResponse, StoreUpdateFromResult<T>>;
+  deleteFrom(
+    key: string,
+    snapshot: StoreSnapshot<T>
+  ): AsyncGenerator<StepResponse, StoreDeleteFromResult>;
   when<R>(
     selector: StoreSelector<T, R | undefined | null | false>
   ): AsyncGenerator<StepResponse, NonNullable<R>>;
@@ -201,6 +206,16 @@ function createWorkflowStore<T>(params: {
           updater: updater as any,
           stepId: { executionId: event.executionId, stepKey },
         })) as StoreUpdateFromResult<T>
+      );
+    },
+    deleteFrom(stepKey, snapshot) {
+      return durableStep<StoreDeleteFromResult>(stepKey, () =>
+        storeClient.deleteStoreFrom({
+          definition,
+          id,
+          snapshot,
+          stepId: { executionId: event.executionId, stepKey },
+        })
       );
     },
     when<R>(
@@ -427,6 +442,7 @@ async function* whenStep<T, R>(params: {
     event,
     storeName: definition.name,
     storeId: id,
+    storePk: snapshot.storePk,
     sinceVersion: snapshot.version,
     readPaths,
   });
@@ -490,6 +506,7 @@ async function* takeStep<T, R>(params: {
     event,
     storeName: definition.name,
     storeId: id,
+    storePk: outcome.storePk,
     sinceVersion: outcome.version,
     readPaths: outcome.readPaths,
   });

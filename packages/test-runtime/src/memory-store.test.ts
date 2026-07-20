@@ -34,7 +34,7 @@ const event = {
 test("memory store updates wake matching waiters", async () => {
   const { client, events } = createClient();
 
-  await client.getOrCreateStore({
+  const initial = await client.getOrCreateStore({
     definition: Store,
     id: "one",
     initial: { messages: [] },
@@ -46,6 +46,7 @@ test("memory store updates wake matching waiters", async () => {
     event,
     storeName: Store.name,
     storeId: "one",
+    storePk: initial.storePk,
     sinceVersion: 0,
     readPaths: [["messages"]],
   });
@@ -63,7 +64,7 @@ test("memory store updates wake matching waiters", async () => {
 test("registering a waiter with a stale sinceVersion triggers an immediate wake", async () => {
   const { client, events } = createClient();
 
-  await client.getOrCreateStore({
+  const initial = await client.getOrCreateStore({
     definition: Store,
     id: "stale",
     initial: { messages: [] },
@@ -85,6 +86,7 @@ test("registering a waiter with a stale sinceVersion triggers an immediate wake"
     event,
     storeName: Store.name,
     storeId: "stale",
+    storePk: initial.storePk,
     sinceVersion: 0,
     readPaths: [["messages"]],
   });
@@ -176,7 +178,7 @@ test("updateStoreFrom commits only from the supplied snapshot and replays ledger
   const replayed = await client.updateStoreFrom({
     definition: Store,
     id: "conditional",
-    snapshot,
+    snapshot: { ...snapshot, storePk: "" },
     stepId,
     updater() {
       updaterRuns++;
@@ -194,10 +196,136 @@ test("updateStoreFrom commits only from the supplied snapshot and replays ledger
   });
   expect(conflicted).toEqual({
     updated: false,
+    expectedStorePk: snapshot.storePk,
+    actualStorePk: snapshot.storePk,
     expectedVersion: 0,
     actualVersion: 2,
   });
   expect(updaterRuns).toBe(1);
+});
+
+test("listStores and deleteStore manage logical store instances", async () => {
+  const { client } = createClient();
+  const OtherStore = defineStore("memory-test-other", schema<State>());
+  const first = await client.getOrCreateStore({
+    definition: Store,
+    id: "b",
+    initial: { messages: [] },
+  });
+  const second = await client.getOrCreateStore({
+    definition: Store,
+    id: "a",
+    initial: { messages: [] },
+  });
+  await client.getOrCreateStore({
+    definition: OtherStore,
+    id: "a",
+    initial: { messages: [] },
+  });
+
+  expect(first.storePk).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  expect(second.storePk > first.storePk).toBe(true);
+  expect(await client.listStores(Store)).toEqual(["a", "b"]);
+
+  await client.deleteStore({ definition: Store, id: "b" });
+  expect(await client.listStores(Store)).toEqual(["a"]);
+  expect(client.getStore({ definition: Store, id: "b" })).rejects.toThrow(
+    'Store "memory-test:b" does not exist'
+  );
+  await client.deleteStore({ definition: Store, id: "missing" });
+});
+
+test("deleteStoreFrom is conditional, incarnation-safe, and ledger-first", async () => {
+  const { client } = createClient();
+  const original = await client.getOrCreateStore({
+    definition: Store,
+    id: "delete-from",
+    initial: { messages: [] },
+  });
+  await client.updateStore({
+    definition: Store,
+    id: "delete-from",
+    updater(draft) {
+      draft.messages.push({ id: "changed" });
+    },
+  });
+
+  const versionConflict = await client.deleteStoreFrom({
+    definition: Store,
+    id: "delete-from",
+    snapshot: original,
+  });
+  expect(versionConflict).toMatchObject({
+    deleted: false,
+    reason: "conflict",
+    expectedStorePk: original.storePk,
+    actualStorePk: original.storePk,
+    expectedVersion: 0,
+    actualVersion: 1,
+  });
+
+  const current = await client.getStore({
+    definition: Store,
+    id: "delete-from",
+  });
+  const stepId = { executionId: "execution", stepKey: "delete" };
+  expect(
+    await client.deleteStoreFrom({
+      definition: Store,
+      id: "delete-from",
+      snapshot: current,
+      stepId,
+    })
+  ).toEqual({ deleted: true });
+
+  expect(
+    await client.deleteStoreFrom({
+      definition: Store,
+      id: "delete-from",
+      snapshot: current,
+    })
+  ).toEqual({
+    deleted: false,
+    reason: "not-found",
+    expectedStorePk: current.storePk,
+    expectedVersion: current.version,
+  });
+
+  const recreated = await client.getOrCreateStore({
+    definition: Store,
+    id: "delete-from",
+    initial: { messages: [] },
+  });
+  expect(recreated.storePk).not.toBe(original.storePk);
+  expect(recreated.version).toBe(0);
+
+  // A replay returns the old committed deletion and leaves the new
+  // incarnation untouched.
+  expect(
+    await client.deleteStoreFrom({
+      definition: Store,
+      id: "delete-from",
+      snapshot: current,
+      stepId,
+    })
+  ).toEqual({ deleted: true });
+  expect(
+    await client.getStore({ definition: Store, id: "delete-from" })
+  ).toEqual(recreated);
+
+  const staleUpdate = await client.updateStoreFrom({
+    definition: Store,
+    id: "delete-from",
+    snapshot: original,
+    updater() {},
+  });
+  expect(staleUpdate).toMatchObject({
+    updated: false,
+    expectedStorePk: original.storePk,
+    actualStorePk: recreated.storePk,
+    expectedVersion: 0,
+    actualVersion: 0,
+  });
 });
 
 type TakeState = {
@@ -209,7 +337,7 @@ const TakeStore = defineStore("memory-take-test", schema<TakeState>());
 test("concurrent takers claim distinct items", async () => {
   const { client } = createClient();
 
-  await client.getOrCreateStore({
+  const initial = await client.getOrCreateStore({
     definition: TakeStore,
     id: "take-race",
     initial: { messages: [{ id: "msg-1" }, { id: "msg-2" }] },
@@ -278,7 +406,7 @@ test("take returns readPaths and version when the selector misses", async () => 
 test("a successful take wakes matching waiters", async () => {
   const { client, events } = createClient();
 
-  await client.getOrCreateStore({
+  const initial = await client.getOrCreateStore({
     definition: TakeStore,
     id: "take-wake",
     initial: { messages: [{ id: "msg-1" }] },
@@ -290,6 +418,7 @@ test("a successful take wakes matching waiters", async () => {
     event,
     storeName: TakeStore.name,
     storeId: "take-wake",
+    storePk: initial.storePk,
     sinceVersion: 0,
     readPaths: [["messages"]],
   });
@@ -309,7 +438,7 @@ test("a successful take wakes matching waiters", async () => {
 test("take rejects async claims without committing", async () => {
   const { client } = createClient();
 
-  await client.getOrCreateStore({
+  const initial = await client.getOrCreateStore({
     definition: TakeStore,
     id: "take-async",
     initial: { messages: [{ id: "msg-1" }] },
@@ -539,7 +668,7 @@ test("ledger entries are scoped per execution and step key", async () => {
 test("an updater that returns a replacement state wakes waiters via the diff fallback", async () => {
   const { client, events } = createClient();
 
-  await client.getOrCreateStore({
+  const initial = await client.getOrCreateStore({
     definition: Store,
     id: "replace",
     initial: { messages: [] },
@@ -551,6 +680,7 @@ test("an updater that returns a replacement state wakes waiters via the diff fal
     event,
     storeName: Store.name,
     storeId: "replace",
+    storePk: initial.storePk,
     sinceVersion: 0,
     readPaths: [["messages"]],
   });
@@ -581,7 +711,7 @@ test("mutating updates derive changed paths from recorded writes, not a full-sta
   const messages = Array.from({ length: 5000 }, (_, i) => ({
     id: `msg-${i}`,
   }));
-  await client.getOrCreateStore({
+  const initial = await client.getOrCreateStore({
     definition: Store,
     id: "large",
     initial: { messages },
@@ -593,6 +723,7 @@ test("mutating updates derive changed paths from recorded writes, not a full-sta
     event,
     storeName: Store.name,
     storeId: "large",
+    storePk: initial.storePk,
     sinceVersion: 0,
     readPaths: [["messages"]],
   });
@@ -626,7 +757,7 @@ test("mutating updates derive changed paths from recorded writes, not a full-sta
 test("committed state is proxy-free and structuredClone-able", async () => {
   const { client } = createClient();
 
-  await client.getOrCreateStore({
+  const initial = await client.getOrCreateStore({
     definition: Store,
     id: "laundered",
     initial: { messages: [{ id: "msg-1" }] },
@@ -656,7 +787,7 @@ test("committed state is proxy-free and structuredClone-able", async () => {
 test("a take claim that splices the array wakes waiters on shifted indices", async () => {
   const { client, events } = createClient();
 
-  await client.getOrCreateStore({
+  const initial = await client.getOrCreateStore({
     definition: TakeStore,
     id: "take-splice",
     initial: { messages: [{ id: "msg-1" }, { id: "msg-2" }] },
@@ -668,6 +799,7 @@ test("a take claim that splices the array wakes waiters on shifted indices", asy
     event,
     storeName: TakeStore.name,
     storeId: "take-splice",
+    storePk: initial.storePk,
     sinceVersion: 0,
     readPaths: [["messages", 0, "id"]],
   });

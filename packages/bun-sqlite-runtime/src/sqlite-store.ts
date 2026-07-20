@@ -14,6 +14,7 @@ import {
   type Draft,
   type StandardSchemaV1,
   type StoreDefinition,
+  type StoreDeleteFromResult,
   type StorePath,
   type StoreSelector,
   type StoreSnapshot,
@@ -26,6 +27,7 @@ import {
 } from "@yieldstar/core";
 
 class StoreRow {
+  store_pk!: string;
   state!: string;
   version!: number;
 }
@@ -82,6 +84,7 @@ export class SqliteStoreClient extends StoreClient {
     if (existing) {
       return {
         state: JSON.parse(existing.state),
+        storePk: existing.store_pk,
         version: existing.version,
       };
     }
@@ -111,30 +114,35 @@ export class SqliteStoreClient extends StoreClient {
           this.db.run("COMMIT");
           return {
             state: JSON.parse(existingTx.state),
+            storePk: existingTx.store_pk,
             version: existingTx.version,
           };
         }
 
+        const storePk = Bun.randomUUIDv7();
         this.db
           .query(
-            `INSERT INTO stores (store_name, store_id, version, state)
-             VALUES ($storeName, $storeId, 0, $state)`
+            `INSERT INTO stores (store_pk, store_name, store_id, version, state)
+             VALUES ($storePk, $storeName, $storeId, 0, $state)`
           )
           .run({
+            $storePk: storePk,
             $storeName: params.definition.name,
             $storeId: params.id,
             $state: JSON.stringify(state),
           });
         this.db.run("COMMIT");
+        return {
+          state: cloneStoreState(state),
+          storePk,
+          version: 0,
+        };
       } catch (err) {
         this.db.run("ROLLBACK");
         throw err;
       }
 
-      return {
-        state: cloneStoreState(state),
-        version: 0,
-      };
+      throw new Error("Store creation transaction returned unexpectedly");
     });
   }
 
@@ -152,6 +160,7 @@ export class SqliteStoreClient extends StoreClient {
 
     return {
       state: JSON.parse(row.state),
+      storePk: row.store_pk,
       version: row.version,
     };
   }
@@ -180,6 +189,7 @@ export class SqliteStoreClient extends StoreClient {
   }): Promise<StoreUpdateFromResult<StoreState<Schema>>> {
     const result = await this.updateStoreInternal({
       ...params,
+      expectedStorePk: params.snapshot.storePk,
       expectedVersion: params.snapshot.version,
     });
     return "updated" in result ? result : { updated: true, ...result };
@@ -192,6 +202,7 @@ export class SqliteStoreClient extends StoreClient {
       draft: Draft<StoreState<Schema>>
     ) => void | StoreState<Schema> | Promise<void | StoreState<Schema>>;
     stepId?: StoreStepId;
+    expectedStorePk?: string;
     expectedVersion?: number;
   }): Promise<
     | StoreUpdateResult<StoreState<Schema>>
@@ -220,6 +231,10 @@ export class SqliteStoreClient extends StoreClient {
           }
         }
 
+        if (params.expectedVersion !== undefined) {
+          this.assertSnapshotHasStorePk({ storePk: params.expectedStorePk });
+        }
+
         const row = this.getStoreRow(params.definition.name, params.id);
         if (!row) {
           throw new Error(
@@ -228,12 +243,16 @@ export class SqliteStoreClient extends StoreClient {
         }
 
         if (
+          params.expectedStorePk !== undefined &&
           params.expectedVersion !== undefined &&
-          row.version !== params.expectedVersion
+          (row.store_pk !== params.expectedStorePk ||
+            row.version !== params.expectedVersion)
         ) {
           this.db.run("COMMIT");
           return {
             updated: false as const,
+            expectedStorePk: params.expectedStorePk,
+            actualStorePk: row.store_pk,
             expectedVersion: params.expectedVersion,
             actualVersion: row.version,
           };
@@ -263,6 +282,7 @@ export class SqliteStoreClient extends StoreClient {
         const committed = this.commitNextState({
           storeName: params.definition.name,
           storeId: params.id,
+          storePk: row.store_pk,
           changedPaths,
           nextState,
           previousVersion: row.version,
@@ -366,6 +386,7 @@ export class SqliteStoreClient extends StoreClient {
           this.db.run("COMMIT");
           return {
             matched: false,
+            storePk: row.store_pk,
             version: row.version,
             readPaths,
           };
@@ -393,6 +414,7 @@ export class SqliteStoreClient extends StoreClient {
         const committed = this.commitNextState({
           storeName: params.definition.name,
           storeId: params.id,
+          storePk: row.store_pk,
           changedPaths,
           nextState,
           previousVersion: row.version,
@@ -402,6 +424,7 @@ export class SqliteStoreClient extends StoreClient {
         result = {
           matched: true,
           selected: selectedSnapshot,
+          storePk: row.store_pk,
           version: committed.version,
         };
 
@@ -438,6 +461,7 @@ export class SqliteStoreClient extends StoreClient {
   private commitNextState(params: {
     storeName: string;
     storeId: string;
+    storePk: string;
     changedPaths: StorePath[];
     nextState: unknown;
     previousVersion: number;
@@ -449,11 +473,12 @@ export class SqliteStoreClient extends StoreClient {
       .query(
         `UPDATE stores
          SET version = $version, state = $state
-         WHERE store_name = $storeName AND store_id = $storeId`
+         WHERE store_pk = $storePk`
       )
       .run({
         $storeName: params.storeName,
         $storeId: params.storeId,
+        $storePk: params.storePk,
         $version: version,
         $state: JSON.stringify(params.nextState),
       });
@@ -526,12 +551,85 @@ export class SqliteStoreClient extends StoreClient {
             `DELETE FROM store_waiters WHERE store_name = $storeName AND store_id = $storeId`
           )
           .run(bindings);
+        this.db.run("COMMIT");
+      } catch (err) {
+        this.db.run("ROLLBACK");
+        throw err;
+      }
+    });
+  }
+
+  async deleteStoreFrom(params: {
+    definition: StoreDefinition;
+    id: string;
+    snapshot: StoreSnapshot<unknown>;
+    stepId?: StoreStepId;
+  }): Promise<StoreDeleteFromResult> {
+    return this.enqueueWrite(async () => {
+      const bindings = {
+        $storeName: params.definition.name,
+        $storeId: params.id,
+      };
+      this.db.run("BEGIN IMMEDIATE");
+      try {
+        if (params.stepId) {
+          const applied = this.getAppliedStepRow({
+            storeName: params.definition.name,
+            storeId: params.id,
+            stepId: params.stepId,
+          });
+          if (applied) {
+            this.db.run("COMMIT");
+            return JSON.parse(applied.result) as StoreDeleteFromResult;
+          }
+        }
+
+        this.assertSnapshotHasStorePk(params.snapshot);
+
+        const row = this.getStoreRow(params.definition.name, params.id);
+        if (!row) {
+          this.db.run("COMMIT");
+          return {
+            deleted: false,
+            reason: "not-found",
+            expectedStorePk: params.snapshot.storePk,
+            expectedVersion: params.snapshot.version,
+          };
+        }
+        if (
+          row.store_pk !== params.snapshot.storePk ||
+          row.version !== params.snapshot.version
+        ) {
+          this.db.run("COMMIT");
+          return {
+            deleted: false,
+            reason: "conflict",
+            expectedStorePk: params.snapshot.storePk,
+            actualStorePk: row.store_pk,
+            expectedVersion: params.snapshot.version,
+            actualVersion: row.version,
+          };
+        }
+
         this.db
           .query(
-            `DELETE FROM store_applied_steps WHERE store_name = $storeName AND store_id = $storeId`
+            `DELETE FROM store_waiters WHERE store_name = $storeName AND store_id = $storeId`
           )
           .run(bindings);
+        this.db
+          .query(`DELETE FROM stores WHERE store_pk = $storePk`)
+          .run({ $storePk: row.store_pk });
+        const result = { deleted: true as const };
+        if (params.stepId) {
+          this.insertAppliedStepRow({
+            storeName: params.definition.name,
+            storeId: params.id,
+            stepId: params.stepId,
+            result: JSON.stringify(result),
+          });
+        }
         this.db.run("COMMIT");
+        return result;
       } catch (err) {
         this.db.run("ROLLBACK");
         throw err;
@@ -574,7 +672,11 @@ export class SqliteStoreClient extends StoreClient {
         // immediate wake – the replay re-evaluates the selector, so a
         // spurious wake is safe.
         const row = this.getStoreRow(waiter.storeName, waiter.storeId);
-        if (row && row.version > waiter.sinceVersion) {
+        if (
+          !row ||
+          row.store_pk !== waiter.storePk ||
+          row.version > waiter.sinceVersion
+        ) {
           versionAdvanced = true;
         }
 
@@ -597,15 +699,24 @@ export class SqliteStoreClient extends StoreClient {
   }
 
   private setupDb() {
-    this.db.run(`
-      CREATE TABLE IF NOT EXISTS stores (
-        store_name TEXT NOT NULL,
-        store_id TEXT NOT NULL,
-        version INTEGER NOT NULL,
-        state TEXT NOT NULL,
-        PRIMARY KEY (store_name, store_id)
-      );
+    const storesTable = this.db
+      .query(
+        `SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'stores'`
+      )
+      .get();
 
+    if (!storesTable) {
+      this.createStoresTable();
+    } else {
+      const columns = this.db.query(`PRAGMA table_info(stores)`).all() as Array<{
+        name: string;
+      }>;
+      if (!columns.some((column) => column.name === "store_pk")) {
+        this.migrateStoresToUuidPrimaryKey();
+      }
+    }
+
+    this.db.run(`
       CREATE TABLE IF NOT EXISTS store_waiters (
         workflow_id TEXT NOT NULL,
         execution_id TEXT NOT NULL,
@@ -627,6 +738,54 @@ export class SqliteStoreClient extends StoreClient {
         PRIMARY KEY (store_name, store_id, execution_id, step_key)
       );
     `);
+  }
+
+  private createStoresTable() {
+    this.db.run(`
+      CREATE TABLE stores (
+        store_pk TEXT PRIMARY KEY,
+        store_name TEXT NOT NULL,
+        store_id TEXT NOT NULL,
+        version INTEGER NOT NULL,
+        state TEXT NOT NULL,
+        UNIQUE (store_name, store_id)
+      )
+    `);
+  }
+
+  private migrateStoresToUuidPrimaryKey() {
+    const rows = this.db.query(
+      `SELECT store_name, store_id, version, state FROM stores`
+    ).all() as Array<{
+      store_name: string;
+      store_id: string;
+      version: number;
+      state: string;
+    }>;
+
+    this.db.run("BEGIN IMMEDIATE");
+    try {
+      this.db.run(`ALTER TABLE stores RENAME TO stores_without_uuid_pk`);
+      this.createStoresTable();
+      const insert = this.db.query(`
+        INSERT INTO stores (store_pk, store_name, store_id, version, state)
+        VALUES ($storePk, $storeName, $storeId, $version, $state)
+      `);
+      for (const row of rows) {
+        insert.run({
+          $storePk: Bun.randomUUIDv7(),
+          $storeName: row.store_name,
+          $storeId: row.store_id,
+          $version: row.version,
+          $state: row.state,
+        });
+      }
+      this.db.run(`DROP TABLE stores_without_uuid_pk`);
+      this.db.run("COMMIT");
+    } catch (err) {
+      this.db.run("ROLLBACK");
+      throw err;
+    }
   }
 
   private getAppliedStepRow(params: {
@@ -676,7 +835,7 @@ export class SqliteStoreClient extends StoreClient {
   private getStoreRow(storeName: string, storeId: string) {
     return this.db
       .query(
-        `SELECT state, version FROM stores
+        `SELECT store_pk, state, version FROM stores
          WHERE store_name = $storeName AND store_id = $storeId`
       )
       .as(StoreRow)
@@ -740,6 +899,12 @@ export class SqliteStoreClient extends StoreClient {
         $executionId: params.executionId,
         $stepKey: params.stepKey,
       });
+  }
+
+  private assertSnapshotHasStorePk(snapshot: { storePk?: string }) {
+    if (!snapshot.storePk) {
+      throw new Error("Store snapshot is missing storePk; read a fresh snapshot");
+    }
   }
 }
 

@@ -20,8 +20,12 @@ The constructor takes a scheduler as well as the database. When a write changes 
 ## Reading
 
 ```ts
-const { state, version } = await conversation.get();
+const { state, storePk, version } = await conversation.get();
 ```
+
+`storePk` is an internal UUIDv7 identifying this physical incarnation. A store
+deleted and recreated under the same logical definition and ID receives a new
+primary key and starts again at version zero.
 
 ## Writing
 
@@ -38,6 +42,25 @@ await conversation.update((draft) => {
 ```
 
 If a workflow is suspended on `store.when` or `store.take` over `s.messages`, this write wakes it. That is the whole event-ingestion story: the webhook handler writes state, and the workflow that cares about that state resumes.
+
+When a write or deletion depends on an earlier snapshot, use the conditional
+operations:
+
+```ts
+const snapshot = await conversation.get();
+
+const updated = await conversation.updateFrom(snapshot, (draft) => {
+  draft.status = "synced";
+});
+
+const current = await conversation.get();
+const deleted = await conversation.deleteFrom(current);
+```
+
+They commit only if both `storePk` and `version` still match. `StoreClient`
+also exposes `listStores(definition)`, which returns sorted live logical IDs,
+and idempotent unconditional `deleteStore({ definition, id })` for
+administrative cleanup.
 
 ## The pattern in full
 

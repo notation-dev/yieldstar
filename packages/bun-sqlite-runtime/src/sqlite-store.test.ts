@@ -14,6 +14,38 @@ type State = {
 
 const Store = defineStore("sqlite-test", schema<State>());
 
+test("existing stores migrate to UUIDv7 primary keys", async () => {
+  const db = new Database(":memory:");
+  db.run(`
+    CREATE TABLE stores (
+      store_name TEXT NOT NULL,
+      store_id TEXT NOT NULL,
+      version INTEGER NOT NULL,
+      state TEXT NOT NULL,
+      PRIMARY KEY (store_name, store_id)
+    );
+    INSERT INTO stores (store_name, store_id, version, state)
+    VALUES ('sqlite-test', 'legacy', 3, '{"messages":[]}');
+  `);
+
+  const client = new SqliteStoreClient({
+    db,
+    schedulerClient: { async requestWakeUp() {} },
+  });
+  const snapshot = await client.getStore({
+    definition: Store,
+    id: "legacy",
+  });
+
+  expect(snapshot).toMatchObject({ state: { messages: [] }, version: 3 });
+  expect(snapshot.storePk).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7/);
+  const pkColumn = db
+    .query(`PRAGMA table_info(stores)`)
+    .all()
+    .find((column: any) => column.name === "store_pk") as any;
+  expect(pkColumn.pk).toBe(1);
+});
+
 test("sqlite store updates wake matching waiters", async () => {
   const db = new Database(":memory:");
   const events: WorkflowEvent[] = [];
@@ -30,7 +62,7 @@ test("sqlite store updates wake matching waiters", async () => {
     context: new Map(),
   };
 
-  await client.getOrCreateStore({
+  const initial = await client.getOrCreateStore({
     definition: Store,
     id: "one",
     initial: { messages: [] },
@@ -42,6 +74,7 @@ test("sqlite store updates wake matching waiters", async () => {
     event,
     storeName: Store.name,
     storeId: "one",
+    storePk: initial.storePk,
     sinceVersion: 0,
     readPaths: [["messages"]],
   });
@@ -72,7 +105,7 @@ test("registering a waiter with a stale sinceVersion triggers an immediate wake"
     context: new Map(),
   };
 
-  await client.getOrCreateStore({
+  const initial = await client.getOrCreateStore({
     definition: Store,
     id: "stale",
     initial: { messages: [] },
@@ -94,6 +127,7 @@ test("registering a waiter with a stale sinceVersion triggers an immediate wake"
     event,
     storeName: Store.name,
     storeId: "stale",
+    storePk: initial.storePk,
     sinceVersion: 0,
     readPaths: [["messages"]],
   });
@@ -193,7 +227,7 @@ test("updateStoreFrom commits only from the supplied snapshot and replays ledger
   const replayed = await client.updateStoreFrom({
     definition: Store,
     id: "conditional",
-    snapshot,
+    snapshot: { ...snapshot, storePk: "" },
     stepId,
     updater() {
       updaterRuns++;
@@ -211,10 +245,142 @@ test("updateStoreFrom commits only from the supplied snapshot and replays ledger
   });
   expect(conflicted).toEqual({
     updated: false,
+    expectedStorePk: snapshot.storePk,
+    actualStorePk: snapshot.storePk,
     expectedVersion: 0,
     actualVersion: 2,
   });
   expect(updaterRuns).toBe(1);
+});
+
+test("listStores and deleteStore manage logical store instances", async () => {
+  const db = new Database(":memory:");
+  const client = new SqliteStoreClient({
+    db,
+    schedulerClient: { async requestWakeUp() {} },
+  });
+  const OtherStore = defineStore("sqlite-test-other", schema<State>());
+  const first = await client.getOrCreateStore({
+    definition: Store,
+    id: "b",
+    initial: { messages: [] },
+  });
+  const second = await client.getOrCreateStore({
+    definition: Store,
+    id: "a",
+    initial: { messages: [] },
+  });
+  await client.getOrCreateStore({
+    definition: OtherStore,
+    id: "a",
+    initial: { messages: [] },
+  });
+
+  expect(first.storePk).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  expect(second.storePk > first.storePk).toBe(true);
+  expect(await client.listStores(Store)).toEqual(["a", "b"]);
+
+  await client.deleteStore({ definition: Store, id: "b" });
+  expect(await client.listStores(Store)).toEqual(["a"]);
+  expect(client.getStore({ definition: Store, id: "b" })).rejects.toThrow(
+    'Store "sqlite-test:b" does not exist'
+  );
+  await client.deleteStore({ definition: Store, id: "missing" });
+});
+
+test("deleteStoreFrom is conditional, incarnation-safe, and ledger-first", async () => {
+  const db = new Database(":memory:");
+  const client = new SqliteStoreClient({
+    db,
+    schedulerClient: { async requestWakeUp() {} },
+  });
+  const original = await client.getOrCreateStore({
+    definition: Store,
+    id: "delete-from",
+    initial: { messages: [] },
+  });
+  await client.updateStore({
+    definition: Store,
+    id: "delete-from",
+    updater(draft) {
+      draft.messages.push({ id: "changed" });
+    },
+  });
+
+  const versionConflict = await client.deleteStoreFrom({
+    definition: Store,
+    id: "delete-from",
+    snapshot: original,
+  });
+  expect(versionConflict).toMatchObject({
+    deleted: false,
+    reason: "conflict",
+    expectedStorePk: original.storePk,
+    actualStorePk: original.storePk,
+    expectedVersion: 0,
+    actualVersion: 1,
+  });
+
+  const current = await client.getStore({
+    definition: Store,
+    id: "delete-from",
+  });
+  const stepId = { executionId: "execution", stepKey: "delete" };
+  expect(
+    await client.deleteStoreFrom({
+      definition: Store,
+      id: "delete-from",
+      snapshot: current,
+      stepId,
+    })
+  ).toEqual({ deleted: true });
+
+  expect(
+    await client.deleteStoreFrom({
+      definition: Store,
+      id: "delete-from",
+      snapshot: current,
+    })
+  ).toEqual({
+    deleted: false,
+    reason: "not-found",
+    expectedStorePk: current.storePk,
+    expectedVersion: current.version,
+  });
+
+  const recreated = await client.getOrCreateStore({
+    definition: Store,
+    id: "delete-from",
+    initial: { messages: [] },
+  });
+  expect(recreated.storePk).not.toBe(original.storePk);
+  expect(recreated.version).toBe(0);
+
+  expect(
+    await client.deleteStoreFrom({
+      definition: Store,
+      id: "delete-from",
+      snapshot: current,
+      stepId,
+    })
+  ).toEqual({ deleted: true });
+  expect(
+    await client.getStore({ definition: Store, id: "delete-from" })
+  ).toEqual(recreated);
+
+  const staleUpdate = await client.updateStoreFrom({
+    definition: Store,
+    id: "delete-from",
+    snapshot: original,
+    updater() {},
+  });
+  expect(staleUpdate).toMatchObject({
+    updated: false,
+    expectedStorePk: original.storePk,
+    actualStorePk: recreated.storePk,
+    expectedVersion: 0,
+    actualVersion: 0,
+  });
 });
 
 type TakeState = {
@@ -244,7 +410,7 @@ const takeEvent = {
 test("concurrent takers claim distinct items", async () => {
   const { client } = createTakeClient();
 
-  await client.getOrCreateStore({
+  const initial = await client.getOrCreateStore({
     definition: TakeStore,
     id: "take-race",
     initial: { messages: [{ id: "msg-1" }, { id: "msg-2" }] },
@@ -313,7 +479,7 @@ test("take returns readPaths and version when the selector misses", async () => 
 test("a successful take wakes matching waiters", async () => {
   const { client, events } = createTakeClient();
 
-  await client.getOrCreateStore({
+  const initial = await client.getOrCreateStore({
     definition: TakeStore,
     id: "take-wake",
     initial: { messages: [{ id: "msg-1" }] },
@@ -325,6 +491,7 @@ test("a successful take wakes matching waiters", async () => {
     event: takeEvent,
     storeName: TakeStore.name,
     storeId: "take-wake",
+    storePk: initial.storePk,
     sinceVersion: 0,
     readPaths: [["messages"]],
   });
@@ -344,7 +511,7 @@ test("a successful take wakes matching waiters", async () => {
 test("take rejects async claims without committing", async () => {
   const { client } = createTakeClient();
 
-  await client.getOrCreateStore({
+  const initial = await client.getOrCreateStore({
     definition: TakeStore,
     id: "take-async",
     initial: { messages: [{ id: "msg-1" }] },
@@ -587,7 +754,7 @@ test("an updater that returns a replacement state wakes waiters via the diff fal
     context: new Map(),
   };
 
-  await client.getOrCreateStore({
+  const initial = await client.getOrCreateStore({
     definition: Store,
     id: "replace",
     initial: { messages: [] },
@@ -599,6 +766,7 @@ test("an updater that returns a replacement state wakes waiters via the diff fal
     event,
     storeName: Store.name,
     storeId: "replace",
+    storePk: initial.storePk,
     sinceVersion: 0,
     readPaths: [["messages"]],
   });
@@ -623,7 +791,7 @@ test("committed state is proxy-free and structuredClone-able", async () => {
   };
   const client = new SqliteStoreClient({ db, schedulerClient });
 
-  await client.getOrCreateStore({
+  const initial = await client.getOrCreateStore({
     definition: Store,
     id: "laundered",
     initial: { messages: [{ id: "msg-1" }] },
@@ -674,7 +842,7 @@ test("a take claim's mutations are recorded and wake matching waiters", async ()
   type TakeState = { messages: { id: string; claimedBy?: string }[] };
   const TakeStore = defineStore("sqlite-take-paths", schema<TakeState>());
 
-  await client.getOrCreateStore({
+  const initial = await client.getOrCreateStore({
     definition: TakeStore,
     id: "take-wake",
     initial: { messages: [{ id: "msg-1" }] },
@@ -686,6 +854,7 @@ test("a take claim's mutations are recorded and wake matching waiters", async ()
     event,
     storeName: TakeStore.name,
     storeId: "take-wake",
+    storePk: initial.storePk,
     sinceVersion: 0,
     readPaths: [["messages", 0, "claimedBy"]],
   });
