@@ -112,11 +112,11 @@ The base class also provides `storeClient.store(definition, id)`, the external r
 
 An implementation must uphold four contracts:
 
-- Every physical store incarnation has a UUIDv7 primary key; `(definition.name, id)` remains the unique logical lookup key.
+- Every store instance has a UUIDv7 instance ID; `(definition.name, id)` remains the unique logical lookup key.
 - Each update commits in a single per-store transaction and increments the version by one.
-- Snapshot-based updates and deletions compare both the incarnation primary key and version.
+- Snapshot-based updates and deletions compare both the instance ID and version.
 - When `stepId` is provided and the ledger already holds that step, the implementation returns the recorded result and does not run the updater.
-- `registerWaiter` compares the store's current incarnation and version with the waiter; if either has moved on, it wakes the waiter immediately rather than leaving it to sleep through a write that already happened.
+- `registerWaiter` compares the store's current instance and version with the waiter; if either has moved on, it wakes the waiter immediately rather than leaving it to sleep through a write that already happened.
 - A waiter is removed only after its wake-up is queued. A crash in between produces a duplicate wake, which replay absorbs – the reverse order would lose the wake entirely.
 
 ## `WorkflowInvoker` (type)

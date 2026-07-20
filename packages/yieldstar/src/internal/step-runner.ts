@@ -442,7 +442,7 @@ async function* whenStep<T, R>(params: {
     event,
     storeName: definition.name,
     storeId: id,
-    storePk: snapshot.storePk,
+    instanceId: snapshot.instanceId,
     sinceVersion: snapshot.version,
     readPaths,
   });
@@ -506,7 +506,7 @@ async function* takeStep<T, R>(params: {
     event,
     storeName: definition.name,
     storeId: id,
-    storePk: outcome.storePk,
+    instanceId: outcome.instanceId,
     sinceVersion: outcome.version,
     readPaths: outcome.readPaths,
   });

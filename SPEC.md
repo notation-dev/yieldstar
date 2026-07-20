@@ -163,7 +163,7 @@ type StorePath = readonly (string | number | symbol)[]
 
 type StoreSnapshot<T> = {
   state: T
-  storePk: string // UUIDv7 identifying this physical incarnation
+  instanceId: string // UUIDv7 assigned when this store instance is created
   version: StoreVersion
 }
 

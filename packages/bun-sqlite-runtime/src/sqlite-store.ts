@@ -27,7 +27,7 @@ import {
 } from "@yieldstar/core";
 
 class StoreRow {
-  store_pk!: string;
+  instance_id!: string;
   state!: string;
   version!: number;
 }
@@ -84,7 +84,7 @@ export class SqliteStoreClient extends StoreClient {
     if (existing) {
       return {
         state: JSON.parse(existing.state),
-        storePk: existing.store_pk,
+        instanceId: existing.instance_id,
         version: existing.version,
       };
     }
@@ -114,19 +114,19 @@ export class SqliteStoreClient extends StoreClient {
           this.db.run("COMMIT");
           return {
             state: JSON.parse(existingTx.state),
-            storePk: existingTx.store_pk,
+            instanceId: existingTx.instance_id,
             version: existingTx.version,
           };
         }
 
-        const storePk = Bun.randomUUIDv7();
+        const instanceId = Bun.randomUUIDv7();
         this.db
           .query(
-            `INSERT INTO stores (store_pk, store_name, store_id, version, state)
-             VALUES ($storePk, $storeName, $storeId, 0, $state)`
+            `INSERT INTO stores (instance_id, store_name, store_id, version, state)
+             VALUES ($instanceId, $storeName, $storeId, 0, $state)`
           )
           .run({
-            $storePk: storePk,
+            $instanceId: instanceId,
             $storeName: params.definition.name,
             $storeId: params.id,
             $state: JSON.stringify(state),
@@ -134,7 +134,7 @@ export class SqliteStoreClient extends StoreClient {
         this.db.run("COMMIT");
         return {
           state: cloneStoreState(state),
-          storePk,
+          instanceId,
           version: 0,
         };
       } catch (err) {
@@ -160,7 +160,7 @@ export class SqliteStoreClient extends StoreClient {
 
     return {
       state: JSON.parse(row.state),
-      storePk: row.store_pk,
+      instanceId: row.instance_id,
       version: row.version,
     };
   }
@@ -189,7 +189,7 @@ export class SqliteStoreClient extends StoreClient {
   }): Promise<StoreUpdateFromResult<StoreState<Schema>>> {
     const result = await this.updateStoreInternal({
       ...params,
-      expectedStorePk: params.snapshot.storePk,
+      expectedInstanceId: params.snapshot.instanceId,
       expectedVersion: params.snapshot.version,
     });
     return "updated" in result ? result : { updated: true, ...result };
@@ -202,7 +202,7 @@ export class SqliteStoreClient extends StoreClient {
       draft: Draft<StoreState<Schema>>
     ) => void | StoreState<Schema> | Promise<void | StoreState<Schema>>;
     stepId?: StoreStepId;
-    expectedStorePk?: string;
+    expectedInstanceId?: string;
     expectedVersion?: number;
   }): Promise<
     | StoreUpdateResult<StoreState<Schema>>
@@ -232,7 +232,9 @@ export class SqliteStoreClient extends StoreClient {
         }
 
         if (params.expectedVersion !== undefined) {
-          this.assertSnapshotHasStorePk({ storePk: params.expectedStorePk });
+          this.assertSnapshotHasInstanceId({
+            instanceId: params.expectedInstanceId,
+          });
         }
 
         const row = this.getStoreRow(params.definition.name, params.id);
@@ -243,16 +245,16 @@ export class SqliteStoreClient extends StoreClient {
         }
 
         if (
-          params.expectedStorePk !== undefined &&
+          params.expectedInstanceId !== undefined &&
           params.expectedVersion !== undefined &&
-          (row.store_pk !== params.expectedStorePk ||
+          (row.instance_id !== params.expectedInstanceId ||
             row.version !== params.expectedVersion)
         ) {
           this.db.run("COMMIT");
           return {
             updated: false as const,
-            expectedStorePk: params.expectedStorePk,
-            actualStorePk: row.store_pk,
+            expectedInstanceId: params.expectedInstanceId,
+            actualInstanceId: row.instance_id,
             expectedVersion: params.expectedVersion,
             actualVersion: row.version,
           };
@@ -282,7 +284,7 @@ export class SqliteStoreClient extends StoreClient {
         const committed = this.commitNextState({
           storeName: params.definition.name,
           storeId: params.id,
-          storePk: row.store_pk,
+          instanceId: row.instance_id,
           changedPaths,
           nextState,
           previousVersion: row.version,
@@ -386,7 +388,7 @@ export class SqliteStoreClient extends StoreClient {
           this.db.run("COMMIT");
           return {
             matched: false,
-            storePk: row.store_pk,
+            instanceId: row.instance_id,
             version: row.version,
             readPaths,
           };
@@ -414,7 +416,7 @@ export class SqliteStoreClient extends StoreClient {
         const committed = this.commitNextState({
           storeName: params.definition.name,
           storeId: params.id,
-          storePk: row.store_pk,
+          instanceId: row.instance_id,
           changedPaths,
           nextState,
           previousVersion: row.version,
@@ -424,7 +426,7 @@ export class SqliteStoreClient extends StoreClient {
         result = {
           matched: true,
           selected: selectedSnapshot,
-          storePk: row.store_pk,
+          instanceId: row.instance_id,
           version: committed.version,
         };
 
@@ -461,7 +463,7 @@ export class SqliteStoreClient extends StoreClient {
   private commitNextState(params: {
     storeName: string;
     storeId: string;
-    storePk: string;
+    instanceId: string;
     changedPaths: StorePath[];
     nextState: unknown;
     previousVersion: number;
@@ -473,12 +475,12 @@ export class SqliteStoreClient extends StoreClient {
       .query(
         `UPDATE stores
          SET version = $version, state = $state
-         WHERE store_pk = $storePk`
+         WHERE instance_id = $instanceId`
       )
       .run({
         $storeName: params.storeName,
         $storeId: params.storeId,
-        $storePk: params.storePk,
+        $instanceId: params.instanceId,
         $version: version,
         $state: JSON.stringify(params.nextState),
       });
@@ -584,7 +586,7 @@ export class SqliteStoreClient extends StoreClient {
           }
         }
 
-        this.assertSnapshotHasStorePk(params.snapshot);
+        this.assertSnapshotHasInstanceId(params.snapshot);
 
         const row = this.getStoreRow(params.definition.name, params.id);
         if (!row) {
@@ -592,20 +594,20 @@ export class SqliteStoreClient extends StoreClient {
           return {
             deleted: false,
             reason: "not-found",
-            expectedStorePk: params.snapshot.storePk,
+            expectedInstanceId: params.snapshot.instanceId,
             expectedVersion: params.snapshot.version,
           };
         }
         if (
-          row.store_pk !== params.snapshot.storePk ||
+          row.instance_id !== params.snapshot.instanceId ||
           row.version !== params.snapshot.version
         ) {
           this.db.run("COMMIT");
           return {
             deleted: false,
             reason: "conflict",
-            expectedStorePk: params.snapshot.storePk,
-            actualStorePk: row.store_pk,
+            expectedInstanceId: params.snapshot.instanceId,
+            actualInstanceId: row.instance_id,
             expectedVersion: params.snapshot.version,
             actualVersion: row.version,
           };
@@ -617,8 +619,8 @@ export class SqliteStoreClient extends StoreClient {
           )
           .run(bindings);
         this.db
-          .query(`DELETE FROM stores WHERE store_pk = $storePk`)
-          .run({ $storePk: row.store_pk });
+          .query(`DELETE FROM stores WHERE instance_id = $instanceId`)
+          .run({ $instanceId: row.instance_id });
         const result = { deleted: true as const };
         if (params.stepId) {
           this.insertAppliedStepRow({
@@ -674,7 +676,7 @@ export class SqliteStoreClient extends StoreClient {
         const row = this.getStoreRow(waiter.storeName, waiter.storeId);
         if (
           !row ||
-          row.store_pk !== waiter.storePk ||
+          row.instance_id !== waiter.instanceId ||
           row.version > waiter.sinceVersion
         ) {
           versionAdvanced = true;
@@ -699,22 +701,7 @@ export class SqliteStoreClient extends StoreClient {
   }
 
   private setupDb() {
-    const storesTable = this.db
-      .query(
-        `SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'stores'`
-      )
-      .get();
-
-    if (!storesTable) {
-      this.createStoresTable();
-    } else {
-      const columns = this.db.query(`PRAGMA table_info(stores)`).all() as Array<{
-        name: string;
-      }>;
-      if (!columns.some((column) => column.name === "store_pk")) {
-        this.migrateStoresToUuidPrimaryKey();
-      }
-    }
+    this.createStoresTable();
 
     this.db.run(`
       CREATE TABLE IF NOT EXISTS store_waiters (
@@ -742,8 +729,8 @@ export class SqliteStoreClient extends StoreClient {
 
   private createStoresTable() {
     this.db.run(`
-      CREATE TABLE stores (
-        store_pk TEXT PRIMARY KEY,
+      CREATE TABLE IF NOT EXISTS stores (
+        instance_id TEXT PRIMARY KEY,
         store_name TEXT NOT NULL,
         store_id TEXT NOT NULL,
         version INTEGER NOT NULL,
@@ -751,41 +738,6 @@ export class SqliteStoreClient extends StoreClient {
         UNIQUE (store_name, store_id)
       )
     `);
-  }
-
-  private migrateStoresToUuidPrimaryKey() {
-    const rows = this.db.query(
-      `SELECT store_name, store_id, version, state FROM stores`
-    ).all() as Array<{
-      store_name: string;
-      store_id: string;
-      version: number;
-      state: string;
-    }>;
-
-    this.db.run("BEGIN IMMEDIATE");
-    try {
-      this.db.run(`ALTER TABLE stores RENAME TO stores_without_uuid_pk`);
-      this.createStoresTable();
-      const insert = this.db.query(`
-        INSERT INTO stores (store_pk, store_name, store_id, version, state)
-        VALUES ($storePk, $storeName, $storeId, $version, $state)
-      `);
-      for (const row of rows) {
-        insert.run({
-          $storePk: Bun.randomUUIDv7(),
-          $storeName: row.store_name,
-          $storeId: row.store_id,
-          $version: row.version,
-          $state: row.state,
-        });
-      }
-      this.db.run(`DROP TABLE stores_without_uuid_pk`);
-      this.db.run("COMMIT");
-    } catch (err) {
-      this.db.run("ROLLBACK");
-      throw err;
-    }
   }
 
   private getAppliedStepRow(params: {
@@ -835,7 +787,7 @@ export class SqliteStoreClient extends StoreClient {
   private getStoreRow(storeName: string, storeId: string) {
     return this.db
       .query(
-        `SELECT store_pk, state, version FROM stores
+        `SELECT instance_id, state, version FROM stores
          WHERE store_name = $storeName AND store_id = $storeId`
       )
       .as(StoreRow)
@@ -901,9 +853,11 @@ export class SqliteStoreClient extends StoreClient {
       });
   }
 
-  private assertSnapshotHasStorePk(snapshot: { storePk?: string }) {
-    if (!snapshot.storePk) {
-      throw new Error("Store snapshot is missing storePk; read a fresh snapshot");
+  private assertSnapshotHasInstanceId(snapshot: { instanceId?: string }) {
+    if (!snapshot.instanceId) {
+      throw new Error(
+        "Store snapshot is missing instanceId; read a fresh snapshot"
+      );
     }
   }
 }

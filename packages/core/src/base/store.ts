@@ -68,7 +68,7 @@ export type StoreStepId = {
 
 export type StoreSnapshot<T> = {
   state: T;
-  storePk: string;
+  instanceId: string;
   version: StoreVersion;
 };
 
@@ -82,8 +82,8 @@ export type StoreUpdateFromResult<T> =
   | ({ updated: true } & StoreUpdateResult<T>)
   | {
       updated: false;
-      expectedStorePk: string;
-      actualStorePk: string;
+      expectedInstanceId: string;
+      actualInstanceId: string;
       expectedVersion: StoreVersion;
       actualVersion: StoreVersion;
     };
@@ -93,15 +93,15 @@ export type StoreDeleteFromResult =
   | {
       deleted: false;
       reason: "conflict";
-      expectedStorePk: string;
-      actualStorePk: string;
+      expectedInstanceId: string;
+      actualInstanceId: string;
       expectedVersion: StoreVersion;
       actualVersion: StoreVersion;
     }
   | {
       deleted: false;
       reason: "not-found";
-      expectedStorePk: string;
+      expectedInstanceId: string;
       expectedVersion: StoreVersion;
     };
 
@@ -111,12 +111,12 @@ export type StoreTakeResult<R> =
   | {
       matched: true;
       selected: NonNullable<R>;
-      storePk: string;
+      instanceId: string;
       version: StoreVersion;
     }
   | {
       matched: false;
-      storePk: string;
+      instanceId: string;
       version: StoreVersion;
       readPaths: StorePath[];
     };
@@ -128,7 +128,7 @@ export type StoreWaiter = {
   event: WorkflowEvent;
   storeName: string;
   storeId: string;
-  storePk: string;
+  instanceId: string;
   sinceVersion: StoreVersion;
   readPaths: StorePath[];
 };
@@ -283,7 +283,7 @@ export abstract class StoreClient {
     id: string;
   }): Promise<void>;
 
-  /** Deletes a store only if it is still the supplied snapshot incarnation and version. */
+  /** Deletes a store only if its instance ID and version still match the snapshot. */
   abstract deleteStoreFrom(params: {
     definition: StoreDefinition;
     id: string;

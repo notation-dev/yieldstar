@@ -27,7 +27,7 @@ import {
 
 type StoreRecord = {
   state: unknown;
-  storePk: string;
+  instanceId: string;
   version: number;
 };
 
@@ -68,7 +68,7 @@ export class MemoryStoreClient extends StoreClient {
     if (existing) {
       return {
         state: cloneStoreState(existing.state) as StoreState<Schema>,
-        storePk: existing.storePk,
+        instanceId: existing.instanceId,
         version: existing.version,
       };
     }
@@ -90,16 +90,16 @@ export class MemoryStoreClient extends StoreClient {
         : initialValue;
     const state = await validateStoreState(params.definition, initial);
 
-    const storePk = Bun.randomUUIDv7();
+    const instanceId = Bun.randomUUIDv7();
     this.stores.set(key, {
       state: cloneStoreState(state),
-      storePk,
+      instanceId,
       version: 0,
     });
 
     return {
       state: cloneStoreState(state),
-      storePk,
+      instanceId,
       version: 0,
     };
   }
@@ -120,7 +120,7 @@ export class MemoryStoreClient extends StoreClient {
 
     return {
       state: cloneStoreState(record.state) as StoreState<Schema>,
-      storePk: record.storePk,
+      instanceId: record.instanceId,
       version: record.version,
     };
   }
@@ -149,7 +149,7 @@ export class MemoryStoreClient extends StoreClient {
   }): Promise<StoreUpdateFromResult<StoreState<Schema>>> {
     const result = await this.updateStoreInternal({
       ...params,
-      expectedStorePk: params.snapshot.storePk,
+      expectedInstanceId: params.snapshot.instanceId,
       expectedVersion: params.snapshot.version,
     });
     return "updated" in result ? result : { updated: true, ...result };
@@ -162,7 +162,7 @@ export class MemoryStoreClient extends StoreClient {
       draft: Draft<StoreState<Schema>>
     ) => void | StoreState<Schema> | Promise<void | StoreState<Schema>>;
     stepId?: StoreStepId;
-    expectedStorePk?: string;
+    expectedInstanceId?: string;
     expectedVersion?: number;
   }): Promise<
     | StoreUpdateResult<StoreState<Schema>>
@@ -183,7 +183,9 @@ export class MemoryStoreClient extends StoreClient {
       }
 
       if (params.expectedVersion !== undefined) {
-        this.assertSnapshotHasStorePk({ storePk: params.expectedStorePk });
+        this.assertSnapshotHasInstanceId({
+          instanceId: params.expectedInstanceId,
+        });
       }
 
       const record = this.stores.get(key);
@@ -194,15 +196,15 @@ export class MemoryStoreClient extends StoreClient {
       }
 
       if (
-        params.expectedStorePk !== undefined &&
+        params.expectedInstanceId !== undefined &&
         params.expectedVersion !== undefined &&
-        (record.storePk !== params.expectedStorePk ||
+        (record.instanceId !== params.expectedInstanceId ||
           record.version !== params.expectedVersion)
       ) {
         return {
           updated: false as const,
-          expectedStorePk: params.expectedStorePk,
-          actualStorePk: record.storePk,
+          expectedInstanceId: params.expectedInstanceId,
+          actualInstanceId: record.instanceId,
           expectedVersion: params.expectedVersion,
           actualVersion: record.version,
         };
@@ -235,7 +237,7 @@ export class MemoryStoreClient extends StoreClient {
         key,
         storeName: params.definition.name,
         storeId: params.id,
-        storePk: record.storePk,
+        instanceId: record.instanceId,
         changedPaths,
         nextState,
         previousVersion: record.version,
@@ -319,7 +321,7 @@ export class MemoryStoreClient extends StoreClient {
       if (!isStoreSelectorMatch(selectedResult)) {
         return {
           matched: false,
-          storePk: record.storePk,
+          instanceId: record.instanceId,
           version: record.version,
           readPaths,
         };
@@ -346,7 +348,7 @@ export class MemoryStoreClient extends StoreClient {
         key,
         storeName: params.definition.name,
         storeId: params.id,
-        storePk: record.storePk,
+        instanceId: record.instanceId,
         changedPaths,
         nextState,
         previousVersion: record.version,
@@ -361,7 +363,7 @@ export class MemoryStoreClient extends StoreClient {
               result: JSON.stringify({
                 matched: true,
                 selected: selectedSnapshot,
-                storePk: record.storePk,
+                instanceId: record.instanceId,
                 version: record.version + 1,
               }),
             }
@@ -371,7 +373,7 @@ export class MemoryStoreClient extends StoreClient {
       return {
         matched: true,
         selected: selectedSnapshot,
-        storePk: record.storePk,
+        instanceId: record.instanceId,
         version,
       };
     });
@@ -385,7 +387,7 @@ export class MemoryStoreClient extends StoreClient {
     key: string;
     storeName: string;
     storeId: string;
-    storePk: string;
+    instanceId: string;
     changedPaths: StorePath[];
     nextState: unknown;
     previousVersion: number;
@@ -396,7 +398,7 @@ export class MemoryStoreClient extends StoreClient {
 
     this.stores.set(params.key, {
       state: cloneStoreState(params.nextState),
-      storePk: params.storePk,
+      instanceId: params.instanceId,
       version,
     });
 
@@ -460,7 +462,7 @@ export class MemoryStoreClient extends StoreClient {
         if (applied) return JSON.parse(applied) as StoreDeleteFromResult;
       }
 
-      this.assertSnapshotHasStorePk(params.snapshot);
+      this.assertSnapshotHasInstanceId(params.snapshot);
 
       const key = this.storeKey(params.definition.name, params.id);
       const record = this.stores.get(key);
@@ -468,19 +470,19 @@ export class MemoryStoreClient extends StoreClient {
         return {
           deleted: false,
           reason: "not-found",
-          expectedStorePk: params.snapshot.storePk,
+          expectedInstanceId: params.snapshot.instanceId,
           expectedVersion: params.snapshot.version,
         };
       }
       if (
-        record.storePk !== params.snapshot.storePk ||
+        record.instanceId !== params.snapshot.instanceId ||
         record.version !== params.snapshot.version
       ) {
         return {
           deleted: false,
           reason: "conflict",
-          expectedStorePk: params.snapshot.storePk,
-          actualStorePk: record.storePk,
+          expectedInstanceId: params.snapshot.instanceId,
+          actualInstanceId: record.instanceId,
           expectedVersion: params.snapshot.version,
           actualVersion: record.version,
         };
@@ -488,7 +490,7 @@ export class MemoryStoreClient extends StoreClient {
 
       this.stores.delete(key);
       for (const [waiterKey, waiter] of [...this.waiters.entries()]) {
-        if (waiter.storePk === record.storePk) this.waiters.delete(waiterKey);
+        if (waiter.instanceId === record.instanceId) this.waiters.delete(waiterKey);
       }
       const result = { deleted: true as const };
       if (ledgerKey) this.appliedSteps.set(ledgerKey, JSON.stringify(result));
@@ -513,7 +515,7 @@ export class MemoryStoreClient extends StoreClient {
       );
       if (
         !record ||
-        record.storePk !== waiter.storePk ||
+        record.instanceId !== waiter.instanceId ||
         record.version > waiter.sinceVersion
       ) {
         await this.schedulerClient.requestWakeUp(waiter.event);
@@ -568,9 +570,11 @@ export class MemoryStoreClient extends StoreClient {
     return `${storeName}:${storeId}:${executionId}:${stepKey}`;
   }
 
-  private assertSnapshotHasStorePk(snapshot: { storePk?: string }) {
-    if (!snapshot.storePk) {
-      throw new Error("Store snapshot is missing storePk; read a fresh snapshot");
+  private assertSnapshotHasInstanceId(snapshot: { instanceId?: string }) {
+    if (!snapshot.instanceId) {
+      throw new Error(
+        "Store snapshot is missing instanceId; read a fresh snapshot"
+      );
     }
   }
 }

@@ -55,7 +55,7 @@ test("workflow stores can be created, read, and updated", async () => {
     state: { messages: [], status: "idle" },
     version: 0,
   });
-  expect(result.initial.storePk).toMatch(/^[0-9a-f-]+$/);
+  expect(result.initial.instanceId).toMatch(/^[0-9a-f-]+$/);
   expect(result.update.previousVersion).toBe(0);
   expect(result.update.version).toBe(1);
   expect(result.current).toEqual({
@@ -63,7 +63,7 @@ test("workflow stores can be created, read, and updated", async () => {
       messages: [{ id: "msg-1", content: "hello", processed: false }],
       status: "idle",
     },
-    storePk: result.initial.storePk,
+    instanceId: result.initial.instanceId,
     version: 1,
   });
 });
@@ -123,7 +123,7 @@ test("workflow stores can conditionally update from a snapshot", async () => {
     actualVersion: 1,
   });
   if (result.updated) throw new Error("update should conflict");
-  expect(result.actualStorePk).toBe(result.expectedStorePk);
+  expect(result.actualInstanceId).toBe(result.expectedInstanceId);
 });
 
 test("external store updates wake when waiters", async () => {
@@ -717,7 +717,7 @@ test("updateFrom replay returns its committed result after the store advances", 
   let updaterRuns = 0;
   let originalSnapshot: {
     state: ConversationState;
-    storePk: string;
+    instanceId: string;
     version: number;
   };
 
@@ -790,7 +790,7 @@ test("updateFrom replay returns its committed result after the store advances", 
   ]);
 });
 
-test("deleteFrom replay returns its committed result without deleting a new incarnation", async () => {
+test("deleteFrom replay returns its committed result without deleting a new instance", async () => {
   const executionId = "delete-crash-replay";
   const storeId = "delete-crash-gap";
   const testWorkflow = workflow(async function* (step) {
@@ -840,7 +840,7 @@ test("deleteFrom replay returns its committed result without deleting a new inca
     id: storeId,
     initial: { messages: [], status: "working" },
   });
-  expect(recreated.storePk).not.toBe(snapshot.storePk);
+  expect(recreated.instanceId).not.toBe(snapshot.instanceId);
 
   const replayed = await sdk.triggerAndWait({
     workflowId: "workflow",
