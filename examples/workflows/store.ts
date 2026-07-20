@@ -1,17 +1,18 @@
-import type { StandardSchemaV1 } from "yieldstar";
+import * as v from "valibot";
 import { defineStore, workflow } from "yieldstar";
 
-type ConversationState = {
-  messages: Array<{
-    id: string;
-    content: string;
-  }>;
-};
+const ConversationSchema = v.object({
+  messages: v.array(
+    v.object({
+      id: v.string(),
+      content: v.string(),
+    })
+  ),
+});
 
-const ConversationStore = defineStore(
-  "conversation",
-  schema<ConversationState>()
-);
+type ConversationState = v.InferOutput<typeof ConversationSchema>;
+
+const ConversationStore = defineStore("conversation", ConversationSchema);
 
 export const storeWorkflow = workflow<
   { conversationId: string; content: string },
@@ -32,15 +33,3 @@ export const storeWorkflow = workflow<
   const snapshot = yield* conversation.get("read-conversation");
   return snapshot.state;
 });
-
-function schema<T>(): StandardSchemaV1<unknown, T> {
-  return {
-    "~standard": {
-      version: 1,
-      vendor: "example",
-      validate(value) {
-        return { value: value as T };
-      },
-    },
-  };
-}
