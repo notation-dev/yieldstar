@@ -12,11 +12,13 @@ import {
   StepStoreWait,
   type StoreClient,
   type StoreDefinition,
+  type StoreDeleteFromResult,
   type StoreKey,
   type StoreSelector,
   type StoreSnapshot,
   type StoreState,
   type StoreTakeResult,
+  type StoreUpdateFromResult,
   type StoreUpdateResult,
   trackStoreSelector,
 } from "@yieldstar/core";
@@ -47,6 +49,15 @@ export type WorkflowStore<T> = {
     key: string,
     updater: (draft: Draft<T>) => void | T | Promise<void | T>
   ): AsyncGenerator<StepResponse, StoreUpdateResult<T>>;
+  updateFrom(
+    key: string,
+    snapshot: StoreSnapshot<T>,
+    updater: (draft: Draft<T>) => void | T | Promise<void | T>
+  ): AsyncGenerator<StepResponse, StoreUpdateFromResult<T>>;
+  deleteFrom(
+    key: string,
+    snapshot: StoreSnapshot<T>
+  ): AsyncGenerator<StepResponse, StoreDeleteFromResult>;
   when<R>(
     selector: StoreSelector<T, R | undefined | null | false>
   ): AsyncGenerator<StepResponse, NonNullable<R>>;
@@ -184,6 +195,27 @@ function createWorkflowStore<T>(params: {
           // recorded result instead of re-running the updater.
           stepId: { executionId: event.executionId, stepKey },
         })) as StoreUpdateResult<T>
+      );
+    },
+    updateFrom(stepKey, snapshot, updater) {
+      return durableStep<StoreUpdateFromResult<T>>(stepKey, async () =>
+        (await storeClient.updateStoreFrom({
+          definition,
+          id,
+          snapshot,
+          updater: updater as any,
+          stepId: { executionId: event.executionId, stepKey },
+        })) as StoreUpdateFromResult<T>
+      );
+    },
+    deleteFrom(stepKey, snapshot) {
+      return durableStep<StoreDeleteFromResult>(stepKey, () =>
+        storeClient.deleteStoreFrom({
+          definition,
+          id,
+          snapshot,
+          stepId: { executionId: event.executionId, stepKey },
+        })
       );
     },
     when<R>(
@@ -410,6 +442,7 @@ async function* whenStep<T, R>(params: {
     event,
     storeName: definition.name,
     storeId: id,
+    instanceId: snapshot.instanceId,
     sinceVersion: snapshot.version,
     readPaths,
   });
@@ -473,6 +506,7 @@ async function* takeStep<T, R>(params: {
     event,
     storeName: definition.name,
     storeId: id,
+    instanceId: outcome.instanceId,
     sinceVersion: outcome.version,
     readPaths: outcome.readPaths,
   });

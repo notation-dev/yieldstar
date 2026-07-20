@@ -17,9 +17,13 @@ export type StandardSchemaV1<Input = unknown, Output = Input> = {
 };
 
 export namespace StandardSchemaV1 {
+  export type PathSegment = {
+    readonly key: PropertyKey;
+  };
+
   export type Issue = {
     readonly message: string;
-    readonly path?: readonly PropertyKey[];
+    readonly path?: readonly (PropertyKey | PathSegment)[];
   };
 
   export type Result<Output> =
@@ -68,6 +72,7 @@ export type StoreStepId = {
 
 export type StoreSnapshot<T> = {
   state: T;
+  instanceId: string;
   version: StoreVersion;
 };
 
@@ -77,11 +82,48 @@ export type StoreUpdateResult<T> = {
   version: StoreVersion;
 };
 
+export type StoreUpdateFromResult<T> =
+  | ({ updated: true } & StoreUpdateResult<T>)
+  | {
+      updated: false;
+      expectedInstanceId: string;
+      actualInstanceId: string;
+      expectedVersion: StoreVersion;
+      actualVersion: StoreVersion;
+    };
+
+export type StoreDeleteFromResult =
+  | { deleted: true }
+  | {
+      deleted: false;
+      reason: "conflict";
+      expectedInstanceId: string;
+      actualInstanceId: string;
+      expectedVersion: StoreVersion;
+      actualVersion: StoreVersion;
+    }
+  | {
+      deleted: false;
+      reason: "not-found";
+      expectedInstanceId: string;
+      expectedVersion: StoreVersion;
+    };
+
 export type StoreSelector<T, R> = (state: Readonly<T>) => R;
 
 export type StoreTakeResult<R> =
-  | { matched: true; selected: NonNullable<R>; version: StoreVersion }
-  | { matched: false; version: StoreVersion; readPaths: StorePath[] };
+  | {
+      matched: true;
+      selected: NonNullable<R>;
+      instanceId: string;
+      version: StoreVersion;
+    }
+  | {
+      matched: false;
+      instanceId: string;
+      version: StoreVersion;
+      readPaths: StorePath[];
+    };
 
 export type StoreWaiter = {
   workflowId: string;
@@ -90,6 +132,7 @@ export type StoreWaiter = {
   event: WorkflowEvent;
   storeName: string;
   storeId: string;
+  instanceId: string;
   sinceVersion: StoreVersion;
   readPaths: StorePath[];
 };
@@ -99,6 +142,11 @@ export type RuntimeStore<T> = {
   update(
     updater: (draft: Draft<T>) => void | T | Promise<void | T>
   ): Promise<StoreUpdateResult<T>>;
+  updateFrom(
+    snapshot: StoreSnapshot<T>,
+    updater: (draft: Draft<T>) => void | T | Promise<void | T>
+  ): Promise<StoreUpdateFromResult<T>>;
+  deleteFrom(snapshot: StoreSnapshot<T>): Promise<StoreDeleteFromResult>;
 };
 
 export function defineStore<Schema extends StandardSchemaV1>(
@@ -124,6 +172,19 @@ export abstract class StoreClient {
           definition,
           id,
           updater,
+        }),
+      updateFrom: (snapshot, updater) =>
+        this.updateStoreFrom({
+          definition,
+          id,
+          snapshot,
+          updater,
+        }),
+      deleteFrom: (snapshot) =>
+        this.deleteStoreFrom({
+          definition,
+          id,
+          snapshot,
         }),
     };
   }
@@ -163,6 +224,22 @@ export abstract class StoreClient {
   }): Promise<StoreUpdateResult<StoreState<Schema>>>;
 
   /**
+   * Updates a store only if it has not changed since `snapshot` was read.
+   * A conflict does not run the updater or change the store. When `stepId`
+   * identifies an update that already committed, its recorded result wins
+   * over the version check so replay remains exactly-once.
+   */
+  abstract updateStoreFrom<Schema extends StandardSchemaV1>(params: {
+    definition: StoreDefinition<Schema>;
+    id: string;
+    snapshot: StoreSnapshot<StoreState<Schema>>;
+    updater: (
+      draft: Draft<StoreState<Schema>>
+    ) => void | StoreState<Schema> | Promise<void | StoreState<Schema>>;
+    stepId?: StoreStepId;
+  }): Promise<StoreUpdateFromResult<StoreState<Schema>>>;
+
+  /**
    * Atomically selects and claims from a store. The selector and claim
    * mutation run inside the SAME store update transaction, committing as a
    * single version bump. If the selector does not match, nothing is
@@ -192,6 +269,31 @@ export abstract class StoreClient {
   }): Promise<StoreTakeResult<R>>;
 
   abstract registerWaiter(waiter: StoreWaiter): Promise<void>;
+
+  /**
+   * Enumerates the ids of every store created under a given definition name.
+   * Needed by external consumers (e.g. Notation's state backend) that treat a
+   * store name as a collection of instances and must list them. Order is
+   * ascending by id so callers get a deterministic sequence.
+   */
+  abstract listStores(definition: StoreDefinition): Promise<string[]>;
+
+  /**
+   * Removes a store instance and all of its associated rows (state, waiters,
+   * applied-steps ledger). A no-op if the store does not exist.
+   */
+  abstract deleteStore(params: {
+    definition: StoreDefinition;
+    id: string;
+  }): Promise<void>;
+
+  /** Deletes a store only if its instance ID and version still match the snapshot. */
+  abstract deleteStoreFrom(params: {
+    definition: StoreDefinition;
+    id: string;
+    snapshot: StoreSnapshot<unknown>;
+    stepId?: StoreStepId;
+  }): Promise<StoreDeleteFromResult>;
 }
 
 export function isStoreSelectorMatch<R>(

@@ -48,10 +48,13 @@ Pass an explicit `id` to share one store across executions – a conversation id
 
 ## Reading
 
-`store.get` returns a snapshot: the state plus a version number that increments on each update.
+`store.get` returns a snapshot containing the state and a version number that
+increments on each update. The snapshot also contains an internal UUIDv7
+`instanceId`, assigned when the store is created. Deleting and recreating the
+same logical store assigns a new instance ID.
 
 ```ts
-const { state, version } = yield* store.get("load");
+const { state, instanceId, version } = yield* store.get("load");
 ```
 
 `store.select` runs a pure selector and persists only the selected value:
@@ -85,6 +88,59 @@ Updates are idempotent by step key. On replay, the runtime returns the cached re
 What if the process crashes after the store commits, but before the step result is recorded? The store covers this case itself. Every workflow update writes a row to an applied-steps ledger, in the same transaction as the state change. When the workflow replays, the store finds the ledger row and returns the recorded result, rather than running the updater a second time.
 
 Keep updaters synchronous and pure. The signature allows async, but an updater holds the store's write transaction open while it runs – no network calls, no timers.
+
+When a decision depends on an earlier read, use `updateFrom` to commit only if
+the store has not changed since that snapshot:
+
+```ts
+const snapshot = yield* store.get("load-before-sync");
+const remote = yield* step.run("sync-remote", () =>
+  syncRemote(snapshot.state)
+);
+
+const result = yield* store.updateFrom(
+  "save-remote-result",
+  snapshot,
+  (draft) => {
+    draft.remoteId = remote.id;
+  }
+);
+
+if (!result.updated) {
+  // The updater did not run. Read fresh state and reconcile in new steps.
+}
+```
+
+The successful branch contains the same state and version fields as
+`store.update`, plus `updated: true`. A conflict returns `updated: false` and
+the expected and actual instance IDs and versions. Comparing both values
+prevents an old snapshot from matching a deleted and recreated store whose
+version happens to be the same. Both outcomes are durable step results. A
+retry after a conflict must use a fresh read and a new step key.
+
+## Deleting
+
+Use `deleteFrom` when deletion is based on a snapshot:
+
+```ts
+const snapshot = yield* store.get("load-before-delete");
+const result = yield* store.deleteFrom("delete", snapshot);
+
+if (!result.deleted) {
+  // The store changed, was recreated, or was already removed.
+}
+```
+
+The store is deleted only when its instance ID and version still match the
+snapshot. Successful workflow deletions are written to the applied-steps
+ledger before commit, and that ledger entry survives deletion. Replay therefore
+returns the committed result without deleting a newer store created under the
+same logical ID.
+
+Runtime integrations can call `listStores(definition)` to get the definition's
+live logical IDs in ascending order, and `deleteStore({ definition, id })` for
+an unconditional, idempotent administrative deletion. Prefer `deleteFrom`
+when the deletion decision was made from previously read state.
 
 ## Waiting
 

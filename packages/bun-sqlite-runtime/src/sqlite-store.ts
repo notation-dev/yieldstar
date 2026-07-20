@@ -14,23 +14,30 @@ import {
   type Draft,
   type StandardSchemaV1,
   type StoreDefinition,
+  type StoreDeleteFromResult,
   type StorePath,
   type StoreSelector,
   type StoreSnapshot,
   type StoreState,
   type StoreStepId,
   type StoreTakeResult,
+  type StoreUpdateFromResult,
   type StoreUpdateResult,
   type StoreWaiter,
 } from "@yieldstar/core";
 
 class StoreRow {
+  instance_id!: string;
   state!: string;
   version!: number;
 }
 
 class AppliedStepRow {
   result!: string;
+}
+
+class StoreIdRow {
+  store_id!: string;
 }
 
 class WaiterRow {
@@ -77,6 +84,7 @@ export class SqliteStoreClient extends StoreClient {
     if (existing) {
       return {
         state: JSON.parse(existing.state),
+        instanceId: existing.instance_id,
         version: existing.version,
       };
     }
@@ -106,30 +114,35 @@ export class SqliteStoreClient extends StoreClient {
           this.db.run("COMMIT");
           return {
             state: JSON.parse(existingTx.state),
+            instanceId: existingTx.instance_id,
             version: existingTx.version,
           };
         }
 
+        const instanceId = Bun.randomUUIDv7();
         this.db
           .query(
-            `INSERT INTO stores (store_name, store_id, version, state)
-             VALUES ($storeName, $storeId, 0, $state)`
+            `INSERT INTO stores (instance_id, store_name, store_id, version, state)
+             VALUES ($instanceId, $storeName, $storeId, 0, $state)`
           )
           .run({
+            $instanceId: instanceId,
             $storeName: params.definition.name,
             $storeId: params.id,
             $state: JSON.stringify(state),
           });
         this.db.run("COMMIT");
+        return {
+          state: cloneStoreState(state),
+          instanceId,
+          version: 0,
+        };
       } catch (err) {
         this.db.run("ROLLBACK");
         throw err;
       }
 
-      return {
-        state: cloneStoreState(state),
-        version: 0,
-      };
+      throw new Error("Store creation transaction returned unexpectedly");
     });
   }
 
@@ -147,6 +160,7 @@ export class SqliteStoreClient extends StoreClient {
 
     return {
       state: JSON.parse(row.state),
+      instanceId: row.instance_id,
       version: row.version,
     };
   }
@@ -159,6 +173,41 @@ export class SqliteStoreClient extends StoreClient {
     ) => void | StoreState<Schema> | Promise<void | StoreState<Schema>>;
     stepId?: StoreStepId;
   }): Promise<StoreUpdateResult<StoreState<Schema>>> {
+    return (await this.updateStoreInternal(params)) as StoreUpdateResult<
+      StoreState<Schema>
+    >;
+  }
+
+  async updateStoreFrom<Schema extends StandardSchemaV1>(params: {
+    definition: StoreDefinition<Schema>;
+    id: string;
+    snapshot: StoreSnapshot<StoreState<Schema>>;
+    updater: (
+      draft: Draft<StoreState<Schema>>
+    ) => void | StoreState<Schema> | Promise<void | StoreState<Schema>>;
+    stepId?: StoreStepId;
+  }): Promise<StoreUpdateFromResult<StoreState<Schema>>> {
+    const result = await this.updateStoreInternal({
+      ...params,
+      expectedInstanceId: params.snapshot.instanceId,
+      expectedVersion: params.snapshot.version,
+    });
+    return "updated" in result ? result : { updated: true, ...result };
+  }
+
+  private updateStoreInternal<Schema extends StandardSchemaV1>(params: {
+    definition: StoreDefinition<Schema>;
+    id: string;
+    updater: (
+      draft: Draft<StoreState<Schema>>
+    ) => void | StoreState<Schema> | Promise<void | StoreState<Schema>>;
+    stepId?: StoreStepId;
+    expectedInstanceId?: string;
+    expectedVersion?: number;
+  }): Promise<
+    | StoreUpdateResult<StoreState<Schema>>
+    | Extract<StoreUpdateFromResult<StoreState<Schema>>, { updated: false }>
+  > {
     return this.enqueueWrite(async () => {
       let result: StoreUpdateResult<StoreState<Schema>>;
       let waitersToWake: MatchedWaiter[] = [];
@@ -182,11 +231,33 @@ export class SqliteStoreClient extends StoreClient {
           }
         }
 
+        if (params.expectedVersion !== undefined) {
+          this.assertSnapshotHasInstanceId({
+            instanceId: params.expectedInstanceId,
+          });
+        }
+
         const row = this.getStoreRow(params.definition.name, params.id);
         if (!row) {
           throw new Error(
             `Store "${params.definition.name}:${params.id}" does not exist`
           );
+        }
+
+        if (
+          params.expectedInstanceId !== undefined &&
+          params.expectedVersion !== undefined &&
+          (row.instance_id !== params.expectedInstanceId ||
+            row.version !== params.expectedVersion)
+        ) {
+          this.db.run("COMMIT");
+          return {
+            updated: false as const,
+            expectedInstanceId: params.expectedInstanceId,
+            actualInstanceId: row.instance_id,
+            expectedVersion: params.expectedVersion,
+            actualVersion: row.version,
+          };
         }
 
         const previousState = JSON.parse(row.state) as StoreState<Schema>;
@@ -213,6 +284,7 @@ export class SqliteStoreClient extends StoreClient {
         const committed = this.commitNextState({
           storeName: params.definition.name,
           storeId: params.id,
+          instanceId: row.instance_id,
           changedPaths,
           nextState,
           previousVersion: row.version,
@@ -316,6 +388,7 @@ export class SqliteStoreClient extends StoreClient {
           this.db.run("COMMIT");
           return {
             matched: false,
+            instanceId: row.instance_id,
             version: row.version,
             readPaths,
           };
@@ -343,6 +416,7 @@ export class SqliteStoreClient extends StoreClient {
         const committed = this.commitNextState({
           storeName: params.definition.name,
           storeId: params.id,
+          instanceId: row.instance_id,
           changedPaths,
           nextState,
           previousVersion: row.version,
@@ -352,6 +426,7 @@ export class SqliteStoreClient extends StoreClient {
         result = {
           matched: true,
           selected: selectedSnapshot,
+          instanceId: row.instance_id,
           version: committed.version,
         };
 
@@ -388,6 +463,7 @@ export class SqliteStoreClient extends StoreClient {
   private commitNextState(params: {
     storeName: string;
     storeId: string;
+    instanceId: string;
     changedPaths: StorePath[];
     nextState: unknown;
     previousVersion: number;
@@ -399,11 +475,12 @@ export class SqliteStoreClient extends StoreClient {
       .query(
         `UPDATE stores
          SET version = $version, state = $state
-         WHERE store_name = $storeName AND store_id = $storeId`
+         WHERE instance_id = $instanceId`
       )
       .run({
         $storeName: params.storeName,
         $storeId: params.storeId,
+        $instanceId: params.instanceId,
         $version: version,
         $state: JSON.stringify(params.nextState),
       });
@@ -441,6 +518,127 @@ export class SqliteStoreClient extends StoreClient {
     }
   }
 
+  async listStores<Schema extends StandardSchemaV1>(
+    definition: StoreDefinition<Schema>
+  ): Promise<string[]> {
+    const rows = this.db
+      .query(
+        `SELECT store_id FROM stores
+         WHERE store_name = $storeName
+         ORDER BY store_id ASC`
+      )
+      .as(StoreIdRow)
+      .all({ $storeName: definition.name });
+    return rows.map((row) => row.store_id);
+  }
+
+  async deleteStore<Schema extends StandardSchemaV1>(params: {
+    definition: StoreDefinition<Schema>;
+    id: string;
+  }): Promise<void> {
+    return this.enqueueWrite(async () => {
+      const bindings = {
+        $storeName: params.definition.name,
+        $storeId: params.id,
+      };
+      this.db.run("BEGIN IMMEDIATE");
+      try {
+        this.db
+          .query(
+            `DELETE FROM stores WHERE store_name = $storeName AND store_id = $storeId`
+          )
+          .run(bindings);
+        this.db
+          .query(
+            `DELETE FROM store_waiters WHERE store_name = $storeName AND store_id = $storeId`
+          )
+          .run(bindings);
+        this.db.run("COMMIT");
+      } catch (err) {
+        this.db.run("ROLLBACK");
+        throw err;
+      }
+    });
+  }
+
+  async deleteStoreFrom(params: {
+    definition: StoreDefinition;
+    id: string;
+    snapshot: StoreSnapshot<unknown>;
+    stepId?: StoreStepId;
+  }): Promise<StoreDeleteFromResult> {
+    return this.enqueueWrite(async () => {
+      const bindings = {
+        $storeName: params.definition.name,
+        $storeId: params.id,
+      };
+      this.db.run("BEGIN IMMEDIATE");
+      try {
+        if (params.stepId) {
+          const applied = this.getAppliedStepRow({
+            storeName: params.definition.name,
+            storeId: params.id,
+            stepId: params.stepId,
+          });
+          if (applied) {
+            this.db.run("COMMIT");
+            return JSON.parse(applied.result) as StoreDeleteFromResult;
+          }
+        }
+
+        this.assertSnapshotHasInstanceId(params.snapshot);
+
+        const row = this.getStoreRow(params.definition.name, params.id);
+        if (!row) {
+          this.db.run("COMMIT");
+          return {
+            deleted: false,
+            reason: "not-found",
+            expectedInstanceId: params.snapshot.instanceId,
+            expectedVersion: params.snapshot.version,
+          };
+        }
+        if (
+          row.instance_id !== params.snapshot.instanceId ||
+          row.version !== params.snapshot.version
+        ) {
+          this.db.run("COMMIT");
+          return {
+            deleted: false,
+            reason: "conflict",
+            expectedInstanceId: params.snapshot.instanceId,
+            actualInstanceId: row.instance_id,
+            expectedVersion: params.snapshot.version,
+            actualVersion: row.version,
+          };
+        }
+
+        this.db
+          .query(
+            `DELETE FROM store_waiters WHERE store_name = $storeName AND store_id = $storeId`
+          )
+          .run(bindings);
+        this.db
+          .query(`DELETE FROM stores WHERE instance_id = $instanceId`)
+          .run({ $instanceId: row.instance_id });
+        const result = { deleted: true as const };
+        if (params.stepId) {
+          this.insertAppliedStepRow({
+            storeName: params.definition.name,
+            storeId: params.id,
+            stepId: params.stepId,
+            result: JSON.stringify(result),
+          });
+        }
+        this.db.run("COMMIT");
+        return result;
+      } catch (err) {
+        this.db.run("ROLLBACK");
+        throw err;
+      }
+    });
+  }
+
   async registerWaiter(waiter: StoreWaiter): Promise<void> {
     return this.enqueueWrite(async () => {
       let versionAdvanced = false;
@@ -476,7 +674,11 @@ export class SqliteStoreClient extends StoreClient {
         // immediate wake – the replay re-evaluates the selector, so a
         // spurious wake is safe.
         const row = this.getStoreRow(waiter.storeName, waiter.storeId);
-        if (row && row.version > waiter.sinceVersion) {
+        if (
+          !row ||
+          row.instance_id !== waiter.instanceId ||
+          row.version > waiter.sinceVersion
+        ) {
           versionAdvanced = true;
         }
 
@@ -499,15 +701,9 @@ export class SqliteStoreClient extends StoreClient {
   }
 
   private setupDb() {
-    this.db.run(`
-      CREATE TABLE IF NOT EXISTS stores (
-        store_name TEXT NOT NULL,
-        store_id TEXT NOT NULL,
-        version INTEGER NOT NULL,
-        state TEXT NOT NULL,
-        PRIMARY KEY (store_name, store_id)
-      );
+    this.createStoresTable();
 
+    this.db.run(`
       CREATE TABLE IF NOT EXISTS store_waiters (
         workflow_id TEXT NOT NULL,
         execution_id TEXT NOT NULL,
@@ -528,6 +724,19 @@ export class SqliteStoreClient extends StoreClient {
         result TEXT NOT NULL,
         PRIMARY KEY (store_name, store_id, execution_id, step_key)
       );
+    `);
+  }
+
+  private createStoresTable() {
+    this.db.run(`
+      CREATE TABLE IF NOT EXISTS stores (
+        instance_id TEXT PRIMARY KEY,
+        store_name TEXT NOT NULL,
+        store_id TEXT NOT NULL,
+        version INTEGER NOT NULL,
+        state TEXT NOT NULL,
+        UNIQUE (store_name, store_id)
+      )
     `);
   }
 
@@ -578,7 +787,7 @@ export class SqliteStoreClient extends StoreClient {
   private getStoreRow(storeName: string, storeId: string) {
     return this.db
       .query(
-        `SELECT state, version FROM stores
+        `SELECT instance_id, state, version FROM stores
          WHERE store_name = $storeName AND store_id = $storeId`
       )
       .as(StoreRow)
@@ -642,6 +851,14 @@ export class SqliteStoreClient extends StoreClient {
         $executionId: params.executionId,
         $stepKey: params.stepKey,
       });
+  }
+
+  private assertSnapshotHasInstanceId(snapshot: { instanceId?: string }) {
+    if (!snapshot.instanceId) {
+      throw new Error(
+        "Store snapshot is missing instanceId; read a fresh snapshot"
+      );
+    }
   }
 }
 

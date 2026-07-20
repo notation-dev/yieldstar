@@ -13,18 +13,21 @@ import {
   type Draft,
   type StandardSchemaV1,
   type StoreDefinition,
+  type StoreDeleteFromResult,
   type StorePath,
   type StoreSelector,
   type StoreSnapshot,
   type StoreState,
   type StoreStepId,
   type StoreTakeResult,
+  type StoreUpdateFromResult,
   type StoreUpdateResult,
   type StoreWaiter,
 } from "@yieldstar/core";
 
 type StoreRecord = {
   state: unknown;
+  instanceId: string;
   version: number;
 };
 
@@ -65,6 +68,7 @@ export class MemoryStoreClient extends StoreClient {
     if (existing) {
       return {
         state: cloneStoreState(existing.state) as StoreState<Schema>,
+        instanceId: existing.instanceId,
         version: existing.version,
       };
     }
@@ -86,13 +90,16 @@ export class MemoryStoreClient extends StoreClient {
         : initialValue;
     const state = await validateStoreState(params.definition, initial);
 
+    const instanceId = Bun.randomUUIDv7();
     this.stores.set(key, {
       state: cloneStoreState(state),
+      instanceId,
       version: 0,
     });
 
     return {
       state: cloneStoreState(state),
+      instanceId,
       version: 0,
     };
   }
@@ -113,6 +120,7 @@ export class MemoryStoreClient extends StoreClient {
 
     return {
       state: cloneStoreState(record.state) as StoreState<Schema>,
+      instanceId: record.instanceId,
       version: record.version,
     };
   }
@@ -125,6 +133,41 @@ export class MemoryStoreClient extends StoreClient {
     ) => void | StoreState<Schema> | Promise<void | StoreState<Schema>>;
     stepId?: StoreStepId;
   }): Promise<StoreUpdateResult<StoreState<Schema>>> {
+    return (await this.updateStoreInternal(params)) as StoreUpdateResult<
+      StoreState<Schema>
+    >;
+  }
+
+  async updateStoreFrom<Schema extends StandardSchemaV1>(params: {
+    definition: StoreDefinition<Schema>;
+    id: string;
+    snapshot: StoreSnapshot<StoreState<Schema>>;
+    updater: (
+      draft: Draft<StoreState<Schema>>
+    ) => void | StoreState<Schema> | Promise<void | StoreState<Schema>>;
+    stepId?: StoreStepId;
+  }): Promise<StoreUpdateFromResult<StoreState<Schema>>> {
+    const result = await this.updateStoreInternal({
+      ...params,
+      expectedInstanceId: params.snapshot.instanceId,
+      expectedVersion: params.snapshot.version,
+    });
+    return "updated" in result ? result : { updated: true, ...result };
+  }
+
+  private updateStoreInternal<Schema extends StandardSchemaV1>(params: {
+    definition: StoreDefinition<Schema>;
+    id: string;
+    updater: (
+      draft: Draft<StoreState<Schema>>
+    ) => void | StoreState<Schema> | Promise<void | StoreState<Schema>>;
+    stepId?: StoreStepId;
+    expectedInstanceId?: string;
+    expectedVersion?: number;
+  }): Promise<
+    | StoreUpdateResult<StoreState<Schema>>
+    | Extract<StoreUpdateFromResult<StoreState<Schema>>, { updated: false }>
+  > {
     return this.enqueueWrite(async () => {
       const key = this.storeKey(params.definition.name, params.id);
 
@@ -139,11 +182,32 @@ export class MemoryStoreClient extends StoreClient {
         }
       }
 
+      if (params.expectedVersion !== undefined) {
+        this.assertSnapshotHasInstanceId({
+          instanceId: params.expectedInstanceId,
+        });
+      }
+
       const record = this.stores.get(key);
       if (!record) {
         throw new Error(
           `Store "${params.definition.name}:${params.id}" does not exist`
         );
+      }
+
+      if (
+        params.expectedInstanceId !== undefined &&
+        params.expectedVersion !== undefined &&
+        (record.instanceId !== params.expectedInstanceId ||
+          record.version !== params.expectedVersion)
+      ) {
+        return {
+          updated: false as const,
+          expectedInstanceId: params.expectedInstanceId,
+          actualInstanceId: record.instanceId,
+          expectedVersion: params.expectedVersion,
+          actualVersion: record.version,
+        };
       }
 
       const previousState = cloneStoreState(
@@ -173,6 +237,7 @@ export class MemoryStoreClient extends StoreClient {
         key,
         storeName: params.definition.name,
         storeId: params.id,
+        instanceId: record.instanceId,
         changedPaths,
         nextState,
         previousVersion: record.version,
@@ -256,6 +321,7 @@ export class MemoryStoreClient extends StoreClient {
       if (!isStoreSelectorMatch(selectedResult)) {
         return {
           matched: false,
+          instanceId: record.instanceId,
           version: record.version,
           readPaths,
         };
@@ -282,6 +348,7 @@ export class MemoryStoreClient extends StoreClient {
         key,
         storeName: params.definition.name,
         storeId: params.id,
+        instanceId: record.instanceId,
         changedPaths,
         nextState,
         previousVersion: record.version,
@@ -296,6 +363,7 @@ export class MemoryStoreClient extends StoreClient {
               result: JSON.stringify({
                 matched: true,
                 selected: selectedSnapshot,
+                instanceId: record.instanceId,
                 version: record.version + 1,
               }),
             }
@@ -305,6 +373,7 @@ export class MemoryStoreClient extends StoreClient {
       return {
         matched: true,
         selected: selectedSnapshot,
+        instanceId: record.instanceId,
         version,
       };
     });
@@ -318,6 +387,7 @@ export class MemoryStoreClient extends StoreClient {
     key: string;
     storeName: string;
     storeId: string;
+    instanceId: string;
     changedPaths: StorePath[];
     nextState: unknown;
     previousVersion: number;
@@ -328,6 +398,7 @@ export class MemoryStoreClient extends StoreClient {
 
     this.stores.set(params.key, {
       state: cloneStoreState(params.nextState),
+      instanceId: params.instanceId,
       version,
     });
 
@@ -346,6 +417,87 @@ export class MemoryStoreClient extends StoreClient {
     return version;
   }
 
+  async listStores<Schema extends StandardSchemaV1>(
+    definition: StoreDefinition<Schema>
+  ): Promise<string[]> {
+    const prefix = `${definition.name}:`;
+    const ids: string[] = [];
+    for (const key of this.stores.keys()) {
+      if (key.startsWith(prefix)) ids.push(key.slice(prefix.length));
+    }
+    return ids.sort();
+  }
+
+  async deleteStore<Schema extends StandardSchemaV1>(params: {
+    definition: StoreDefinition<Schema>;
+    id: string;
+  }): Promise<void> {
+    return this.enqueueWrite(async () => {
+      const { name } = params.definition;
+      this.stores.delete(this.storeKey(name, params.id));
+      for (const [key, waiter] of [...this.waiters.entries()]) {
+        if (waiter.storeName === name && waiter.storeId === params.id) {
+          this.waiters.delete(key);
+        }
+      }
+    });
+  }
+
+  async deleteStoreFrom(params: {
+    definition: StoreDefinition;
+    id: string;
+    snapshot: StoreSnapshot<unknown>;
+    stepId?: StoreStepId;
+  }): Promise<StoreDeleteFromResult> {
+    return this.enqueueWrite(async () => {
+      const ledgerKey = params.stepId
+        ? this.appliedStepKey(
+            params.definition.name,
+            params.id,
+            params.stepId
+          )
+        : undefined;
+      if (ledgerKey) {
+        const applied = this.appliedSteps.get(ledgerKey);
+        if (applied) return JSON.parse(applied) as StoreDeleteFromResult;
+      }
+
+      this.assertSnapshotHasInstanceId(params.snapshot);
+
+      const key = this.storeKey(params.definition.name, params.id);
+      const record = this.stores.get(key);
+      if (!record) {
+        return {
+          deleted: false,
+          reason: "not-found",
+          expectedInstanceId: params.snapshot.instanceId,
+          expectedVersion: params.snapshot.version,
+        };
+      }
+      if (
+        record.instanceId !== params.snapshot.instanceId ||
+        record.version !== params.snapshot.version
+      ) {
+        return {
+          deleted: false,
+          reason: "conflict",
+          expectedInstanceId: params.snapshot.instanceId,
+          actualInstanceId: record.instanceId,
+          expectedVersion: params.snapshot.version,
+          actualVersion: record.version,
+        };
+      }
+
+      this.stores.delete(key);
+      for (const [waiterKey, waiter] of [...this.waiters.entries()]) {
+        if (waiter.instanceId === record.instanceId) this.waiters.delete(waiterKey);
+      }
+      const result = { deleted: true as const };
+      if (ledgerKey) this.appliedSteps.set(ledgerKey, JSON.stringify(result));
+      return result;
+    });
+  }
+
   async registerWaiter(waiter: StoreWaiter): Promise<void> {
     return this.enqueueWrite(async () => {
       const key = this.waiterKey(
@@ -354,8 +506,6 @@ export class MemoryStoreClient extends StoreClient {
         waiter.executionId,
         waiter.stepKey
       );
-      this.waiters.set(key, cloneStoreState(waiter));
-
       // Lost-wakeup guard: if an update landed between the caller's getStore
       // and this registration, the version has already advanced. Wake
       // immediately – replay re-evaluates the selector, so a spurious wake
@@ -363,10 +513,15 @@ export class MemoryStoreClient extends StoreClient {
       const record = this.stores.get(
         this.storeKey(waiter.storeName, waiter.storeId)
       );
-      if (record && record.version > waiter.sinceVersion) {
-        this.waiters.delete(key);
+      if (
+        !record ||
+        record.instanceId !== waiter.instanceId ||
+        record.version > waiter.sinceVersion
+      ) {
         await this.schedulerClient.requestWakeUp(waiter.event);
+        return;
       }
+      this.waiters.set(key, cloneStoreState(waiter));
     });
   }
 
@@ -413,5 +568,13 @@ export class MemoryStoreClient extends StoreClient {
     stepKey: string
   ) {
     return `${storeName}:${storeId}:${executionId}:${stepKey}`;
+  }
+
+  private assertSnapshotHasInstanceId(snapshot: { instanceId?: string }) {
+    if (!snapshot.instanceId) {
+      throw new Error(
+        "Store snapshot is missing instanceId; read a fresh snapshot"
+      );
+    }
   }
 }

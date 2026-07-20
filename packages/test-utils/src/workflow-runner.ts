@@ -23,9 +23,10 @@ export function createTestSdkFactory(params?: { logger?: Logger }) {
     const memoryEventLoop = new MemoryEventLoop(logger);
     const schedulerClient = new MemorySchedulerClient(memoryEventLoop);
     const storeClient = new MemoryStoreClient({ schedulerClient });
+    const heapClient = new MemoryHeapClient();
 
     const workflowRunner = new WorkflowRunner({
-      heapClient: new MemoryHeapClient(),
+      heapClient,
       schedulerClient,
       storeClient,
       router: workflowRouter,
@@ -69,6 +70,7 @@ export function createTestSdkFactory(params?: { logger?: Logger }) {
       },
       store: storeClient.store.bind(storeClient),
       storeClient,
+      heapClient,
     };
   };
 }

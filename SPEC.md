@@ -163,6 +163,7 @@ type StorePath = readonly (string | number | symbol)[]
 
 type StoreSnapshot<T> = {
   state: T
+  instanceId: string // UUIDv7 assigned when this store instance is created
   version: StoreVersion
 }
 
@@ -190,6 +191,17 @@ interface WorkflowStore<T> {
     key: string,
     updater: (draft: Draft<T>) => void | T | Promise<void | T>
   ): AsyncGenerator<StepResponse, StoreUpdateResult<T>>
+
+  updateFrom(
+    key: string,
+    snapshot: StoreSnapshot<T>,
+    updater: (draft: Draft<T>) => void | T | Promise<void | T>
+  ): AsyncGenerator<StepResponse, StoreUpdateFromResult<T>>
+
+  deleteFrom(
+    key: string,
+    snapshot: StoreSnapshot<T>
+  ): AsyncGenerator<StepResponse, StoreDeleteFromResult>
 
   when<R>(
     selector: StoreSelector<T, R | undefined | null | false>
@@ -424,6 +436,13 @@ interface RuntimeStore<T> {
   update(
     updater: (draft: Draft<T>) => void | T | Promise<void | T>
   ): Promise<StoreUpdateResult<T>>
+
+  updateFrom(
+    snapshot: StoreSnapshot<T>,
+    updater: (draft: Draft<T>) => void | T | Promise<void | T>
+  ): Promise<StoreUpdateFromResult<T>>
+
+  deleteFrom(snapshot: StoreSnapshot<T>): Promise<StoreDeleteFromResult>
 }
 ```
 

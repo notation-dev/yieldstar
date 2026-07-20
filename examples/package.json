@@ -8,6 +8,7 @@
     "@yieldstar/bun-worker-invoker": "workspace:*",
     "@yieldstar/core": "workspace:*",
     "pino": "^9.9.0",
+    "valibot": "^1.4.2",
     "yieldstar": "workspace:*"
   },
   "devDependencies": {
