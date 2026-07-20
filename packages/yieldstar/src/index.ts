@@ -20,4 +20,5 @@ export type {
   StoreUpdateFromResult,
   StoreUpdateResult,
   StoreVersion,
+  WorkflowEvent,
 } from "@yieldstar/core";

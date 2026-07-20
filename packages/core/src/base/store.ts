@@ -17,9 +17,13 @@ export type StandardSchemaV1<Input = unknown, Output = Input> = {
 };
 
 export namespace StandardSchemaV1 {
+  export type PathSegment = {
+    readonly key: PropertyKey;
+  };
+
   export type Issue = {
     readonly message: string;
-    readonly path?: readonly PropertyKey[];
+    readonly path?: readonly (PropertyKey | PathSegment)[];
   };
 
   export type Result<Output> =

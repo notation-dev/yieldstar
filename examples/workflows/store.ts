@@ -1,5 +1,10 @@
 import * as v from "valibot";
-import { defineStore, workflow } from "yieldstar";
+import { defineStore, workflow, type WorkflowEvent } from "yieldstar";
+
+type ConversationParams = {
+  conversationId: string;
+  content: string;
+};
 
 const ConversationSchema = v.object({
   messages: v.array(
@@ -10,14 +15,12 @@ const ConversationSchema = v.object({
   ),
 });
 
-type ConversationState = v.InferOutput<typeof ConversationSchema>;
-
 const ConversationStore = defineStore("conversation", ConversationSchema);
 
-export const storeWorkflow = workflow<
-  { conversationId: string; content: string },
-  ConversationState
->(async function* (step, event) {
+export const storeWorkflow = workflow(async function* (
+  step,
+  event: WorkflowEvent<ConversationParams>
+) {
   const conversation = yield* step.store(ConversationStore, {
     id: event.params.conversationId,
     initial: { messages: [] },
