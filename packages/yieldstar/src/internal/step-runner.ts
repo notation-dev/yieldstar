@@ -17,6 +17,7 @@ import {
   type StoreSnapshot,
   type StoreState,
   type StoreTakeResult,
+  type StoreUpdateFromResult,
   type StoreUpdateResult,
   trackStoreSelector,
 } from "@yieldstar/core";
@@ -47,6 +48,11 @@ export type WorkflowStore<T> = {
     key: string,
     updater: (draft: Draft<T>) => void | T | Promise<void | T>
   ): AsyncGenerator<StepResponse, StoreUpdateResult<T>>;
+  updateFrom(
+    key: string,
+    snapshot: StoreSnapshot<T>,
+    updater: (draft: Draft<T>) => void | T | Promise<void | T>
+  ): AsyncGenerator<StepResponse, StoreUpdateFromResult<T>>;
   when<R>(
     selector: StoreSelector<T, R | undefined | null | false>
   ): AsyncGenerator<StepResponse, NonNullable<R>>;
@@ -184,6 +190,17 @@ function createWorkflowStore<T>(params: {
           // recorded result instead of re-running the updater.
           stepId: { executionId: event.executionId, stepKey },
         })) as StoreUpdateResult<T>
+      );
+    },
+    updateFrom(stepKey, snapshot, updater) {
+      return durableStep<StoreUpdateFromResult<T>>(stepKey, async () =>
+        (await storeClient.updateStoreFrom({
+          definition,
+          id,
+          snapshot,
+          updater: updater as any,
+          stepId: { executionId: event.executionId, stepKey },
+        })) as StoreUpdateFromResult<T>
       );
     },
     when<R>(

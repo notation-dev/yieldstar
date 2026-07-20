@@ -16,6 +16,7 @@ export type {
   StoreSelector,
   StoreSnapshot,
   StoreState,
+  StoreUpdateFromResult,
   StoreUpdateResult,
   StoreVersion,
 } from "@yieldstar/core";

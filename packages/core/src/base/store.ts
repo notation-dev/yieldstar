@@ -77,6 +77,14 @@ export type StoreUpdateResult<T> = {
   version: StoreVersion;
 };
 
+export type StoreUpdateFromResult<T> =
+  | ({ updated: true } & StoreUpdateResult<T>)
+  | {
+      updated: false;
+      expectedVersion: StoreVersion;
+      actualVersion: StoreVersion;
+    };
+
 export type StoreSelector<T, R> = (state: Readonly<T>) => R;
 
 export type StoreTakeResult<R> =
@@ -99,6 +107,10 @@ export type RuntimeStore<T> = {
   update(
     updater: (draft: Draft<T>) => void | T | Promise<void | T>
   ): Promise<StoreUpdateResult<T>>;
+  updateFrom(
+    snapshot: StoreSnapshot<T>,
+    updater: (draft: Draft<T>) => void | T | Promise<void | T>
+  ): Promise<StoreUpdateFromResult<T>>;
 };
 
 export function defineStore<Schema extends StandardSchemaV1>(
@@ -123,6 +135,13 @@ export abstract class StoreClient {
         this.updateStore({
           definition,
           id,
+          updater,
+        }),
+      updateFrom: (snapshot, updater) =>
+        this.updateStoreFrom({
+          definition,
+          id,
+          snapshot,
           updater,
         }),
     };
@@ -161,6 +180,22 @@ export abstract class StoreClient {
     ) => void | StoreState<Schema> | Promise<void | StoreState<Schema>>;
     stepId?: StoreStepId;
   }): Promise<StoreUpdateResult<StoreState<Schema>>>;
+
+  /**
+   * Updates a store only if it has not changed since `snapshot` was read.
+   * A conflict does not run the updater or change the store. When `stepId`
+   * identifies an update that already committed, its recorded result wins
+   * over the version check so replay remains exactly-once.
+   */
+  abstract updateStoreFrom<Schema extends StandardSchemaV1>(params: {
+    definition: StoreDefinition<Schema>;
+    id: string;
+    snapshot: StoreSnapshot<StoreState<Schema>>;
+    updater: (
+      draft: Draft<StoreState<Schema>>
+    ) => void | StoreState<Schema> | Promise<void | StoreState<Schema>>;
+    stepId?: StoreStepId;
+  }): Promise<StoreUpdateFromResult<StoreState<Schema>>>;
 
   /**
    * Atomically selects and claims from a store. The selector and claim

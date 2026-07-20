@@ -95,6 +95,33 @@ test("workflow store updates are idempotent across replay", async () => {
   ]);
 });
 
+test("workflow stores can conditionally update from a snapshot", async () => {
+  const testWorkflow = workflow(async function* (step) {
+    const store = yield* step.store(ConversationStore, {
+      id: "conditional",
+      initial: { messages: [], status: "idle" },
+    });
+    const snapshot = yield* store.get("snapshot");
+
+    yield* store.update("intervening-update", (draft) => {
+      draft.status = "working";
+    });
+
+    return yield* store.updateFrom("conditional-update", snapshot, (draft) => {
+      draft.status = "idle";
+    });
+  });
+
+  const sdk = createSdk({ workflow: testWorkflow });
+  const result = await sdk.triggerAndWait({ workflowId: "workflow" });
+
+  expect(result).toEqual({
+    updated: false,
+    expectedVersion: 0,
+    actualVersion: 1,
+  });
+});
+
 test("external store updates wake when waiters", async () => {
   const testWorkflow = workflow(async function* (step) {
     const store = yield* step.store(ConversationStore, {
@@ -679,6 +706,82 @@ test("store update converges exactly-once when the heap write is lost", async ()
   expect(snapshot.version).toBe(1);
   expect(snapshot.state.messages).toEqual([
     { id: "msg-1", content: "hello", processed: false },
+  ]);
+});
+
+test("updateFrom replay returns its committed result after the store advances", async () => {
+  let updaterRuns = 0;
+  let originalSnapshot: {
+    state: ConversationState;
+    version: number;
+  };
+
+  const testWorkflow = workflow(async function* (step) {
+    const store = yield* step.store(ConversationStore, {
+      id: "conditional-crash-gap",
+    });
+
+    return yield* store.updateFrom(
+      "persist-from-snapshot",
+      originalSnapshot,
+      (draft) => {
+        updaterRuns++;
+        draft.status = "working";
+      }
+    );
+  });
+
+  const sdk = createSdk({ workflow: testWorkflow });
+  originalSnapshot = await sdk.storeClient.getOrCreateStore({
+    definition: ConversationStore,
+    id: "conditional-crash-gap",
+    initial: { messages: [], status: "idle" },
+  });
+
+  // Simulate the conditional store commit succeeding before the workflow
+  // heap records the step result.
+  const committed = await sdk.storeClient.updateStoreFrom({
+    definition: ConversationStore,
+    id: "conditional-crash-gap",
+    snapshot: originalSnapshot,
+    updater(draft) {
+      draft.status = "working";
+    },
+    stepId: {
+      executionId: "conditional-crash-replay",
+      stepKey: "persist-from-snapshot",
+    },
+  });
+
+  // The original snapshot is now stale. Ledger-first replay must still return
+  // the committed result rather than report a conflict or run the updater.
+  await sdk.storeClient.updateStore({
+    definition: ConversationStore,
+    id: "conditional-crash-gap",
+    updater(draft) {
+      draft.messages.push({
+        id: "msg-after",
+        content: "later",
+        processed: false,
+      });
+    },
+  });
+
+  const replayed = await sdk.triggerAndWait({
+    workflowId: "workflow",
+    executionId: "conditional-crash-replay",
+  });
+
+  expect(replayed).toEqual(committed);
+  expect(replayed.updated).toBe(true);
+  expect(updaterRuns).toBe(0);
+
+  const current = await sdk
+    .store(ConversationStore, "conditional-crash-gap")
+    .get();
+  expect(current.version).toBe(2);
+  expect(current.state.messages).toEqual([
+    { id: "msg-after", content: "later", processed: false },
   ]);
 });
 

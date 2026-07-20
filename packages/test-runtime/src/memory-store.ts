@@ -19,6 +19,7 @@ import {
   type StoreState,
   type StoreStepId,
   type StoreTakeResult,
+  type StoreUpdateFromResult,
   type StoreUpdateResult,
   type StoreWaiter,
 } from "@yieldstar/core";
@@ -125,6 +126,39 @@ export class MemoryStoreClient extends StoreClient {
     ) => void | StoreState<Schema> | Promise<void | StoreState<Schema>>;
     stepId?: StoreStepId;
   }): Promise<StoreUpdateResult<StoreState<Schema>>> {
+    return (await this.updateStoreInternal(params)) as StoreUpdateResult<
+      StoreState<Schema>
+    >;
+  }
+
+  async updateStoreFrom<Schema extends StandardSchemaV1>(params: {
+    definition: StoreDefinition<Schema>;
+    id: string;
+    snapshot: StoreSnapshot<StoreState<Schema>>;
+    updater: (
+      draft: Draft<StoreState<Schema>>
+    ) => void | StoreState<Schema> | Promise<void | StoreState<Schema>>;
+    stepId?: StoreStepId;
+  }): Promise<StoreUpdateFromResult<StoreState<Schema>>> {
+    const result = await this.updateStoreInternal({
+      ...params,
+      expectedVersion: params.snapshot.version,
+    });
+    return "updated" in result ? result : { updated: true, ...result };
+  }
+
+  private updateStoreInternal<Schema extends StandardSchemaV1>(params: {
+    definition: StoreDefinition<Schema>;
+    id: string;
+    updater: (
+      draft: Draft<StoreState<Schema>>
+    ) => void | StoreState<Schema> | Promise<void | StoreState<Schema>>;
+    stepId?: StoreStepId;
+    expectedVersion?: number;
+  }): Promise<
+    | StoreUpdateResult<StoreState<Schema>>
+    | Extract<StoreUpdateFromResult<StoreState<Schema>>, { updated: false }>
+  > {
     return this.enqueueWrite(async () => {
       const key = this.storeKey(params.definition.name, params.id);
 
@@ -144,6 +178,17 @@ export class MemoryStoreClient extends StoreClient {
         throw new Error(
           `Store "${params.definition.name}:${params.id}" does not exist`
         );
+      }
+
+      if (
+        params.expectedVersion !== undefined &&
+        record.version !== params.expectedVersion
+      ) {
+        return {
+          updated: false as const,
+          expectedVersion: params.expectedVersion,
+          actualVersion: record.version,
+        };
       }
 
       const previousState = cloneStoreState(

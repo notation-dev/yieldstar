@@ -86,6 +86,34 @@ What if the process crashes after the store commits, but before the step result 
 
 Keep updaters synchronous and pure. The signature allows async, but an updater holds the store's write transaction open while it runs – no network calls, no timers.
 
+When a decision depends on an earlier read, use `updateFrom` to commit only if
+the store has not changed since that snapshot:
+
+```ts
+const snapshot = yield* store.get("load-before-sync");
+const remote = yield* step.run("sync-remote", () =>
+  syncRemote(snapshot.state)
+);
+
+const result = yield* store.updateFrom(
+  "save-remote-result",
+  snapshot,
+  (draft) => {
+    draft.remoteId = remote.id;
+  }
+);
+
+if (!result.updated) {
+  // The updater did not run. Read fresh state and reconcile in new steps.
+}
+```
+
+The successful branch contains the same state and version fields as
+`store.update`, plus `updated: true`. A conflict returns `updated: false`, the
+snapshot's `expectedVersion`, and the store's `actualVersion`. Both outcomes
+are durable step results. A retry after a conflict must use a fresh read and a
+new step key.
+
 ## Waiting
 
 To pause a workflow until the store reaches some condition, see [Waiting on State](./store-waiting.md).

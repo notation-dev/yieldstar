@@ -20,6 +20,7 @@ import {
   type StoreState,
   type StoreStepId,
   type StoreTakeResult,
+  type StoreUpdateFromResult,
   type StoreUpdateResult,
   type StoreWaiter,
 } from "@yieldstar/core";
@@ -163,6 +164,39 @@ export class SqliteStoreClient extends StoreClient {
     ) => void | StoreState<Schema> | Promise<void | StoreState<Schema>>;
     stepId?: StoreStepId;
   }): Promise<StoreUpdateResult<StoreState<Schema>>> {
+    return (await this.updateStoreInternal(params)) as StoreUpdateResult<
+      StoreState<Schema>
+    >;
+  }
+
+  async updateStoreFrom<Schema extends StandardSchemaV1>(params: {
+    definition: StoreDefinition<Schema>;
+    id: string;
+    snapshot: StoreSnapshot<StoreState<Schema>>;
+    updater: (
+      draft: Draft<StoreState<Schema>>
+    ) => void | StoreState<Schema> | Promise<void | StoreState<Schema>>;
+    stepId?: StoreStepId;
+  }): Promise<StoreUpdateFromResult<StoreState<Schema>>> {
+    const result = await this.updateStoreInternal({
+      ...params,
+      expectedVersion: params.snapshot.version,
+    });
+    return "updated" in result ? result : { updated: true, ...result };
+  }
+
+  private updateStoreInternal<Schema extends StandardSchemaV1>(params: {
+    definition: StoreDefinition<Schema>;
+    id: string;
+    updater: (
+      draft: Draft<StoreState<Schema>>
+    ) => void | StoreState<Schema> | Promise<void | StoreState<Schema>>;
+    stepId?: StoreStepId;
+    expectedVersion?: number;
+  }): Promise<
+    | StoreUpdateResult<StoreState<Schema>>
+    | Extract<StoreUpdateFromResult<StoreState<Schema>>, { updated: false }>
+  > {
     return this.enqueueWrite(async () => {
       let result: StoreUpdateResult<StoreState<Schema>>;
       let waitersToWake: MatchedWaiter[] = [];
@@ -191,6 +225,18 @@ export class SqliteStoreClient extends StoreClient {
           throw new Error(
             `Store "${params.definition.name}:${params.id}" does not exist`
           );
+        }
+
+        if (
+          params.expectedVersion !== undefined &&
+          row.version !== params.expectedVersion
+        ) {
+          this.db.run("COMMIT");
+          return {
+            updated: false as const,
+            expectedVersion: params.expectedVersion,
+            actualVersion: row.version,
+          };
         }
 
         const previousState = JSON.parse(row.state) as StoreState<Schema>;

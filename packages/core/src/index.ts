@@ -14,6 +14,7 @@ export type {
   StoreState,
   StoreStepId,
   StoreTakeResult,
+  StoreUpdateFromResult,
   StoreUpdateResult,
   StoreVersion,
   StoreWaiter,

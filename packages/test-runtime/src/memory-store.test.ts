@@ -138,6 +138,68 @@ test("concurrent async updaters both commit", async () => {
   expect(snapshot.state.messages).toEqual([{ id: "msg-a" }, { id: "msg-b" }]);
 });
 
+test("updateStoreFrom commits only from the supplied snapshot and replays ledger-first", async () => {
+  const { client } = createClient();
+  const snapshot = await client.getOrCreateStore({
+    definition: Store,
+    id: "conditional",
+    initial: { messages: [] },
+  });
+  let updaterRuns = 0;
+  const stepId = { executionId: "execution", stepKey: "conditional-update" };
+
+  const committed = await client.updateStoreFrom({
+    definition: Store,
+    id: "conditional",
+    snapshot,
+    stepId,
+    updater(draft) {
+      updaterRuns++;
+      draft.messages.push({ id: "msg-1" });
+    },
+  });
+  expect(committed).toEqual({
+    updated: true,
+    state: { messages: [{ id: "msg-1" }] },
+    previousVersion: 0,
+    version: 1,
+  });
+
+  await client.updateStore({
+    definition: Store,
+    id: "conditional",
+    updater(draft) {
+      draft.messages.push({ id: "msg-2" });
+    },
+  });
+
+  const replayed = await client.updateStoreFrom({
+    definition: Store,
+    id: "conditional",
+    snapshot,
+    stepId,
+    updater() {
+      updaterRuns++;
+    },
+  });
+  expect(replayed).toEqual(committed);
+
+  const conflicted = await client.updateStoreFrom({
+    definition: Store,
+    id: "conditional",
+    snapshot,
+    updater() {
+      updaterRuns++;
+    },
+  });
+  expect(conflicted).toEqual({
+    updated: false,
+    expectedVersion: 0,
+    actualVersion: 2,
+  });
+  expect(updaterRuns).toBe(1);
+});
+
 type TakeState = {
   messages: { id: string; claimedBy?: string }[];
 };
