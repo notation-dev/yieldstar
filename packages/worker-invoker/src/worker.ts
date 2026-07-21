@@ -31,6 +31,7 @@ export function createWorkflowWorker(
           process.send!({ status: "error", error: serializeError(error) });
         }
       });
+      process.send!({ status: "ready" });
     },
   };
 }

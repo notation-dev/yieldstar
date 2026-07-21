@@ -31,18 +31,18 @@ importers:
 
   examples:
     dependencies:
-      '@yieldstar/bun-http-server':
-        specifier: workspace:*
-        version: link:../packages/bun-http-server
-      '@yieldstar/bun-worker-invoker':
-        specifier: workspace:*
-        version: link:../packages/bun-worker-invoker
       '@yieldstar/core':
         specifier: workspace:*
         version: link:../packages/core
+      '@yieldstar/http-server':
+        specifier: workspace:*
+        version: link:../packages/http-server
       '@yieldstar/sqlite-runtime':
         specifier: workspace:*
         version: link:../packages/sqlite-runtime
+      '@yieldstar/worker-invoker':
+        specifier: workspace:*
+        version: link:../packages/worker-invoker
       pino:
         specifier: ^9.9.0
         version: 9.9.0
@@ -60,38 +60,6 @@ importers:
         specifier: ^11.3.0
         version: 11.3.0
 
-  packages/bun-http-server:
-    dependencies:
-      '@yieldstar/core':
-        specifier: workspace:*
-        version: link:../core
-      pino:
-        specifier: ^9.9.0
-        version: 9.9.0
-      serialize-error:
-        specifier: ^11.0.3
-        version: 11.0.3
-    devDependencies:
-      '@types/bun':
-        specifier: ^1.2.21
-        version: 1.2.21(@types/react@19.1.11)
-
-  packages/bun-worker-invoker:
-    dependencies:
-      '@yieldstar/core':
-        specifier: workspace:*
-        version: link:../core
-      pino:
-        specifier: ^9.9.0
-        version: 9.9.0
-      serialize-error:
-        specifier: ^10.0.0
-        version: 10.0.0
-    devDependencies:
-      '@types/bun':
-        specifier: ^1.2.21
-        version: 1.2.21(@types/react@19.1.11)
-
   packages/core:
     dependencies:
       '@standard-schema/spec':
@@ -104,6 +72,22 @@ importers:
       pino:
         specifier: ^9.9.0
         version: 9.9.0
+
+  packages/http-server:
+    dependencies:
+      '@yieldstar/core':
+        specifier: workspace:*
+        version: link:../core
+      pino:
+        specifier: ^9.9.0
+        version: 9.9.0
+      serialize-error:
+        specifier: ^11.0.3
+        version: 11.0.3
+    devDependencies:
+      '@types/node':
+        specifier: ^22.18.0
+        version: 22.18.0
 
   packages/sqlite-runtime:
     dependencies:
@@ -133,9 +117,9 @@ importers:
         specifier: ^9.9.0
         version: 9.9.0
     devDependencies:
-      '@types/bun':
-        specifier: ^1.2.21
-        version: 1.2.21(@types/react@19.1.11)
+      '@types/node':
+        specifier: ^22.18.0
+        version: 22.18.0
 
   packages/test-runtime:
     dependencies:
@@ -149,9 +133,9 @@ importers:
         specifier: ^11.1.0
         version: 11.1.1
     devDependencies:
-      '@types/bun':
-        specifier: ^1.2.21
-        version: 1.2.21(@types/react@19.1.11)
+      '@types/node':
+        specifier: ^22.18.0
+        version: 22.18.0
 
   packages/test-utils:
     dependencies:
@@ -170,6 +154,22 @@ importers:
       yieldstar:
         specifier: workspace:*
         version: link:../yieldstar
+
+  packages/worker-invoker:
+    dependencies:
+      '@yieldstar/core':
+        specifier: workspace:*
+        version: link:../core
+      pino:
+        specifier: ^9.9.0
+        version: 9.9.0
+      serialize-error:
+        specifier: ^11.0.3
+        version: 11.0.3
+    devDependencies:
+      '@types/node':
+        specifier: ^22.18.0
+        version: 22.18.0
 
   packages/yieldstar:
     dependencies:
@@ -204,6 +204,9 @@ importers:
       '@yieldstar/test-utils':
         specifier: workspace:*
         version: link:../packages/test-utils
+      '@yieldstar/worker-invoker':
+        specifier: workspace:*
+        version: link:../packages/worker-invoker
       expect:
         specifier: ^30.2.0
         version: 30.4.1
@@ -622,10 +625,6 @@ packages:
 
   secure-json-parse@2.7.0:
     resolution: {integrity: sha512-6aU+Rwsezw7VR8/nyvKTx8QpWH9FrcYiXXlqC4z5d5XQBDRqtbfsRjnwGyqbi3gddNtWHuEk9OANUotL26qKUw==}
-
-  serialize-error@10.0.0:
-    resolution: {integrity: sha512-voTcmggyz8Ou35k7lXcC8Tn02lzj8h3pa3HtRdo1PLGj5wB7Byobf4vLakMkQohB6Zz6nMG5IUbVBSgSACrurg==}
-    engines: {node: '>=14.16'}
 
   serialize-error@11.0.3:
     resolution: {integrity: sha512-2G2y++21dhj2R7iHAdd0FIzjGwuKZld+7Pl/bTU6YIkrC2ZMbVUjm+luj6A6V34Rv9XfKJDKpTWu9W4Gse1D9g==}
@@ -1188,10 +1187,6 @@ snapshots:
   safer-buffer@2.1.2: {}
 
   secure-json-parse@2.7.0: {}
-
-  serialize-error@10.0.0:
-    dependencies:
-      type-fest: 2.19.0
 
   serialize-error@11.0.3:
     dependencies:

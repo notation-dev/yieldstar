@@ -7,7 +7,7 @@ This repository is a TypeScript monorepo set up with:
 
 ## Layout
 
-- `packages/` – source for all publishable packages (e.g. `core`, `yieldstar`, `bun-http-server`, etc.)
+- `packages/` – source for all publishable packages (e.g. `core`, `yieldstar`, `http-server`, etc.)
 - `examples/` – small apps and workflow examples
 - `test/` – integration tests written using `bun:test`
 - Workspace configuration is defined in `pnpm-workspace.yaml`:
@@ -66,10 +66,9 @@ The monorepo contains these packages:
 
 - `core` - Base types and runtime abstractions
 - `yieldstar` - Main workflow SDK and exports
-- `bun-http-server` - HTTP server runtime for Bun
-- `bun-postgres-runtime` - PostgreSQL-backed runtime for Bun
+- `http-server` - HTTP route handlers and middleware
 - `sqlite-runtime` - Driver-agnostic SQLite runtime with Bun and Node connectors
-- `bun-worker-invoker` - Worker-based step invoker for Bun
+- `worker-invoker` - Subprocess-based step invoker
 - `test-invoker` - Test utilities for step invocation
 - `test-runtime` - In-memory runtime for testing
 - `test-utils` - Shared testing utilities
@@ -86,7 +85,3 @@ Use these commands for releases:
 - `bun run bump` - Bump version with alpha pre-release
 - `bun run prerelease` - Install deps and bundle before release
 - `bun run release` - Execute the release script
-
-## Postgres test database
-
-Currently postgres test credentials are hard coded.

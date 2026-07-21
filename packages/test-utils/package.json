@@ -1,11 +1,11 @@
 {
   "name": "@yieldstar/test-utils",
-  "version": "0.4.6",
+  "version": "0.5.0",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "bun build src/index.ts --outfile dist/index.js --packages=external"
+    "build": "bun build src/index.ts --outfile dist/index.js --target node --packages=external"
   },
   "dependencies": {
     "@yieldstar/core": "workspace:*",

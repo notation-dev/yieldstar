@@ -1,6 +1,6 @@
 import pino from "pino";
 import { WorkflowRunner } from "@yieldstar/core";
-import { createWorkflowWorker } from "@yieldstar/bun-worker-invoker";
+import { createWorkflowWorker } from "@yieldstar/worker-invoker";
 import {
   SqliteSchedulerClient,
   SqliteHeapClient,

@@ -1,5 +1,5 @@
 import pino from "pino";
-import { createWorkflowInvoker } from "@yieldstar/bun-worker-invoker";
+import { createWorkflowInvoker } from "@yieldstar/worker-invoker";
 import { createLocalSdk } from "yieldstar";
 import { sqliteEventLoop } from "./shared";
 import type { WorkflowRouter } from "./shared";

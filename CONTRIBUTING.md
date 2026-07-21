@@ -23,9 +23,9 @@ By contributing, you affirm that you have the right to submit your contributions
 
 - `packages/core` – Base types and runtime abstractions (scheduler, heap, steps)
 - `packages/yieldstar` – Main SDK: workflow API, local/HTTP client
-- `packages/bun-http-server` – HTTP server helpers for Bun (routes + middleware)
+- `packages/http-server` – HTTP route handlers and middleware
 - `packages/sqlite-runtime` – SQLite-backed heap, timers, task queue, event loop
-- `packages/bun-worker-invoker` – Bun worker‑based step invoker/worker
+- `packages/worker-invoker` – Subprocess-based step invoker and worker
 - `packages/test-runtime` – In‑memory scheduler, heap, event loop (for tests)
 - `packages/test-invoker` – Minimal invoker to run workflows in tests
 - `packages/test-utils` – Internal test utilities (see note below)

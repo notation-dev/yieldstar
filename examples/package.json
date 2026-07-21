@@ -1,11 +1,11 @@
 {
   "name": "yieldstar-examples",
-  "version": "0.4.6",
+  "version": "0.5.0",
   "private": true,
   "dependencies": {
-    "@yieldstar/bun-http-server": "workspace:*",
+    "@yieldstar/http-server": "workspace:*",
     "@yieldstar/sqlite-runtime": "workspace:*",
-    "@yieldstar/bun-worker-invoker": "workspace:*",
+    "@yieldstar/worker-invoker": "workspace:*",
     "@yieldstar/core": "workspace:*",
     "pino": "^9.9.0",
     "valibot": "^1.4.2",

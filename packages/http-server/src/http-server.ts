@@ -1,4 +1,3 @@
-import type { RouterTypes } from "bun";
 import type { Logger } from "pino";
 import type { ExecutionEvent, WorkflowInvoker } from "@yieldstar/core";
 import { serializeError } from "serialize-error";
@@ -9,12 +8,15 @@ import {
 } from "@yieldstar/core";
 import { executeMiddlewareChain } from "./middleware";
 
+export type RouteHandler = (request: Request) => Response | Promise<Response>;
+export type Routes = Record<string, { POST: RouteHandler }>;
+
 export const createTriggerHandler =
   (params: {
     invoker: WorkflowInvoker;
     logger: Logger;
     middleware?: MiddlewareFunction[];
-  }): RouterTypes.RouteHandler<string> =>
+  }): RouteHandler =>
   async (req) => {
     const { logger, invoker, middleware = [] } = params;
 
@@ -48,11 +50,9 @@ export const createTriggerHandler =
   };
 
 export const createEventsHandler =
-  (params: { invoker: WorkflowInvoker }): RouterTypes.RouteHandler<string> =>
+  (params: { invoker: WorkflowInvoker }): RouteHandler =>
   async (req) => {
     const { invoker } = params;
-
-    const url = new URL(req.url);
 
     const { executionId } = (await req.json()) as {
       executionId: string;
@@ -82,7 +82,7 @@ export function createRoutes(params: {
   invoker: WorkflowInvoker;
   logger: Logger;
   middleware?: MiddlewareFunction[];
-}): Record<string, { POST: RouterTypes.RouteHandler<string> }> {
+}): Routes {
   const { logger, invoker, middleware = [], basePath = "" } = params;
   return {
     [`${basePath}/trigger`]: {

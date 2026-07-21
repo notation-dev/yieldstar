@@ -1,6 +1,6 @@
 {
   "name": "yieldstar-test",
-  "version": "0.4.6",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
   "dependencies": {
@@ -8,6 +8,7 @@
     "@yieldstar/sqlite-runtime": "workspace:*",
     "@yieldstar/test-runtime": "workspace:*",
     "@yieldstar/test-utils": "workspace:*",
+    "@yieldstar/worker-invoker": "workspace:*",
     "expect": "^30.2.0",
     "pino": "^9.9.0",
     "yieldstar": "workspace:*"
