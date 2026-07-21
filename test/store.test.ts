@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import type { StandardSchemaV1 } from "yieldstar";
+import { createTestSdkFactory, testSchema } from "@yieldstar/test-utils";
 import { defineStore, workflow } from "yieldstar";
-import { createTestSdkFactory } from "@yieldstar/test-utils";
 import { sleep } from "bun";
 
 type Message = {
@@ -18,7 +18,7 @@ type ConversationState = {
 
 const ConversationStore = defineStore(
   "conversation",
-  schema<ConversationState>()
+  testSchema<ConversationState>()
 );
 
 const createSdk = createTestSdkFactory();
@@ -852,18 +852,6 @@ test("deleteFrom replay returns its committed result without deleting a new inst
     id: storeId,
   })).toEqual(recreated);
 });
-
-function schema<T>(): StandardSchemaV1<unknown, T> {
-  return {
-    "~standard": {
-      version: 1,
-      vendor: "yieldstar-test",
-      validate(value) {
-        return { value: value as T };
-      },
-    },
-  };
-}
 
 function strictSchema<T>(validator: (v: unknown) => string | undefined): StandardSchemaV1<unknown, T> {
   return {
