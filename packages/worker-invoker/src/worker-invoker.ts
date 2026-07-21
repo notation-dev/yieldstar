@@ -7,10 +7,11 @@ import { deserializeError } from "serialize-error";
 
 export function createWorkflowInvoker(params: {
   workerPath: string;
+  execPath?: string;
   logger: Logger;
 }): WorkflowInvoker {
   const workflowEndEmitter = new EventEmitter();
-  const { logger, workerPath } = params;
+  const { logger, workerPath, execPath } = params;
   return {
     workflowEndEmitter,
     async execute(event: MiddlewareEvent) {
@@ -21,6 +22,7 @@ export function createWorkflowInvoker(params: {
         : workerPath;
 
       const childProcess = fork(filePath, [], {
+        execPath,
         serialization: "advanced",
         stdio: ["inherit", "inherit", "inherit", "ipc"],
       });
@@ -71,11 +73,9 @@ export function createWorkflowInvoker(params: {
             }
             break;
           case "error":
-            workflowEndEmitter.emit(
-              executionId,
-              deserializeError(message.error)
-            );
-            logger.error({ executionId }, message.error);
+            const error = deserializeError(message.error);
+            workflowEndEmitter.emit(executionId, error);
+            logger.error({ executionId, err: error }, "Workflow errored");
         }
 
         logger.info({ executionId }, "Terminating child process");

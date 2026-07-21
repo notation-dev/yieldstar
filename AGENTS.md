@@ -67,7 +67,6 @@ The monorepo contains these packages:
 - `core` - Base types and runtime abstractions
 - `yieldstar` - Main workflow SDK and exports
 - `http-server` - HTTP route handlers and middleware
-- `bun-postgres-runtime` - PostgreSQL-backed runtime for Bun
 - `sqlite-runtime` - Driver-agnostic SQLite runtime with Bun and Node connectors
 - `worker-invoker` - Subprocess-based step invoker
 - `test-invoker` - Test utilities for step invocation
@@ -86,7 +85,3 @@ Use these commands for releases:
 - `bun run bump` - Bump version with alpha pre-release
 - `bun run prerelease` - Install deps and bundle before release
 - `bun run release` - Execute the release script
-
-## Postgres test database
-
-Currently postgres test credentials are hard coded.

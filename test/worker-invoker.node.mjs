@@ -29,24 +29,19 @@ test("forks a worker and preserves its Map context", { timeout: 2_000 }, async (
 });
 
 test("rejects when the worker process cannot spawn", { timeout: 2_000 }, async () => {
-  const originalExecPath = process.execPath;
-  process.execPath = "/missing/yieldstar-node";
-  try {
-    const invoker = createWorkflowInvoker({
-      workerPath: new URL("success.mjs", fixtures).href,
-      logger,
-    });
-    await assert.rejects(
-      invoker.execute({
-        workflowId: "workflow",
-        executionId: "worker-spawn-error",
-        context: new Map(),
-      }),
-      { code: "ENOENT" }
-    );
-  } finally {
-    process.execPath = originalExecPath;
-  }
+  const invoker = createWorkflowInvoker({
+    workerPath: new URL("success.mjs", fixtures).href,
+    execPath: "/missing/yieldstar-node",
+    logger,
+  });
+  await assert.rejects(
+    invoker.execute({
+      workflowId: "workflow",
+      executionId: "worker-spawn-error",
+      context: new Map(),
+    }),
+    { code: "ENOENT" }
+  );
 });
 
 test("emits nothing when a suspended workflow replies without a result", { timeout: 2_000 }, async () => {

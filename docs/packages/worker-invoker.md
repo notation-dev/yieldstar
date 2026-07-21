@@ -8,9 +8,9 @@ Subprocess-based workflow invoker. Forks a new child process for each workflow e
 bun add @yieldstar/worker-invoker
 ```
 
-## `createWorkflowInvoker({ workerPath, logger })`
+## `createWorkflowInvoker({ workerPath, execPath?, logger })`
 
-Creates a `WorkflowInvoker` that forks a subprocess with `node:child_process`. Each call to `execute` runs the worker with `process.execPath`, sends the execution event via IPC, and waits for a response.
+Creates a `WorkflowInvoker` that forks a subprocess with `node:child_process`. Each call to `execute` runs the worker with `process.execPath` (or `execPath` when given), sends the execution event via IPC, and waits for a response.
 
 ```ts
 import { createWorkflowInvoker } from "@yieldstar/worker-invoker";
@@ -23,12 +23,11 @@ const invoker = createWorkflowInvoker({
 
 TypeScript worker paths require Node 22.6 or newer for built-in type stripping. Use compiled JavaScript workers on older Node versions.
 
-> **BREAKING:** The former `executable` option has been removed because standalone Bun executables cannot use Node's advanced IPC serialization.
-
-| Param        | Type     | Description                                |
-| ------------ | -------- | ------------------------------------------ |
-| `workerPath` | `string` | Path or `file://` URL to the worker script |
-| `logger`     | `Logger` | Pino logger                                |
+| Param        | Type     | Description                                              |
+| ------------ | -------- | -------------------------------------------------------- |
+| `workerPath` | `string` | Path or `file://` URL to the worker script               |
+| `execPath`   | `string` | Runtime binary used to fork the worker (defaults to `process.execPath`) |
+| `logger`     | `Logger` | Pino logger                                              |
 
 The invoker exposes a `workflowEndEmitter` (`EventEmitter`) that fires when a workflow completes or errors. The local SDK listens on this emitter to resolve `triggerAndWait` promises.
 
