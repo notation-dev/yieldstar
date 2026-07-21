@@ -1,70 +1,27 @@
-import { Database } from "bun:sqlite";
 import { describe, expect, spyOn, test } from "bun:test";
 import * as core from "@yieldstar/core";
 import {
   defineStore,
-  type SchedulerClient,
   type StoreClient,
-  type StorePath,
-  type StoreWaiter,
   type WorkflowEvent,
 } from "@yieldstar/core";
 import { testSchema } from "@yieldstar/test-utils";
-import { SqliteStoreClient } from "../packages/bun-sqlite-runtime/src/sqlite-store";
 import { MemoryStoreClient } from "../packages/test-runtime/src/memory-store";
-
-type StoreClientHarness = {
-  client: StoreClient;
-  dispose(): void | Promise<void>;
-};
-
-type StoreClientTarget = {
-  name: string;
-  create(schedulerClient: SchedulerClient): StoreClientHarness | Promise<StoreClientHarness>;
-};
-
-type SharedStoreClientTarget = {
-  name: string;
-  create(schedulerClients: [SchedulerClient, SchedulerClient]):
-    | (Omit<StoreClientHarness, "client"> & { clients: [StoreClient, StoreClient] })
-    | Promise<Omit<StoreClientHarness, "client"> & { clients: [StoreClient, StoreClient] }>;
-};
-
-type DurableStoreClientTarget = {
-  name: string;
-  create(schedulerClient: SchedulerClient):
-    | (StoreClientHarness & {
-        restart(schedulerClient: SchedulerClient): StoreClient | Promise<StoreClient>;
-      })
-    | Promise<
-        StoreClientHarness & {
-          restart(schedulerClient: SchedulerClient): StoreClient | Promise<StoreClient>;
-        }
-      >;
-};
-
-type StoreConformanceCase = {
-  name: string;
-  run(): void | Promise<void>;
-};
-
-type AddStoreConformanceCase = (
-  name: string,
-  run: () => void | Promise<void>
-) => void;
-
-function collectStoreConformanceCases(): {
-  cases: StoreConformanceCase[];
-  addCase: AddStoreConformanceCase;
-} {
-  const cases: StoreConformanceCase[] = [];
-  return {
-    cases,
-    addCase(name, run) {
-      cases.push({ name, run });
-    },
-  };
-}
+import {
+  durableSqliteStoreTarget,
+  memoryStoreTarget,
+  sharedSqliteStoreTarget,
+  sqliteStoreTarget,
+} from "./store-client-conformance-targets";
+import {
+  collectStoreConformanceCases,
+  collectingScheduler,
+  noopScheduler,
+  storeWaiter,
+  type DurableStoreClientTarget,
+  type SharedStoreClientTarget,
+  type StoreClientTarget,
+} from "./store-client-conformance-utils";
 
 type State = {
   messages: { id: string }[];
@@ -81,6 +38,7 @@ const event: WorkflowEvent = {
   params: undefined,
   context: new Map(),
 };
+const waiter = storeWaiter(event);
 
 function storeClientConformanceCases(target: StoreClientTarget) {
   const Store = defineStore(`${target.name}-store-conformance`, testSchema<State>());
@@ -1049,62 +1007,7 @@ function durableWakeConformanceCases(target: DurableStoreClientTarget) {
   return cases;
 }
 
-const memory: StoreClientTarget = {
-  name: "memory",
-  create(schedulerClient) {
-    return {
-      client: new MemoryStoreClient({ schedulerClient }),
-      dispose() {},
-    };
-  },
-};
-
-const sqlite: StoreClientTarget = {
-  name: "sqlite",
-  create(schedulerClient) {
-    const db = new Database(":memory:");
-    return {
-      client: new SqliteStoreClient({ db, schedulerClient }),
-      dispose() {
-        db.close();
-      },
-    };
-  },
-};
-
-const sharedSqlite: SharedStoreClientTarget = {
-  name: "sqlite",
-  create([firstScheduler, secondScheduler]) {
-    const db = new Database(":memory:");
-    return {
-      clients: [
-        new SqliteStoreClient({ db, schedulerClient: firstScheduler }),
-        new SqliteStoreClient({ db, schedulerClient: secondScheduler }),
-      ],
-      dispose() {
-        db.close();
-      },
-    };
-  },
-};
-
-const durableSqlite: DurableStoreClientTarget = {
-  name: "sqlite",
-  create(schedulerClient) {
-    const db = new Database(":memory:");
-    return {
-      client: new SqliteStoreClient({ db, schedulerClient }),
-      restart(nextSchedulerClient) {
-        return new SqliteStoreClient({ db, schedulerClient: nextSchedulerClient });
-      },
-      dispose() {
-        db.close();
-      },
-    };
-  },
-};
-
-for (const target of [memory, sqlite]) {
+for (const target of [memoryStoreTarget, sqliteStoreTarget]) {
   describe(`${target.name} store client`, () => {
     for (const { name, run } of storeClientConformanceCases(target)) {
       test(name, run);
@@ -1118,14 +1021,14 @@ for (const target of [memory, sqlite]) {
   });
 }
 
-describe(`${sharedSqlite.name} shared backend`, () => {
-  for (const { name, run } of sharedBackendConformanceCases(sharedSqlite)) {
+describe(`${sharedSqliteStoreTarget.name} shared backend`, () => {
+  for (const { name, run } of sharedBackendConformanceCases(sharedSqliteStoreTarget)) {
     test(name, run);
   }
 });
 
-describe(`${durableSqlite.name} durable wake delivery`, () => {
-  for (const { name, run } of durableWakeConformanceCases(durableSqlite)) {
+describe(`${durableSqliteStoreTarget.name} durable wake delivery`, () => {
+  for (const { name, run } of durableWakeConformanceCases(durableSqliteStoreTarget)) {
     test(name, run);
   }
 });
@@ -1162,34 +1065,3 @@ test("memory store retries an updater after a commit conflict", async () => {
 
   expect(updaterRuns).toBe(3);
 });
-
-function waiter(
-  storeName: string,
-  storeId: string,
-  instanceId: string,
-  sinceVersion: number
-): StoreWaiter {
-  return {
-    workflowId: event.workflowId,
-    executionId: event.executionId,
-    stepKey: "wait",
-    event,
-    storeName,
-    storeId,
-    instanceId,
-    sinceVersion,
-    readPaths: [["messages"]] as StorePath[],
-  };
-}
-
-function noopScheduler(): SchedulerClient {
-  return { async requestWakeUp() {} };
-}
-
-function collectingScheduler(events: WorkflowEvent[]): SchedulerClient {
-  return {
-    async requestWakeUp(wakeEvent) {
-      events.push(wakeEvent);
-    },
-  };
-}
