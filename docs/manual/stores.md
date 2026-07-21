@@ -94,11 +94,6 @@ Updaters must be synchronous, deterministic, and side-effect-free. Updater
 signatures do not accept promises. Do not perform network calls, timers, or
 other observable work: CAS conflicts may re-run the updater.
 
-An update rejection does not prove that its state change rolled back. A runtime
-can commit the mutation and then fail while delivering its durable wake intents.
-Workflow updates retry exactly once when they reuse the same step key; external
-callers have no `stepId` and must read and reconcile before retrying.
-
 When a decision depends on an earlier read, use `updateFrom` to commit only if
 the store has not changed since that snapshot:
 
