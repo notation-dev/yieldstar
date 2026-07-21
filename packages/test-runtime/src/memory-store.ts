@@ -296,7 +296,8 @@ export class MemoryStoreClient extends CasStoreClient {
         record.instanceId !== waiter.instanceId ||
         record.version > waiter.sinceVersion
       ) {
-        await this.schedulerClient.requestWakeUp(waiter.event);
+        this.waiters.set(key, cloneStoreState(waiter));
+        await this.deliverWaiter(key, waiter);
         return;
       }
       this.waiters.set(key, cloneStoreState(waiter));
@@ -317,8 +318,18 @@ export class MemoryStoreClient extends CasStoreClient {
         continue;
       }
 
-      this.waiters.delete(key);
+      await this.deliverWaiter(key, waiter);
+    }
+  }
+
+  private async deliverWaiter(key: string, waiter: StoreWaiter) {
+    try {
       await this.schedulerClient.requestWakeUp(waiter.event);
+      this.waiters.delete(key);
+    } catch (error) {
+      // The waiter is the retryable wake intent for this non-durable store.
+      // Leave it registered so the next matching mutation retries delivery.
+      console.error("Failed to deliver pending store wake", error);
     }
   }
 

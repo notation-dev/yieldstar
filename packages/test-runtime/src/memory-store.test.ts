@@ -61,6 +61,82 @@ test("memory store updates wake matching waiters", async () => {
   expect(events).toEqual([event]);
 });
 
+test("failed wake delivery keeps the waiter and does not reject the committed mutation", async () => {
+  const events: WorkflowEvent[] = [];
+  let wakeAttempts = 0;
+  let updaterRuns = 0;
+  const client = new MemoryStoreClient({
+    schedulerClient: {
+      async requestWakeUp(wakeEvent) {
+        wakeAttempts++;
+        if (wakeAttempts === 1) throw new Error("wake delivery failed");
+        events.push(wakeEvent);
+      },
+    },
+  });
+  const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+
+  try {
+    const initial = await client.getOrCreateStore({
+      definition: Store,
+      id: "wake-retry",
+      initial: { messages: [] },
+    });
+    await client.registerWaiter({
+      workflowId: event.workflowId,
+      executionId: event.executionId,
+      stepKey: "next-message",
+      event,
+      storeName: Store.name,
+      storeId: "wake-retry",
+      instanceId: initial.instanceId,
+      sinceVersion: 0,
+      readPaths: [["messages"]],
+    });
+
+    const updateOnce = () =>
+      client.updateStore({
+        definition: Store,
+        id: "wake-retry",
+        stepId: { executionId: "execution", stepKey: "wake-retry" },
+        updater(draft) {
+          updaterRuns++;
+          draft.messages.push({ id: "msg-1" });
+        },
+      });
+    const committed = await updateOnce();
+    expect(committed.version).toBe(1);
+    expect(wakeAttempts).toBe(1);
+    expect(events).toEqual([]);
+
+    expect(await updateOnce()).toEqual(committed);
+    expect(updaterRuns).toBe(1);
+    expect(wakeAttempts).toBe(1);
+
+    await client.updateStore({
+      definition: Store,
+      id: "wake-retry",
+      updater(draft) {
+        draft.messages.push({ id: "msg-2" });
+      },
+    });
+    expect(wakeAttempts).toBe(2);
+    expect(events).toEqual([event]);
+
+    await client.updateStore({
+      definition: Store,
+      id: "wake-retry",
+      updater(draft) {
+        draft.messages.push({ id: "msg-3" });
+      },
+    });
+    expect(wakeAttempts).toBe(2);
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+  } finally {
+    errorSpy.mockRestore();
+  }
+});
+
 test("registering a waiter with a stale sinceVersion triggers an immediate wake", async () => {
   const { client, events } = createClient();
 
@@ -103,6 +179,63 @@ test("registering a waiter with a stale sinceVersion triggers an immediate wake"
     },
   });
   expect(events).toEqual([]);
+});
+
+test("failed stale-waiter delivery remains registered for a later mutation", async () => {
+  const events: WorkflowEvent[] = [];
+  let wakeAttempts = 0;
+  const client = new MemoryStoreClient({
+    schedulerClient: {
+      async requestWakeUp(wakeEvent) {
+        wakeAttempts++;
+        if (wakeAttempts === 1) throw new Error("wake delivery failed");
+        events.push(wakeEvent);
+      },
+    },
+  });
+  const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+
+  try {
+    const initial = await client.getOrCreateStore({
+      definition: Store,
+      id: "stale-wake-retry",
+      initial: { messages: [] },
+    });
+    await client.updateStore({
+      definition: Store,
+      id: "stale-wake-retry",
+      updater(draft) {
+        draft.messages.push({ id: "msg-1" });
+      },
+    });
+
+    await client.registerWaiter({
+      workflowId: event.workflowId,
+      executionId: event.executionId,
+      stepKey: "next-message",
+      event,
+      storeName: Store.name,
+      storeId: "stale-wake-retry",
+      instanceId: initial.instanceId,
+      sinceVersion: 0,
+      readPaths: [["messages"]],
+    });
+    expect(wakeAttempts).toBe(1);
+    expect(events).toEqual([]);
+
+    await client.updateStore({
+      definition: Store,
+      id: "stale-wake-retry",
+      updater(draft) {
+        draft.messages.push({ id: "msg-2" });
+      },
+    });
+    expect(wakeAttempts).toBe(2);
+    expect(events).toEqual([event]);
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+  } finally {
+    errorSpy.mockRestore();
+  }
 });
 
 test("concurrent synchronous updates retry CAS conflicts and both commit", async () => {
