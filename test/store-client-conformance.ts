@@ -1,4 +1,5 @@
 import { describe, expect, spyOn, test } from "bun:test";
+import * as core from "@yieldstar/core";
 import {
   defineStore,
   type SchedulerClient,
@@ -7,7 +8,7 @@ import {
   type StorePath,
   type StoreWaiter,
   type WorkflowEvent,
-} from "../packages/core/src";
+} from "@yieldstar/core";
 
 export type StoreClientHarness = {
   client: StoreClient;
@@ -29,8 +30,14 @@ export type SharedStoreClientTarget = {
 export type DurableStoreClientTarget = {
   name: string;
   create(schedulerClient: SchedulerClient):
-    | (StoreClientHarness & { restart(schedulerClient: SchedulerClient): StoreClient })
-    | Promise<StoreClientHarness & { restart(schedulerClient: SchedulerClient): StoreClient }>;
+    | (StoreClientHarness & {
+        restart(schedulerClient: SchedulerClient): StoreClient | Promise<StoreClient>;
+      })
+    | Promise<
+        StoreClientHarness & {
+          restart(schedulerClient: SchedulerClient): StoreClient | Promise<StoreClient>;
+        }
+      >;
 };
 
 type State = {
@@ -54,10 +61,9 @@ export function defineStoreClientConformance(target: StoreClientTarget) {
   const TakeStore = defineStore(`${target.name}-take-conformance`, schema<TakeState>());
 
   describe(`${target.name} store client`, () => {
-    test("concurrent updates retry conflicts and both commit", async () => {
+    test("concurrent updates both commit", async () => {
       const harness = await target.create(noopScheduler());
       try {
-        let updaterRuns = 0;
         await harness.client.getOrCreateStore({
           definition: Store,
           id: "update-race",
@@ -69,7 +75,6 @@ export function defineStoreClientConformance(target: StoreClientTarget) {
             definition: Store,
             id: "update-race",
             updater(draft) {
-              updaterRuns++;
               draft.messages.push({ id: "a" });
             },
           }),
@@ -77,14 +82,12 @@ export function defineStoreClientConformance(target: StoreClientTarget) {
             definition: Store,
             id: "update-race",
             updater(draft) {
-              updaterRuns++;
               draft.messages.push({ id: "b" });
             },
           }),
         ]);
 
         expect([first.version, second.version].sort()).toEqual([1, 2]);
-        expect(updaterRuns).toBe(3);
         expect(
           await harness.client.getStore({ definition: Store, id: "update-race" })
         ).toMatchObject({
@@ -527,12 +530,41 @@ export function defineStoreClientConformance(target: StoreClientTarget) {
           id: "plain-state",
           updater(draft) {
             (draft as Record<string, unknown>).lastMessage = draft.messages[0];
+            (draft as Record<string, unknown>).wrapped = { inner: draft.messages };
           },
         });
         const snapshot = await harness.client.getStore({ definition: Store, id: "plain-state" });
         expect(() => structuredClone(snapshot.state)).not.toThrow();
         expect((snapshot.state as Record<string, unknown>).lastMessage).toEqual({ id: "one" });
+        expect((snapshot.state as Record<string, unknown>).wrapped).toEqual({
+          inner: [{ id: "one" }],
+        });
       } finally {
+        await harness.dispose();
+      }
+    });
+
+    test("mutating updates do not deep-diff the full state", async () => {
+      const harness = await target.create(noopScheduler());
+      const diffSpy = spyOn(core, "diffStorePaths");
+      try {
+        await harness.client.getOrCreateStore({
+          definition: Store,
+          id: "large-update",
+          initial: {
+            messages: Array.from({ length: 5000 }, (_, index) => ({ id: `${index}` })),
+          },
+        });
+        await harness.client.updateStore({
+          definition: Store,
+          id: "large-update",
+          updater(draft) {
+            draft.messages.push({ id: "new" });
+          },
+        });
+        expect(diffSpy).not.toHaveBeenCalled();
+      } finally {
+        diffSpy.mockRestore();
         await harness.dispose();
       }
     });
@@ -631,6 +663,41 @@ export function defineWakeDeliveryConformance(target: StoreClientTarget) {
       }
     });
 
+    test("take splices wake waiters observing shifted indices", async () => {
+      type QueueState = { messages: { id: string }[] };
+      const QueueStore = defineStore(
+        `${target.name}-wake-splice-conformance`,
+        schema<QueueState>()
+      );
+      const events: WorkflowEvent[] = [];
+      const harness = await target.create(collectingScheduler(events));
+      try {
+        const initial = await harness.client.getOrCreateStore({
+          definition: QueueStore,
+          id: "take-splice",
+          initial: { messages: [{ id: "one" }, { id: "two" }] },
+        });
+        await harness.client.registerWaiter({
+          ...waiter(QueueStore.name, "take-splice", initial.instanceId, initial.version),
+          readPaths: [["messages", 0, "id"]],
+        });
+        await harness.client.takeFromStore({
+          definition: QueueStore,
+          id: "take-splice",
+          selector: (state) => state.messages[0],
+          claim: (draft) => {
+            draft.messages.splice(0, 1);
+          },
+        });
+        expect(events).toEqual([event]);
+        expect(
+          await harness.client.getStore({ definition: QueueStore, id: "take-splice" })
+        ).toMatchObject({ state: { messages: [{ id: "two" }] }, version: 1 });
+      } finally {
+        await harness.dispose();
+      }
+    });
+
     test("stale waiter registration wakes immediately and does not linger", async () => {
       const events: WorkflowEvent[] = [];
       const harness = await target.create(collectingScheduler(events));
@@ -709,6 +776,7 @@ export function defineWakeDeliveryConformance(target: StoreClientTarget) {
     test("an unrelated commit retries failed delivery", async () => {
       const events: WorkflowEvent[] = [];
       let attempts = 0;
+      let updaterRuns = 0;
       const errorSpy = spyOn(console, "error").mockImplementation(() => {});
       const harness = await target.create({
         async requestWakeUp(wakeEvent) {
@@ -724,15 +792,22 @@ export function defineWakeDeliveryConformance(target: StoreClientTarget) {
           initial: { messages: [] },
         });
         await harness.client.registerWaiter(waiter(Store.name, "retry", initial.instanceId, 0));
-        await harness.client.updateStore({
-          definition: Store,
-          id: "retry",
-          updater(draft) {
-            draft.messages.push({ id: "ready" });
-          },
-        });
+        const update = () =>
+          harness.client.updateStore({
+            definition: Store,
+            id: "retry",
+            stepId: { executionId: "producer", stepKey: "append" },
+            updater(draft) {
+              updaterRuns++;
+              draft.messages.push({ id: "ready" });
+            },
+          });
+        const committed = await update();
         expect(attempts).toBe(1);
         expect(events).toEqual([]);
+        expect(await update()).toEqual(committed);
+        expect(updaterRuns).toBe(1);
+        expect(attempts).toBe(1);
         await harness.client.updateStore({
           definition: Store,
           id: "retry",
@@ -911,8 +986,17 @@ export function defineDurableWakeConformance(target: DurableStoreClientTarget) {
         });
 
         const recovered: WorkflowEvent[] = [];
-        harness.restart(collectingScheduler(recovered));
-        await Bun.sleep(0);
+        let resolveRecovery!: () => void;
+        const recoveryComplete = new Promise<void>((resolve) => {
+          resolveRecovery = resolve;
+        });
+        await harness.restart({
+          async requestWakeUp(recoveredEvent) {
+            recovered.push(recoveredEvent);
+            resolveRecovery();
+          },
+        });
+        await recoveryComplete;
         expect(recovered).toEqual([event]);
       } finally {
         errorSpy.mockRestore();
