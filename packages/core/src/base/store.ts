@@ -1,38 +1,5 @@
+import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { WorkflowEvent } from "./event";
-
-export type StandardSchemaV1<Input = unknown, Output = Input> = {
-  readonly "~standard": {
-    readonly version: 1;
-    readonly vendor: string;
-    readonly validate: (
-      value: unknown
-    ) =>
-      | StandardSchemaV1.Result<Output>
-      | Promise<StandardSchemaV1.Result<Output>>;
-    readonly types?: {
-      readonly input: Input;
-      readonly output: Output;
-    };
-  };
-};
-
-export namespace StandardSchemaV1 {
-  export type PathSegment = {
-    readonly key: PropertyKey;
-  };
-
-  export type Issue = {
-    readonly message: string;
-    readonly path?: readonly (PropertyKey | PathSegment)[];
-  };
-
-  export type Result<Output> =
-    | { readonly value: Output; readonly issues?: undefined }
-    | { readonly issues: readonly Issue[] };
-
-  export type InferOutput<Schema extends StandardSchemaV1> =
-    Schema extends StandardSchemaV1<any, infer Output> ? Output : never;
-}
 
 export type Draft<T> = T extends object
   ? { -readonly [K in keyof T]: Draft<T[K]> }

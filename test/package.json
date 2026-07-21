@@ -3,6 +3,7 @@
   "version": "0.4.6",
   "private": true,
   "dependencies": {
+    "@yieldstar/core": "workspace:*",
     "@yieldstar/test-utils": "workspace:*",
     "pino": "^9.9.0",
     "yieldstar": "workspace:*"
