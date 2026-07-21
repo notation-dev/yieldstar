@@ -172,15 +172,12 @@ export class SqliteStoreClient extends CasStoreClient {
     id: string;
     stepId: StoreStepId;
   }): Promise<{ result: unknown } | undefined> {
-    return this.enqueueWrite(async () => {
-      await this.drainWakeOutboxBestEffort();
-      const row = this.getAppliedStepRow({
-        storeName: params.definition.name,
-        storeId: params.id,
-        stepId: params.stepId,
-      });
-      return row ? { result: JSON.parse(row.result) } : undefined;
+    const row = this.getAppliedStepRow({
+      storeName: params.definition.name,
+      storeId: params.id,
+      stepId: params.stepId,
     });
+    return row ? { result: JSON.parse(row.result) } : undefined;
   }
 
   protected commitStoreMutation(

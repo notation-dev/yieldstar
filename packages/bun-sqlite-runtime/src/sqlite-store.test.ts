@@ -57,7 +57,7 @@ test("sqlite store updates wake matching waiters", async () => {
   expect(events).toEqual([event]);
 });
 
-test("wake failure does not reject a committed update and ledger replay retries it", async () => {
+test("wake failure does not reject or reapply a committed update on ledger replay", async () => {
   const db = new Database(":memory:");
   const events: WorkflowEvent[] = [];
   let wakeAttempts = 0;
@@ -107,8 +107,8 @@ test("wake failure does not reject a committed update and ledger replay retries 
   expect(wakeAttempts).toBe(1);
   await update();
 
-  expect(wakeAttempts).toBe(2);
-  expect(events).toEqual([event]);
+  expect(wakeAttempts).toBe(1);
+  expect(events).toEqual([]);
   expect(
     await client.getStore({
       definition: Store,

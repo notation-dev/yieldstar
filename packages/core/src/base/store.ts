@@ -462,12 +462,13 @@ export abstract class CasStoreClient extends StoreClient {
 
       const selected = unwrapTrackedValue(selectedResult) as NonNullable<R>;
       assertSynchronousClaim(params.claim(tracked.draft, selected));
-      const nextState = await validateStoreState(params.definition, draft);
+      const prepared = await finalizeStoreMutation({
+        definition: params.definition,
+        previousState,
+        draft,
+        tracked,
+      });
       const selectedSnapshot = cloneStoreState(selected);
-      const changedPaths =
-        (nextState as unknown) === draft
-          ? tracked.writePaths()
-          : diffStorePaths(previousState, nextState);
       const result: StoreTakeResult<R> = {
         matched: true,
         selected: selectedSnapshot,
@@ -478,8 +479,8 @@ export abstract class CasStoreClient extends StoreClient {
         definition: params.definition,
         id: params.id,
         expected: snapshot,
-        nextState,
-        changedPaths,
+        nextState: prepared.nextState,
+        changedPaths: prepared.changedPaths,
         stepId: params.stepId,
         result,
       });
@@ -519,15 +520,32 @@ async function prepareStoreUpdate<Schema extends StandardSchemaV1>(
   const updated = updater(tracked.draft);
   assertSynchronousUpdater(updated);
   const returned = updated === undefined ? undefined : unwrapTrackedValue(updated);
-  const isReplacement = returned !== undefined && returned !== draft;
-  const nextState = await validateStoreState(
+  return finalizeStoreMutation({
     definition,
-    isReplacement ? returned : draft
+    previousState,
+    draft,
+    tracked,
+    replacement: returned,
+  });
+}
+
+async function finalizeStoreMutation<Schema extends StandardSchemaV1>(params: {
+  definition: StoreDefinition<Schema>;
+  previousState: StoreState<Schema>;
+  draft: Draft<StoreState<Schema>>;
+  tracked: TrackedStoreUpdater<Draft<StoreState<Schema>>>;
+  replacement?: unknown;
+}) {
+  const isReplacement =
+    params.replacement !== undefined && params.replacement !== params.draft;
+  const nextState = await validateStoreState(
+    params.definition,
+    isReplacement ? params.replacement : params.draft
   );
   const changedPaths =
-    !isReplacement && (nextState as unknown) === draft
-      ? tracked.writePaths()
-      : diffStorePaths(previousState, nextState);
+    !isReplacement && (nextState as unknown) === params.draft
+      ? params.tracked.writePaths()
+      : diffStorePaths(params.previousState, nextState);
   return { nextState, changedPaths };
 }
 
