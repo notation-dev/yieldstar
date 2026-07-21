@@ -12,6 +12,7 @@
     "dev:dts": "bun run dts --watch",
     "dev:bundle": "bun run bundle --watch",
     "dev:test": "bun test --watch",
+    "test:sqlite-node": "bun run bundle && node --test test/store-client-conformance.node.mjs",
     "start": "bun scripts/run-example.ts",
     "bump": "bunx bumpp --preid alpha -r",
     "prerelease": "pnpm i && bun bundle",

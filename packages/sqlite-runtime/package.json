@@ -1,0 +1,33 @@
+{
+  "name": "@yieldstar/sqlite-runtime",
+  "version": "0.4.6",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./bun": {
+      "types": "./dist/bun.d.ts",
+      "import": "./dist/bun.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "import": "./dist/node.js"
+    }
+  },
+  "scripts": {
+    "build": "bun build src/index.ts src/bun.ts src/node.ts --outdir dist --target node --packages=external --splitting"
+  },
+  "dependencies": {
+    "@yieldstar/core": "workspace:*",
+    "pino": "^9.9.0",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.21",
+    "@types/node": "^22.18.0"
+  }
+}

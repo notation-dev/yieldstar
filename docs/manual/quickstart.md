@@ -5,7 +5,7 @@ A Yieldstar application has three parts: **workflows** that define the work, a *
 ## Install
 
 ```sh
-bun add yieldstar @yieldstar/core @yieldstar/bun-worker-invoker @yieldstar/bun-sqlite-runtime
+bun add yieldstar @yieldstar/core @yieldstar/bun-worker-invoker @yieldstar/sqlite-runtime
 ```
 
 ## 1. Define a workflow
@@ -14,7 +14,7 @@ A workflow is a generator function that yields steps. Each step is a checkpoint,
 
 ```ts [shared.ts]
 import { workflow, createWorkflowRouter } from "yieldstar";
-import { SqliteEventLoop, createSqliteDb } from "@yieldstar/bun-sqlite-runtime";
+import { SqliteEventLoop, createSqliteDb } from "@yieldstar/sqlite-runtime/bun";
 
 export const greet = workflow<{ name: string }, string>(async function* (step, event) {
   const greeting = yield* step.run(() => `Hello, ${event.params.name}`);
@@ -44,7 +44,7 @@ import {
   SqliteSchedulerClient,
   SqliteTaskQueueClient,
   SqliteTimersClient,
-} from "@yieldstar/bun-sqlite-runtime";
+} from "@yieldstar/sqlite-runtime/bun";
 import { router, db } from "./shared";
 
 const logger = pino();

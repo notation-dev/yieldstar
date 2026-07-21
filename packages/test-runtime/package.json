@@ -9,7 +9,8 @@
   },
   "dependencies": {
     "@yieldstar/core": "workspace:*",
-    "pino": "^9.9.0"
+    "pino": "^9.9.0",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "@types/bun": "^1.2.21"

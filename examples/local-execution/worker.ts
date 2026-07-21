@@ -7,7 +7,7 @@ import {
   SqliteStoreClient,
   SqliteTaskQueueClient,
   SqliteTimersClient,
-} from "@yieldstar/bun-sqlite-runtime";
+} from "@yieldstar/sqlite-runtime/bun";
 import { runtimeDb, workflowRouter } from "./shared";
 
 const logger = pino();

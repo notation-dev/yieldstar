@@ -1,15 +1,15 @@
-import { Database } from "bun:sqlite";
 import { SqliteTaskQueue } from "./sqlite-task-queue";
 import { SqliteTimers } from "./sqlite-timers";
 import type { EventProcessor } from "@yieldstar/core";
 import type { Logger } from "pino";
+import type { SqliteDriver } from "./sqlite-driver";
 
 export class SqliteEventLoop {
   taskQueue: SqliteTaskQueue;
   timers: SqliteTimers;
   private isRunning: boolean = false;
 
-  constructor(db: Database) {
+  constructor(db: SqliteDriver) {
     this.taskQueue = new SqliteTaskQueue(db);
     this.timers = new SqliteTimers({ db, taskQueue: this.taskQueue });
   }

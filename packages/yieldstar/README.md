@@ -16,7 +16,7 @@ bun add yieldstar
 
 Depending on how you run workflows, also install:
 
-- Local (recommended): `@yieldstar/bun-worker-invoker` and `@yieldstar/bun-sqlite-runtime`
+- Local (recommended): `@yieldstar/bun-worker-invoker` and `@yieldstar/sqlite-runtime`
 - HTTP server (Bun): `@yieldstar/bun-http-server` and `@yieldstar/bun-worker-invoker`
 
 Note: `@yieldstar/test-utils` is an internal testing helper used by this repository. For local application use, prefer the SQLite runtime.
@@ -44,7 +44,7 @@ export type Router = typeof router;
 import pino from "pino";
 import { WorkflowRunner } from "@yieldstar/core";
 import { createWorkflowWorker } from "@yieldstar/bun-worker-invoker";
-import { SqliteHeapClient, SqliteTimersClient, SqliteTaskQueueClient, SqliteSchedulerClient, createSqliteDb } from "@yieldstar/bun-sqlite-runtime";
+import { SqliteHeapClient, SqliteTimersClient, SqliteTaskQueueClient, SqliteSchedulerClient, createSqliteDb } from "@yieldstar/sqlite-runtime/bun";
 import { router } from "./router";
 
 const logger = pino();
@@ -68,7 +68,7 @@ createWorkflowWorker(runner, logger).listen();
 import pino from "pino";
 import { createWorkflowInvoker } from "@yieldstar/bun-worker-invoker";
 import { createLocalSdk } from "yieldstar";
-import { SqliteEventLoop, createSqliteDb } from "@yieldstar/bun-sqlite-runtime";
+import { SqliteEventLoop, createSqliteDb } from "@yieldstar/sqlite-runtime/bun";
 
 const logger = pino();
 const workerPath = new URL("./worker.ts", import.meta.url).href;
@@ -110,9 +110,9 @@ export const router = createWorkflowRouter({ "dynamic-workflow": dynamic });
 import pino from "pino";
 import { WorkflowRunner } from "@yieldstar/core";
 import { createWorkflowWorker } from "@yieldstar/bun-worker-invoker";
-import { SqliteHeapClient, SqliteTimersClient, SqliteTaskQueueClient, SqliteSchedulerClient } from "@yieldstar/bun-sqlite-runtime";
+import { SqliteHeapClient, SqliteTimersClient, SqliteTaskQueueClient, SqliteSchedulerClient } from "@yieldstar/sqlite-runtime/bun";
 import { router } from "./router";
-import { createSqliteDb } from "@yieldstar/bun-sqlite-runtime";
+import { createSqliteDb } from "@yieldstar/sqlite-runtime/bun";
 
 const logger = pino();
 const db = createSqliteDb({ path: "./.db/local.sqlite" });
@@ -137,7 +137,7 @@ createWorkflowWorker(runner, logger).listen();
 import pino from "pino";
 import { createWorkflowInvoker } from "@yieldstar/bun-worker-invoker";
 import { createLocalSdk } from "yieldstar";
-import { SqliteEventLoop, createSqliteDb } from "@yieldstar/bun-sqlite-runtime";
+import { SqliteEventLoop, createSqliteDb } from "@yieldstar/sqlite-runtime/bun";
 
 const logger = pino();
 const workerPath = new URL("./worker.ts", import.meta.url).href;
@@ -164,7 +164,7 @@ Server:
 import pino from "pino";
 import { createRoutes, createMiddleware } from "@yieldstar/bun-http-server";
 import { createWorkflowInvoker } from "@yieldstar/bun-worker-invoker";
-import { SqliteEventLoop, createSqliteDb } from "@yieldstar/bun-sqlite-runtime";
+import { SqliteEventLoop, createSqliteDb } from "@yieldstar/sqlite-runtime/bun";
 import { router } from "./router";
 
 const logger = pino();

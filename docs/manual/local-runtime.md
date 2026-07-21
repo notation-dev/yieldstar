@@ -8,7 +8,7 @@ Both the worker and the application need access to the same workflow definitions
 
 ```ts [shared.ts]
 import { workflow, createWorkflowRouter } from "yieldstar";
-import { SqliteEventLoop, createSqliteDb } from "@yieldstar/bun-sqlite-runtime";
+import { SqliteEventLoop, createSqliteDb } from "@yieldstar/sqlite-runtime/bun";
 
 export const myWorkflow = workflow(async function* (step) {
   const n = yield* step.run(() => 1);
@@ -36,7 +36,7 @@ import {
   SqliteSchedulerClient,
   SqliteTaskQueueClient,
   SqliteTimersClient,
-} from "@yieldstar/bun-sqlite-runtime";
+} from "@yieldstar/sqlite-runtime/bun";
 import { router, db } from "./shared";
 
 const logger = pino();

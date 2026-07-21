@@ -1,5 +1,5 @@
 import type { WorkflowEvent } from "@yieldstar/core";
-import { Database } from "bun:sqlite";
+import type { SqliteDriver } from "../sqlite-driver";
 
 class TimerRow {
   id!: string;
@@ -16,9 +16,9 @@ class CountRow {
 }
 
 export class TimersDao {
-  private db: Database;
+  private db: SqliteDriver;
 
-  constructor(db: Database) {
+  constructor(db: SqliteDriver) {
     this.db = db;
     this.setupDb();
   }
@@ -38,25 +38,21 @@ export class TimersDao {
   }
 
   getExpiredTimers(): TimerRow[] {
-    const query = this.db
-      .query(
-        `SELECT id, delay, workflow_id, execution_id, created_at, params, context
-        FROM scheduled_tasks 
-        WHERE (created_at + delay) < $currentTime`
-      )
-      .as(TimerRow);
+    const query = this.db.query<TimerRow>(
+      `SELECT id, delay, workflow_id, execution_id, created_at, params, context
+       FROM scheduled_tasks
+       WHERE (created_at + delay) < $currentTime`
+    );
 
     return query.all({ $currentTime: Date.now() });
   }
 
   getTaskCount() {
-    const query = this.db
-      .query(
-        `SELECT COUNT(*) as count 
-        FROM scheduled_tasks 
-        WHERE (created_at + delay) < $currentTime`
-      )
-      .as(CountRow);
+    const query = this.db.query<CountRow>(
+      `SELECT COUNT(*) as count
+       FROM scheduled_tasks
+       WHERE (created_at + delay) < $currentTime`
+    );
 
     const count = query.get({ $currentTime: Date.now() })!;
     return count.count;

@@ -1,5 +1,6 @@
-import type { Database } from "bun:sqlite";
 import type { SchedulerClient, WorkflowEvent } from "@yieldstar/core";
+import { v7 as uuidv7 } from "uuid";
+import type { SqliteDriver } from "./sqlite-driver";
 import {
   cloneStoreState,
   CasStoreClient,
@@ -52,12 +53,12 @@ class WakeOutboxRow {
 }
 
 export class SqliteStoreClient extends CasStoreClient {
-  private db: Database;
+  private db: SqliteDriver;
   private schedulerClient: SchedulerClient;
-  // Serializes write transactions on this single bun:sqlite connection.
+  // Serializes write transactions on this single SQLite connection.
   private writeLock: Promise<unknown> = Promise.resolve();
 
-  constructor(params: { db: Database; schedulerClient: SchedulerClient }) {
+  constructor(params: { db: SqliteDriver; schedulerClient: SchedulerClient }) {
     super();
     this.db = params.db;
     this.schedulerClient = params.schedulerClient;
@@ -121,7 +122,7 @@ export class SqliteStoreClient extends CasStoreClient {
           };
         }
 
-        const instanceId = Bun.randomUUIDv7();
+        const instanceId = uuidv7();
         this.db
           .query(
             `INSERT INTO stores (instance_id, store_name, store_id, version, state)
@@ -235,7 +236,7 @@ export class SqliteStoreClient extends CasStoreClient {
             $version: version,
             $state: JSON.stringify(mutation.nextState),
           });
-        if (changed.changes !== 1) {
+        if (Number(changed.changes) !== 1) {
           throw new Error("Store changed during its mutation transaction");
         }
 
@@ -281,12 +282,11 @@ export class SqliteStoreClient extends CasStoreClient {
     definition: StoreDefinition<Schema>
   ): Promise<string[]> {
     const rows = this.db
-      .query(
+      .query<StoreIdRow>(
         `SELECT store_id FROM stores
          WHERE store_name = $storeName
          ORDER BY store_id ASC`
       )
-      .as(StoreIdRow)
       .all({ $storeName: definition.name });
     return rows.map((row) => row.store_id);
   }
@@ -523,14 +523,13 @@ export class SqliteStoreClient extends CasStoreClient {
     stepId: StoreStepId;
   }) {
     return this.db
-      .query(
+      .query<AppliedStepRow>(
         `SELECT result FROM store_applied_steps
          WHERE store_name = $storeName
            AND store_id = $storeId
            AND execution_id = $executionId
            AND step_key = $stepKey`
       )
-      .as(AppliedStepRow)
       .get({
         $storeName: params.storeName,
         $storeId: params.storeId,
@@ -563,11 +562,10 @@ export class SqliteStoreClient extends CasStoreClient {
 
   private getStoreRow(storeName: string, storeId: string) {
     return this.db
-      .query(
+      .query<StoreRow>(
         `SELECT instance_id, state, version FROM stores
          WHERE store_name = $storeName AND store_id = $storeId`
       )
-      .as(StoreRow)
       .get({
         $storeName: storeName,
         $storeId: storeId,
@@ -582,11 +580,10 @@ export class SqliteStoreClient extends CasStoreClient {
   }): MatchedWaiter[] {
     const waiters: MatchedWaiter[] = [];
     const rows = this.db
-      .query(
+      .query<WaiterRow>(
         `SELECT * FROM store_waiters
          WHERE store_name = $storeName AND store_id = $storeId`
       )
-      .as(WaiterRow)
       .all({
         $storeName: params.storeName,
         $storeId: params.storeId,
@@ -655,7 +652,7 @@ export class SqliteStoreClient extends CasStoreClient {
 
   private async drainWakeOutbox(): Promise<void> {
     const rows = this.db
-      .query(
+      .query<WakeOutboxRow>(
         `SELECT
            o.store_name,
            o.store_id,
@@ -671,7 +668,6 @@ export class SqliteStoreClient extends CasStoreClient {
           AND w.step_key = o.step_key
          ORDER BY o.store_name, o.store_id, o.execution_id, o.step_key`
       )
-      .as(WakeOutboxRow)
       .all();
 
     for (const row of rows) {
