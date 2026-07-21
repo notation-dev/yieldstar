@@ -14,7 +14,6 @@ import {
   sqliteStoreTarget,
 } from "./store-client-conformance-targets";
 import {
-  collectStoreConformanceCases,
   collectingScheduler,
   noopScheduler,
   storeWaiter,
@@ -43,9 +42,8 @@ const waiter = storeWaiter(event);
 function storeClientConformanceCases(target: StoreClientTarget) {
   const Store = defineStore(`${target.name}-store-conformance`, testSchema<State>());
   const TakeStore = defineStore(`${target.name}-take-conformance`, testSchema<TakeState>());
-  const { cases, addCase } = collectStoreConformanceCases();
 
-  addCase("concurrent updates both commit", async () => {
+  test("concurrent updates both commit", async () => {
     const harness = await target.create(noopScheduler());
     try {
       await harness.client.getOrCreateStore({
@@ -83,7 +81,7 @@ function storeClientConformanceCases(target: StoreClientTarget) {
     }
   });
 
-  addCase("async updaters are rejected without committing", async () => {
+  test("async updaters are rejected without committing", async () => {
     const harness = await target.create(noopScheduler());
     try {
       await harness.client.getOrCreateStore({
@@ -110,7 +108,7 @@ function storeClientConformanceCases(target: StoreClientTarget) {
     }
   });
 
-  addCase("conditional updates commit from one snapshot and replay ledger-first", async () => {
+  test("conditional updates commit from one snapshot and replay ledger-first", async () => {
     const harness = await target.create(noopScheduler());
     try {
       const snapshot = await harness.client.getOrCreateStore({
@@ -168,7 +166,7 @@ function storeClientConformanceCases(target: StoreClientTarget) {
     }
   });
 
-  addCase("conditional updates reject snapshots without an instance id", async () => {
+  test("conditional updates reject snapshots without an instance id", async () => {
     const harness = await target.create(noopScheduler());
     try {
       const snapshot = await harness.client.getOrCreateStore({
@@ -189,7 +187,7 @@ function storeClientConformanceCases(target: StoreClientTarget) {
     }
   });
 
-  addCase("step ids make updates exactly-once", async () => {
+  test("step ids make updates exactly-once", async () => {
     const harness = await target.create(noopScheduler());
     try {
       await harness.client.getOrCreateStore({
@@ -220,7 +218,7 @@ function storeClientConformanceCases(target: StoreClientTarget) {
     }
   });
 
-  addCase("calls without step ids apply independently", async () => {
+  test("calls without step ids apply independently", async () => {
     const harness = await target.create(noopScheduler());
     try {
       await harness.client.getOrCreateStore({
@@ -250,7 +248,7 @@ function storeClientConformanceCases(target: StoreClientTarget) {
     }
   });
 
-  addCase("step ids are scoped by execution and step key", async () => {
+  test("step ids are scoped by execution and step key", async () => {
     const harness = await target.create(noopScheduler());
     try {
       await harness.client.getOrCreateStore({
@@ -282,7 +280,7 @@ function storeClientConformanceCases(target: StoreClientTarget) {
     }
   });
 
-  addCase("store listing and deletion preserve logical instance semantics", async () => {
+  test("store listing and deletion preserve logical instance semantics", async () => {
     const harness = await target.create(noopScheduler());
     const OtherStore = defineStore(`${target.name}-other-conformance`, testSchema<State>());
     try {
@@ -316,7 +314,7 @@ function storeClientConformanceCases(target: StoreClientTarget) {
     }
   });
 
-  addCase("conditional deletion protects recreated stores and replays exactly-once", async () => {
+  test("conditional deletion protects recreated stores and replays exactly-once", async () => {
     const harness = await target.create(noopScheduler());
     try {
       const original = await harness.client.getOrCreateStore({
@@ -372,7 +370,7 @@ function storeClientConformanceCases(target: StoreClientTarget) {
     }
   });
 
-  addCase("concurrent takes claim distinct items", async () => {
+  test("concurrent takes claim distinct items", async () => {
     const harness = await target.create(noopScheduler());
     try {
       await harness.client.getOrCreateStore({
@@ -399,7 +397,7 @@ function storeClientConformanceCases(target: StoreClientTarget) {
     }
   });
 
-  addCase("unmatched takes report read paths and can match later", async () => {
+  test("unmatched takes report read paths and can match later", async () => {
     const harness = await target.create(noopScheduler());
     try {
       await harness.client.getOrCreateStore({
@@ -438,7 +436,7 @@ function storeClientConformanceCases(target: StoreClientTarget) {
     }
   });
 
-  addCase("async take claims are rejected without committing", async () => {
+  test("async take claims are rejected without committing", async () => {
     const harness = await target.create(noopScheduler());
     try {
       await harness.client.getOrCreateStore({
@@ -464,7 +462,7 @@ function storeClientConformanceCases(target: StoreClientTarget) {
     }
   });
 
-  addCase("matched takes replay their recorded result", async () => {
+  test("matched takes replay their recorded result", async () => {
     const harness = await target.create(noopScheduler());
     try {
       await harness.client.getOrCreateStore({
@@ -501,7 +499,7 @@ function storeClientConformanceCases(target: StoreClientTarget) {
     }
   });
 
-  addCase("committed state contains no tracking proxies", async () => {
+  test("committed state contains no tracking proxies", async () => {
     const harness = await target.create(noopScheduler());
     try {
       await harness.client.getOrCreateStore({
@@ -528,7 +526,7 @@ function storeClientConformanceCases(target: StoreClientTarget) {
     }
   });
 
-  addCase("mutating updates do not deep-diff the full state", async () => {
+  test("mutating updates do not deep-diff the full state", async () => {
     const harness = await target.create(noopScheduler());
     const diffSpy = spyOn(core, "diffStorePaths");
     try {
@@ -569,14 +567,12 @@ function storeClientConformanceCases(target: StoreClientTarget) {
       await harness.dispose();
     }
   });
-  return cases;
 }
 
 function wakeDeliveryConformanceCases(target: StoreClientTarget) {
   const Store = defineStore(`${target.name}-wake-conformance`, testSchema<State>());
-  const { cases, addCase } = collectStoreConformanceCases();
 
-  addCase("updates wake matching waiters but not unrelated paths", async () => {
+  test("updates wake matching waiters but not unrelated paths", async () => {
     const events: WorkflowEvent[] = [];
     const harness = await target.create(collectingScheduler(events));
     try {
@@ -607,7 +603,7 @@ function wakeDeliveryConformanceCases(target: StoreClientTarget) {
     }
   });
 
-  addCase("replacement state updates wake matching waiters", async () => {
+  test("replacement state updates wake matching waiters", async () => {
     const events: WorkflowEvent[] = [];
     const harness = await target.create(collectingScheduler(events));
     try {
@@ -630,7 +626,7 @@ function wakeDeliveryConformanceCases(target: StoreClientTarget) {
     }
   });
 
-  addCase("take claims wake waiters observing the changed path", async () => {
+  test("take claims wake waiters observing the changed path", async () => {
     type ClaimedState = { messages: { id: string; claimedBy?: string }[] };
     const TakeStore = defineStore(
       `${target.name}-wake-take-conformance`,
@@ -664,7 +660,7 @@ function wakeDeliveryConformanceCases(target: StoreClientTarget) {
     }
   });
 
-  addCase("take splices wake waiters observing shifted indices", async () => {
+  test("take splices wake waiters observing shifted indices", async () => {
     type QueueState = { messages: { id: string }[] };
     const QueueStore = defineStore(
       `${target.name}-wake-splice-conformance`,
@@ -699,7 +695,7 @@ function wakeDeliveryConformanceCases(target: StoreClientTarget) {
     }
   });
 
-  addCase("stale waiter registration wakes immediately and does not linger", async () => {
+  test("stale waiter registration wakes immediately and does not linger", async () => {
     const events: WorkflowEvent[] = [];
     const harness = await target.create(collectingScheduler(events));
     try {
@@ -731,7 +727,7 @@ function wakeDeliveryConformanceCases(target: StoreClientTarget) {
     }
   });
 
-  addCase("failed stale waiter delivery is retried by an unrelated commit", async () => {
+  test("failed stale waiter delivery is retried by an unrelated commit", async () => {
     const events: WorkflowEvent[] = [];
     let attempts = 0;
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
@@ -774,7 +770,7 @@ function wakeDeliveryConformanceCases(target: StoreClientTarget) {
     }
   });
 
-  addCase("an unrelated commit retries failed delivery", async () => {
+  test("an unrelated commit retries failed delivery", async () => {
     const events: WorkflowEvent[] = [];
     let attempts = 0;
     let updaterRuns = 0;
@@ -824,7 +820,7 @@ function wakeDeliveryConformanceCases(target: StoreClientTarget) {
     }
   });
 
-  addCase("one failed wake does not block another", async () => {
+  test("one failed wake does not block another", async () => {
     const delivered: string[] = [];
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const harness = await target.create({
@@ -860,7 +856,7 @@ function wakeDeliveryConformanceCases(target: StoreClientTarget) {
     }
   });
 
-  addCase("deleted waiters do not transfer pending wakes to recreated stores", async () => {
+  test("deleted waiters do not transfer pending wakes to recreated stores", async () => {
     const events: WorkflowEvent[] = [];
     let attempts = 0;
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
@@ -907,14 +903,12 @@ function wakeDeliveryConformanceCases(target: StoreClientTarget) {
       await harness.dispose();
     }
   });
-  return cases;
 }
 
 function sharedBackendConformanceCases(target: SharedStoreClientTarget) {
   const Store = defineStore(`${target.name}-shared-conformance`, testSchema<State>());
-  const { cases, addCase } = collectStoreConformanceCases();
 
-  addCase("wake delivery preserves a waiter re-registered by another client", async () => {
+  test("wake delivery preserves a waiter re-registered by another client", async () => {
     let secondClient: StoreClient;
     let wakeCount = 0;
     const harness = await target.create([
@@ -955,14 +949,12 @@ function sharedBackendConformanceCases(target: SharedStoreClientTarget) {
       await harness.dispose();
     }
   });
-  return cases;
 }
 
 function durableWakeConformanceCases(target: DurableStoreClientTarget) {
   const Store = defineStore(`${target.name}-durable-wake-conformance`, testSchema<State>());
-  const { cases, addCase } = collectStoreConformanceCases();
 
-  addCase("a new client recovers a committed wake", async () => {
+  test("a new client recovers a committed wake", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const harness = await target.create({
       async requestWakeUp() {
@@ -1004,34 +996,18 @@ function durableWakeConformanceCases(target: DurableStoreClientTarget) {
       await harness.dispose();
     }
   });
-  return cases;
 }
 
 for (const target of [memoryStoreTarget, sqliteStoreTarget]) {
-  describe(`${target.name} store client`, () => {
-    for (const { name, run } of storeClientConformanceCases(target)) {
-      test(name, run);
-    }
-  });
-
-  describe(`${target.name} wake delivery`, () => {
-    for (const { name, run } of wakeDeliveryConformanceCases(target)) {
-      test(name, run);
-    }
-  });
+  describe(`${target.name} store client`, () => storeClientConformanceCases(target));
+  describe(`${target.name} wake delivery`, () => wakeDeliveryConformanceCases(target));
 }
 
-describe(`${sharedSqliteStoreTarget.name} shared backend`, () => {
-  for (const { name, run } of sharedBackendConformanceCases(sharedSqliteStoreTarget)) {
-    test(name, run);
-  }
-});
+describe(`${sharedSqliteStoreTarget.name} shared backend`, () =>
+  sharedBackendConformanceCases(sharedSqliteStoreTarget));
 
-describe(`${durableSqliteStoreTarget.name} durable wake delivery`, () => {
-  for (const { name, run } of durableWakeConformanceCases(durableSqliteStoreTarget)) {
-    test(name, run);
-  }
-});
+describe(`${durableSqliteStoreTarget.name} durable wake delivery`, () =>
+  durableWakeConformanceCases(durableSqliteStoreTarget));
 
 test("memory store retries an updater after a commit conflict", async () => {
   type State = { messages: string[] };

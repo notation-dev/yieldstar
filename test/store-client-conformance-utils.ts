@@ -36,24 +36,6 @@ export type DurableStoreClientTarget = {
       >;
 };
 
-export type StoreConformanceCase = {
-  name: string;
-  run(): void | Promise<void>;
-};
-
-export function collectStoreConformanceCases(): {
-  cases: StoreConformanceCase[];
-  addCase(name: string, run: () => void | Promise<void>): void;
-} {
-  const cases: StoreConformanceCase[] = [];
-  return {
-    cases,
-    addCase(name, run) {
-      cases.push({ name, run });
-    },
-  };
-}
-
 export function storeWaiter(event: WorkflowEvent) {
   return (
     storeName: string,
