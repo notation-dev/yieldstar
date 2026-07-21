@@ -43,4 +43,4 @@ The invoker uses `node:child_process.fork` with advanced IPC serialization so wo
 
 Parent and worker must use the same runtime family. Node must fork Node and Bun must fork Bun because their advanced IPC wire formats are not interoperable. The optional `execPath` can select another executable only within that constraint.
 
-The former executable mode is not available in 0.5 because Bun-compiled standalone executables cannot speak Node's V8 advanced IPC serialization.
+The former executable mode was removed in 0.5; see the [migration guide](../migrations/0.4-to-0.5.md) for the rationale and upgrade steps.

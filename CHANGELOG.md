@@ -6,7 +6,7 @@
 
 ### Breaking changes
 
-- Renamed `@yieldstar/bun-sqlite-runtime` to `@yieldstar/sqlite-runtime`, `@yieldstar/bun-worker-invoker` to `@yieldstar/worker-invoker`, and `@yieldstar/bun-http-server` to `@yieldstar/http-server`. The old package names are not shipped as compatibility packages; follow the migration guide before upgrading.
+- Renamed `@yieldstar/bun-sqlite-runtime` to `@yieldstar/sqlite-runtime`, `@yieldstar/bun-worker-invoker` to `@yieldstar/worker-invoker`, and `@yieldstar/bun-http-server` to `@yieldstar/http-server`. The old package names are not shipped as compatibility packages; follow the [migration guide](docs/migrations/0.4-to-0.5.md) before upgrading.
 - Removed the worker invoker's `executable` option. Parent and worker processes must use the same runtime family because Bun and Node cannot communicate through Node's V8 advanced IPC serialization.
 - Store updater callbacks must be synchronous, deterministic, and side-effect-free. `update`, `updateFrom`, and take claims reject promise-returning callbacks because compare-and-swap retries may execute a callback more than once.
 
@@ -24,7 +24,7 @@
 ### Changed
 
 - Made the SQLite heap, scheduler, timers, task queue, event loop, stores, and DAOs independent of a concrete SQLite implementation.
-- Replaced `Bun.spawn` worker IPC with `node:child_process.fork`, including propagation of spawn errors and premature child exits. The optional `execPath` can select another binary from the same runtime family; Node must fork Node and Bun must fork Bun.
+- Replaced `Bun.spawn` worker IPC with `node:child_process.fork`, including propagation of spawn errors and premature child exits. The optional `execPath` can select another binary from the same runtime family.
 - Retyped HTTP route handlers with standard `Request` and `Response` APIs while keeping the routes object compatible with `Bun.serve` and other Request-to-Response routers.
 - Replaced Bun-specific runtime utilities and targeted all package bundles at Node.
 - Replaced `Bun.randomUUIDv7()` with UUID v7 from the `uuid` package.

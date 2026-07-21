@@ -10,7 +10,7 @@ Write workflows as async generator functions that yield steps. First-class primi
 bun add yieldstar
 ```
 
-Runtimes and adapters:
+Runtime packages:
 
 - Local execution: `@yieldstar/worker-invoker`, `@yieldstar/sqlite-runtime`
 - HTTP server: `@yieldstar/http-server`, `@yieldstar/worker-invoker`
