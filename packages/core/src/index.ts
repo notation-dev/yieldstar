@@ -2,10 +2,10 @@ export type { HeapClient, HeapRecord } from "./base/heap";
 export type { WorkflowInvoker } from "./base/invoker";
 export type { EventProcessor } from "./base/runtime";
 export type { SchedulerClient } from "./base/scheduler";
+export type { StandardSchemaV1 } from "@standard-schema/spec";
 export type {
   Draft,
   RuntimeStore,
-  StandardSchemaV1,
   StoreDefinition,
   StoreDeleteFromResult,
   StoreKey,

@@ -7,6 +7,9 @@
   "scripts": {
     "build": "bun build src/index.ts --outfile dist/index.js --target bun --packages=external"
   },
+  "dependencies": {
+    "@standard-schema/spec": "^1.1.0"
+  },
   "devDependencies": {
     "@types/bun": "latest",
     "pino": "^9.9.0"

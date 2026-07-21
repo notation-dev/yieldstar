@@ -1,13 +1,13 @@
 import { Database } from "bun:sqlite";
-import { expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { defineStore, type StandardSchemaV1 } from "@yieldstar/core";
 import { SqliteStoreClient } from "../packages/bun-sqlite-runtime/src/sqlite-store";
 import { MemoryStoreClient } from "../packages/test-runtime/src/memory-store";
 import {
-  defineDurableWakeConformance,
-  defineSharedBackendConformance,
-  defineStoreClientConformance,
-  defineWakeDeliveryConformance,
+  durableWakeConformanceCases,
+  sharedBackendConformanceCases,
+  storeClientConformanceCases,
+  wakeDeliveryConformanceCases,
   type DurableStoreClientTarget,
   type SharedStoreClientTarget,
   type StoreClientTarget,
@@ -68,13 +68,31 @@ const durableSqlite: DurableStoreClientTarget = {
   },
 };
 
-defineStoreClientConformance(memory);
-defineWakeDeliveryConformance(memory);
+for (const target of [memory, sqlite]) {
+  describe(`${target.name} store client`, () => {
+    for (const { name, run } of storeClientConformanceCases(target)) {
+      test(name, run);
+    }
+  });
 
-defineStoreClientConformance(sqlite);
-defineWakeDeliveryConformance(sqlite);
-defineSharedBackendConformance(sharedSqlite);
-defineDurableWakeConformance(durableSqlite);
+  describe(`${target.name} wake delivery`, () => {
+    for (const { name, run } of wakeDeliveryConformanceCases(target)) {
+      test(name, run);
+    }
+  });
+}
+
+describe(`${sharedSqlite.name} shared backend`, () => {
+  for (const { name, run } of sharedBackendConformanceCases(sharedSqlite)) {
+    test(name, run);
+  }
+});
+
+describe(`${durableSqlite.name} durable wake delivery`, () => {
+  for (const { name, run } of durableWakeConformanceCases(durableSqlite)) {
+    test(name, run);
+  }
+});
 
 test("memory store retries an updater after a commit conflict", async () => {
   type State = { messages: string[] };
