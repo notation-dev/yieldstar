@@ -57,7 +57,7 @@ test("sqlite store updates wake matching waiters", async () => {
   expect(events).toEqual([event]);
 });
 
-test("retry delivers a wake whose first enqueue failed after the store commit", async () => {
+test("wake failure does not reject a committed update and ledger replay retries it", async () => {
   const db = new Database(":memory:");
   const events: WorkflowEvent[] = [];
   let wakeAttempts = 0;
@@ -103,7 +103,8 @@ test("retry delivers a wake whose first enqueue failed after the store commit", 
       stepId: { executionId: "updater", stepKey: "append-message" },
     });
 
-  await expect(update()).rejects.toThrow("wake enqueue failed");
+  await update();
+  expect(wakeAttempts).toBe(1);
   await update();
 
   expect(wakeAttempts).toBe(2);
@@ -153,16 +154,14 @@ test("a new sqlite store client recovers a committed wake after interruption", a
     readPaths: [["messages"]],
   });
 
-  await expect(
-    interruptedClient.updateStore({
-      definition: Store,
-      id: "wake-recovery",
-      updater(draft) {
-        draft.messages.push({ id: "msg-1" });
-      },
-      stepId: { executionId: "updater", stepKey: "append-message" },
-    })
-  ).rejects.toThrow("process interrupted before wake enqueue");
+  await interruptedClient.updateStore({
+    definition: Store,
+    id: "wake-recovery",
+    updater(draft) {
+      draft.messages.push({ id: "msg-1" });
+    },
+    stepId: { executionId: "updater", stepKey: "append-message" },
+  });
 
   const recoveredEvents: WorkflowEvent[] = [];
   new SqliteStoreClient({
@@ -176,6 +175,78 @@ test("a new sqlite store client recovers a committed wake after interruption", a
   await Bun.sleep(0);
 
   expect(recoveredEvents).toEqual([event]);
+});
+
+test("a poisoned wake neither blocks later rows nor unrelated store commits", async () => {
+  const db = new Database(":memory:");
+  const delivered: WorkflowEvent[] = [];
+  const client = new SqliteStoreClient({
+    db,
+    schedulerClient: {
+      async requestWakeUp(event) {
+        if (event.executionId === "a-poison") {
+          throw new Error("poisoned wake");
+        }
+        delivered.push(event);
+      },
+    },
+  });
+  const initial = await client.getOrCreateStore({
+    definition: Store,
+    id: "poisoned-outbox",
+    initial: { messages: [] },
+  });
+
+  for (const executionId of ["a-poison", "b-good"]) {
+    const event = {
+      workflowId: "workflow",
+      executionId,
+      params: undefined,
+      context: new Map(),
+    };
+    await client.registerWaiter({
+      workflowId: event.workflowId,
+      executionId,
+      stepKey: "next-message",
+      event,
+      storeName: Store.name,
+      storeId: "poisoned-outbox",
+      instanceId: initial.instanceId,
+      sinceVersion: initial.version,
+      readPaths: [["messages"]],
+    });
+  }
+
+  await client.updateStore({
+    definition: Store,
+    id: "poisoned-outbox",
+    updater(draft) {
+      draft.messages.push({ id: "msg-1" });
+    },
+  });
+
+  expect(delivered.map((event) => event.executionId)).toEqual(["b-good"]);
+  expect(
+    db.query(
+      `SELECT execution_id FROM store_wake_outbox ORDER BY execution_id`
+    ).all()
+  ).toEqual([{ execution_id: "a-poison" }]);
+
+  await client.getOrCreateStore({
+    definition: Store,
+    id: "unrelated",
+    initial: { messages: [] },
+  });
+  await client.updateStore({
+    definition: Store,
+    id: "unrelated",
+    updater(draft) {
+      draft.messages.push({ id: "unrelated-msg" });
+    },
+  });
+  expect(
+    await client.getStore({ definition: Store, id: "unrelated" })
+  ).toMatchObject({ version: 1 });
 });
 
 test("wake delivery does not delete a waiter re-registered by another client", async () => {

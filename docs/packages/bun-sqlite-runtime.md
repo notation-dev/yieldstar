@@ -62,7 +62,9 @@ changes a path that a suspended workflow observed, the same conditional
 transaction that writes the state and applied-step receipt also records a wake
 intent. After commit, the client drains those intents into the scheduler. A
 failed delivery remains in the outbox and is retried by the next operation or
-by a newly constructed client.
+by a newly constructed client. Delivery is best-effort and does not reject an
+otherwise committed store mutation; one failing intent also does not block
+later outbox rows.
 
 Updaters must be synchronous, deterministic, and side-effect-free. They run
 against a snapshot outside the SQLite transaction; if the conditional commit

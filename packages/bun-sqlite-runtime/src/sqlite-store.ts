@@ -65,9 +65,7 @@ export class SqliteStoreClient extends CasStoreClient {
     // A previous process may have committed a store mutation and its wake
     // intents before it could enqueue them. Delivery is idempotent, so every
     // client startup can safely resume the durable outbox.
-    void this.enqueueWrite(() => this.drainWakeOutbox()).catch((error) => {
-      console.error("Failed to recover pending store wakes", error);
-    });
+    void this.enqueueWrite(() => this.drainWakeOutboxBestEffort());
   }
 
   private enqueueWrite<R>(fn: () => Promise<R>): Promise<R> {
@@ -175,7 +173,7 @@ export class SqliteStoreClient extends CasStoreClient {
     stepId: StoreStepId;
   }): Promise<{ result: unknown } | undefined> {
     return this.enqueueWrite(async () => {
-      await this.drainWakeOutbox();
+      await this.drainWakeOutboxBestEffort();
       const row = this.getAppliedStepRow({
         storeName: params.definition.name,
         storeId: params.id,
@@ -189,7 +187,6 @@ export class SqliteStoreClient extends CasStoreClient {
     mutation: StoreMutation
   ): Promise<StoreMutationCommitResult> {
     return this.enqueueWrite(async () => {
-      await this.drainWakeOutbox();
       this.db.run("BEGIN IMMEDIATE");
       try {
         if (mutation.stepId) {
@@ -275,7 +272,10 @@ export class SqliteStoreClient extends CasStoreClient {
         throw error;
       }
 
-      await this.drainWakeOutbox();
+      // Wake delivery is deliberately outside the mutation result. Once the
+      // outbox intent commits, scheduler failure must not poison later store
+      // operations; another operation or client startup will retry it.
+      await this.drainWakeOutboxBestEffort();
       return { status: "committed" };
     });
   }
@@ -467,7 +467,7 @@ export class SqliteStoreClient extends CasStoreClient {
       }
 
       if (versionAdvanced) {
-        await this.drainWakeOutbox();
+        await this.drainWakeOutboxBestEffort();
       }
     });
   }
@@ -678,33 +678,48 @@ export class SqliteStoreClient extends CasStoreClient {
       .all();
 
     for (const row of rows) {
-      if (row.event !== null) {
-        await this.schedulerClient.requestWakeUp(
-          deserializeEvent(JSON.parse(row.event))
-        );
-        this.deleteWaiterRow({
-          storeName: row.store_name,
-          storeId: row.store_id,
-          executionId: row.execution_id,
-          stepKey: row.step_key,
-          sinceVersion: row.since_version ?? undefined,
-        });
-      }
+      try {
+        if (row.event !== null) {
+          await this.schedulerClient.requestWakeUp(
+            deserializeEvent(JSON.parse(row.event))
+          );
+          this.deleteWaiterRow({
+            storeName: row.store_name,
+            storeId: row.store_id,
+            executionId: row.execution_id,
+            stepKey: row.step_key,
+            sinceVersion: row.since_version ?? undefined,
+          });
+        }
 
-      this.db
-        .query(
-          `DELETE FROM store_wake_outbox
-           WHERE store_name = $storeName
-             AND store_id = $storeId
-             AND execution_id = $executionId
-             AND step_key = $stepKey`
-        )
-        .run({
-          $storeName: row.store_name,
-          $storeId: row.store_id,
-          $executionId: row.execution_id,
-          $stepKey: row.step_key,
-        });
+        this.db
+          .query(
+            `DELETE FROM store_wake_outbox
+             WHERE store_name = $storeName
+               AND store_id = $storeId
+               AND execution_id = $executionId
+               AND step_key = $stepKey`
+          )
+          .run({
+            $storeName: row.store_name,
+            $storeId: row.store_id,
+            $executionId: row.execution_id,
+            $stepKey: row.step_key,
+          });
+      } catch (error) {
+        // Leave only this row pending. A malformed event or event-specific
+        // scheduler failure must not prevent later wake intents from draining.
+        console.error("Failed to deliver pending store wake", error);
+      }
+    }
+  }
+
+  private async drainWakeOutboxBestEffort(): Promise<void> {
+    try {
+      await this.drainWakeOutbox();
+    } catch (error) {
+      // Query/database failures also stay outside store-operation success.
+      console.error("Failed to drain pending store wakes", error);
     }
   }
 
