@@ -4,6 +4,6 @@
 
 ### Breaking changes
 
-- Store updater callbacks are now synchronous. `update` and `updateFrom` no
-  longer accept promise-returning updaters; callbacks must also be deterministic
-  and side-effect-free because a CAS conflict may run them again.
+- Store updater callbacks must be synchronous and side-effect-free. `update`
+  and `updateFrom` do not accept promise-returning callbacks because concurrent
+  writes may cause an updater to run more than once.

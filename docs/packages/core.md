@@ -72,9 +72,9 @@ interface SchedulerClient {
 
 Persistence layer for [durable stores](../manual/stores.md). An implementation
 owns store state and versions, waiters created by `when`/`take`, an applied-steps
-ledger, and durable wake delivery. The ledger records each committed workflow
-update by `(executionId, stepKey)`, while connector-specific wake intents ensure
-a committed change is eventually delivered after an interruption.
+ledger, and wake delivery. The ledger records each committed workflow update by
+`(executionId, stepKey)` so replay can return the result without applying the
+update again.
 
 ```ts
 abstract getOrCreateStore(params: {
@@ -114,16 +114,41 @@ abstract registerWaiter(waiter: StoreWaiter): Promise<void>;
 
 The base class also provides `storeClient.store(definition, id)`, the external read/write handle described in [External Store Access](../manual/store-external.md).
 
-An implementation must uphold four contracts:
+An implementation must uphold these contracts:
 
 - Every store instance has a UUIDv7 instance ID; `(definition.name, id)` remains the unique logical lookup key.
-- Each update commits in a single per-store transaction and increments the version by one.
+- Each update atomically writes the state, increments the version by one, and records its workflow-step result when a `stepId` is present.
 - Snapshot-based updates and deletions compare both the instance ID and version.
 - When `stepId` is provided and the ledger already holds that step, the implementation returns the recorded result and does not run the updater.
 - `registerWaiter` compares the store's current instance and version with the waiter; if either has moved on, it wakes the waiter immediately rather than leaving it to sleep through a write that already happened.
-- A waiter is removed only after its durable wake is queued. SQLite records the
-  wake intent atomically with the mutation and drains it through an outbox; a
-  crash can produce a duplicate wake, which replay safely absorbs.
+- Matching waiters remain registered until their wake-up is queued. Scheduler
+  failures do not reject committed updates, and pending wake-ups are retried by
+  later writes. Durable connectors persist wake intents atomically with the
+  state change so process interruption cannot lose them.
+
+## `CasStoreClient` (abstract class)
+
+Base class for connectors that support compare-and-swap (CAS). It implements
+`updateStore`, `updateStoreFrom`, and `takeFromStore`; a connector supplies
+ledger lookup and the atomic mutation operation:
+
+```ts
+abstract getAppliedStoreStep(params): Promise<{ result: unknown } | undefined>;
+
+abstract commitStoreMutation(
+  mutation: StoreMutation
+): Promise<
+  | { status: "committed" }
+  | { status: "already-applied"; result: unknown }
+  | { status: "conflict"; snapshot: StoreSnapshot<unknown> }
+>;
+```
+
+`commitStoreMutation` checks the applied-step ledger first, compares the
+expected instance ID and version, and atomically writes the next state, version,
+step result, and any durable wake intents. On conflict it returns the current
+snapshot so the base class can recompute the update. Application callbacks run
+outside the connector's transaction and may run more than once.
 
 ## `WorkflowInvoker` (type)
 

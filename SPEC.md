@@ -278,12 +278,13 @@ yield* store.update(`start:${message.id}`, draft => {
 
 `update` is a durable step. The key is the workflow step key for that update.
 
-Updaters are synchronous, deterministic, and side-effect-free. A CAS conflict
-may run the updater again against a newer snapshot before it commits.
+Updaters are synchronous, deterministic, and side-effect-free. Stores commit
+with compare-and-swap (CAS): if the version changed after the read, the runtime
+runs the updater again against the latest snapshot.
 
 If replayed, the workflow step cache returns the recorded `StoreUpdateResult` and the runtime does not call the store updater again. This holds even when the previous run crashed after the store commit but before the workflow heap write, because the store itself records the committed result in the applied-steps ledger (see below) inside the same transaction as the state change.
 
-Public `paths` are not accepted. The runtime derives changed paths from the update itself: the updater runs against a write-recording proxy over the draft, and every `set`/`deleteProperty` through the proxy records its full path (mutating array methods are captured naturally via the index/length writes they perform). This makes path derivation O(changes) rather than O(state size). If the updater returns a replacement state instead of mutating the draft, the runtime falls back to deep-diffing the previous and next states. Changed paths only affect wake precision, never state correctness, so ambiguous operations are recorded conservatively – an extra path is at worst a spurious wake, which replay absorbs.
+The runtime derives changed paths automatically. The updater runs against a write-recording proxy over the draft, and every `set`/`deleteProperty` through the proxy records its full path (mutating array methods are captured naturally via the index/length writes they perform). This makes path derivation O(changes) rather than O(state size). If the updater returns a replacement state instead of mutating the draft, the runtime falls back to deep-diffing the previous and next states. Changed paths only affect wake precision, never state correctness, so ambiguous operations are recorded conservatively – an extra path is at worst a spurious wake, which replay absorbs.
 
 Update semantics:
 
@@ -292,9 +293,12 @@ Update semantics:
 - The updated state is validated against the store schema before commit.
 - The update result records `previousVersion` and `version`.
 - The runtime records changed paths internally for waiter wakeups.
-- A rejected update does not prove that its mutation rolled back: wake delivery
-  can fail after the state commit. Retrying is exactly-once only with the same
-  workflow `stepId`; external callers must read and reconcile before retrying.
+- Durable connectors record matching wake intents atomically with the state
+  change. Scheduler delivery happens after commit and is best-effort: a failed
+  delivery remains pending and does not reject the committed update.
+- A connector response can be lost after commit. Workflow calls are
+  exactly-once through their `stepId`; direct callers must read and reconcile
+  before retrying an ambiguous failure.
 
 ## `when`
 
@@ -337,7 +341,11 @@ The selector is not serialized. The runtime wakes coarsely from stored read path
 
 ## `take`
 
-`take` is the atomic wait-and-consume primitive. It atomically selects and claims: the selector and the claim mutation run inside the SAME store update transaction, committing as one version bump. This is the primitive for multi-consumer mailboxes and queues where exactly one execution must win each item; `when` remains the pure observe primitive.
+`take` is the atomic wait-and-consume primitive. It selects and claims from a
+snapshot, then conditionally commits the claim as one version bump. If the
+snapshot is stale, selection and claiming restart from the latest state. This
+is the primitive for multi-consumer mailboxes and queues where exactly one
+execution must win each item; `when` remains the pure observe primitive.
 
 ```ts
 const msg = yield* store.take(

@@ -81,18 +81,15 @@ yield* store.update(`finish:${msg.id}`, (draft) => {
 });
 ```
 
-The updater runs locally against a snapshot. The new state is validated against
-the schema, then committed with a conditional version check and a single
-version increment. If another writer wins, the updater may run again against
-the newer snapshot.
+The runtime validates the new state, commits it, and increments the version by
+one. Concurrent updates are retried against the latest state, so an updater may
+run more than once.
 
-Updates are idempotent by step key. On replay, the runtime returns the cached result and skips the updater.
+Updates are durable and idempotent by step key. On replay, the runtime returns
+the recorded result without running the updater again.
 
-What if the process crashes after the store commits, but before the step result is recorded? The store covers this case itself. Every workflow update writes a row to an applied-steps ledger, in the same transaction as the state change. When the workflow replays, the store finds the ledger row and returns the recorded result, rather than running the updater a second time.
-
-Updaters must be synchronous, deterministic, and side-effect-free. Updater
-signatures do not accept promises. Do not perform network calls, timers, or
-other observable work: CAS conflicts may re-run the updater.
+Updaters must be synchronous and side-effect-free. Do not perform network
+calls, start timers, or modify anything outside the draft.
 
 When a decision depends on an earlier read, use `updateFrom` to commit only if
 the store has not changed since that snapshot:
@@ -137,10 +134,8 @@ if (!result.deleted) {
 ```
 
 The store is deleted only when its instance ID and version still match the
-snapshot. Successful workflow deletions are written to the applied-steps
-ledger before commit, and that ledger entry survives deletion. Replay therefore
-returns the committed result without deleting a newer store created under the
-same logical ID.
+snapshot. Replaying a successful deletion returns its recorded result without
+deleting a newer store created under the same logical ID.
 
 Runtime integrations can call `listStores(definition)` to get the definition's
 live logical IDs in ascending order, and `deleteStore({ definition, id })` for

@@ -48,7 +48,7 @@ const schedulerClient = new SqliteSchedulerClient({
 ## `SqliteStoreClient`
 
 `StoreClient` implementation backed by SQLite. Store state, waiting workflows,
-the applied-steps ledger, and durable wake intents live in `stores`,
+recorded workflow-step results, and pending wake-ups live in `stores`,
 `store_waiters`, `store_applied_steps`, and `store_wake_outbox`.
 
 ```ts
@@ -60,17 +60,16 @@ const storeClient = new SqliteStoreClient({ db, schedulerClient });
 The constructor takes a scheduler as well as the database. When an update
 changes a path that a suspended workflow observed, the same conditional
 transaction that writes the state and applied-step receipt also records a wake
-intent. After commit, the client drains those intents into the scheduler. A
-failed delivery remains in the outbox and is retried after the next committed
-mutation or by a newly constructed client. Delivery is best-effort and does
-not reject an otherwise committed store mutation; one failing intent also does
-not block later outbox rows.
+intent in the outbox. After commit, the client sends pending wake-ups to the
+scheduler. Failed deliveries remain pending and are retried after another
+committed mutation or when a client starts. A scheduler failure does not fail
+an otherwise committed store update or block other pending wake-ups.
 
 Updaters must be synchronous, deterministic, and side-effect-free. They run
 against a snapshot outside the SQLite transaction; if the conditional commit
-loses a version race, the shared CAS client runs the updater again against the
-newer snapshot. The internal write queue serializes only SQLite transactions
-and outbox delivery on that client.
+loses a version race, the base store client runs the updater again against the
+latest snapshot. The internal write queue serializes SQLite transactions and
+outbox delivery for each client.
 
 ## `SqliteEventLoop`
 
