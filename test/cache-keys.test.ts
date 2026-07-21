@@ -1,8 +1,6 @@
 import { expect, test, vi } from "vitest";
 import { createWorkflow } from "yieldstar";
-import { createTestSdkFactory } from "@yieldstar/test-utils";
-
-const createSdk = createTestSdkFactory();
+import { createSdk } from "./sdk";
 
 test("step.run without cache keys", async () => {
   const mock1 = vi.fn(() => 1);

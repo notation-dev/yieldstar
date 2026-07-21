@@ -2,9 +2,7 @@ import type { WorkflowFn } from "yieldstar";
 import { setTimeout as sleep } from "node:timers/promises";
 import { expect, test, vi } from "vitest";
 import { workflow } from "yieldstar";
-import { createTestSdkFactory } from "@yieldstar/test-utils";
-
-const createSdk = createTestSdkFactory();
+import { createSdk } from "./sdk";
 
 test("passing params to a workflow", async () => {
   const testParams = { foo: "bar", count: 42 };

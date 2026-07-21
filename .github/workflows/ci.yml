@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runtime: [Bun, Node]
+        runtime: [bun, node]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -27,7 +27,4 @@ jobs:
           bun-version: 1.3.14
       - run: pnpm install --frozen-lockfile
       - run: bun run bundle
-      - if: matrix.runtime == 'Bun'
-        run: bun run test:bun
-      - if: matrix.runtime == 'Node'
-        run: pnpm run test:node
+      - run: pnpm run test:${{ matrix.runtime }}

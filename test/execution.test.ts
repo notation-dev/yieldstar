@@ -1,9 +1,7 @@
 import { expect, test } from "vitest";
 import { setTimeout } from "node:timers/promises";
 import { createWorkflow } from "yieldstar";
-import { createTestSdkFactory } from "@yieldstar/test-utils";
-
-const createSdk = createTestSdkFactory();
+import { createSdk } from "./sdk";
 
 test("data flow between steps", async () => {
   const workflow = createWorkflow(async function* (step) {

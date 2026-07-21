@@ -2,9 +2,7 @@ import type { WorkflowFn } from "yieldstar";
 import { setTimeout as sleep } from "node:timers/promises";
 import { expect, test, vi } from "vitest";
 import { workflow } from "yieldstar";
-import { createTestSdkFactory } from "@yieldstar/test-utils";
-
-const createSdk = createTestSdkFactory();
+import { createSdk } from "./sdk";
 
 // todo – use sqlite runtime
 test("triggering a workflow", async () => {

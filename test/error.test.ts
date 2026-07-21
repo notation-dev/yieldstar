@@ -1,8 +1,6 @@
 import { expect, test } from "vitest";
 import { createWorkflow } from "yieldstar";
-import { createTestSdkFactory } from "@yieldstar/test-utils";
-
-const createSdk = createTestSdkFactory();
+import { createSdk } from "./sdk";
 
 test("failing steps can be caught", async () => {
   const workflow = createWorkflow(async function* (step) {

@@ -1,10 +1,9 @@
 import { expect, test } from "vitest";
 import type { StandardSchemaV1 } from "yieldstar";
-import { createTestSdkFactory, testSchema } from "@yieldstar/test-utils";
+import { testSchema } from "@yieldstar/test-utils";
+import { createSdk } from "./sdk";
 import { defineStore, workflow } from "yieldstar";
 import { setTimeout as sleep } from "node:timers/promises";
-
-const createSdk = createTestSdkFactory();
 
 type Message = {
   id: string;

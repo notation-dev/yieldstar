@@ -1,8 +1,6 @@
 import { expect, test } from "vitest";
 import { createWorkflow } from "yieldstar";
-import { createTestSdkFactory } from "@yieldstar/test-utils";
-
-const createSdk = createTestSdkFactory();
+import { createSdk } from "./sdk";
 
 test("poll retries when predicate fails", async () => {
   let runs: number = 0;

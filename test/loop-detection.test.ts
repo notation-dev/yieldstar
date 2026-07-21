@@ -1,8 +1,6 @@
 import { expect, test, vi } from "vitest";
 import { createWorkflow } from "yieldstar";
-import { createTestSdkFactory } from "@yieldstar/test-utils";
-
-const createSdk = createTestSdkFactory();
+import { createSdk } from "./sdk";
 
 test("loop detection with implicit keys", async () => {
   const runSpy = vi.fn(() => 1);

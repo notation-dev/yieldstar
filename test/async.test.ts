@@ -1,10 +1,8 @@
 import type { WorkflowFn } from "yieldstar";
 import { expect, test, vi } from "vitest";
 import { createWorkflow } from "yieldstar";
-import { createTestSdkFactory } from "@yieldstar/test-utils";
 import { EventContext } from "../packages/core/dist";
-
-const createSdk = createTestSdkFactory();
+import { createSdk } from "./sdk";
 
 test("running sync workflows to completion", async () => {
   const mockWorkflowGenerator = vi.fn<
