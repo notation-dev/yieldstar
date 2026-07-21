@@ -105,8 +105,9 @@ test("registering a waiter with a stale sinceVersion triggers an immediate wake"
   expect(events).toEqual([]);
 });
 
-test("concurrent synchronous updates both commit", async () => {
+test("concurrent synchronous updates retry CAS conflicts and both commit", async () => {
   const { client } = createClient();
+  let updaterRuns = 0;
 
   await client.getOrCreateStore({
     definition: Store,
@@ -119,6 +120,7 @@ test("concurrent synchronous updates both commit", async () => {
       definition: Store,
       id: "race",
       updater(draft) {
+        updaterRuns++;
         draft.messages.push({ id: "msg-a" });
       },
     }),
@@ -126,12 +128,14 @@ test("concurrent synchronous updates both commit", async () => {
       definition: Store,
       id: "race",
       updater(draft) {
+        updaterRuns++;
         draft.messages.push({ id: "msg-b" });
       },
     }),
   ]);
 
   expect([first.version, second.version].sort()).toEqual([1, 2]);
+  expect(updaterRuns).toBe(3);
 
   const snapshot = await client.getStore({ definition: Store, id: "race" });
   expect(snapshot.version).toBe(2);

@@ -1,28 +1,18 @@
 import type { SchedulerClient } from "@yieldstar/core";
 import {
-  assertSynchronousClaim,
-  assertSynchronousUpdater,
+  CasStoreClient,
   cloneStoreState,
-  diffStorePaths,
-  isStoreSelectorMatch,
-  StoreClient,
   storePathsIntersect,
-  trackStoreSelector,
-  trackStoreUpdater,
-  unwrapTrackedValue,
   validateStoreState,
-  type Draft,
   type StandardSchemaV1,
   type StoreDefinition,
   type StoreDeleteFromResult,
+  type StoreMutation,
+  type StoreMutationCommitResult,
   type StorePath,
-  type StoreSelector,
   type StoreSnapshot,
   type StoreState,
   type StoreStepId,
-  type StoreTakeResult,
-  type StoreUpdateFromResult,
-  type StoreUpdateResult,
   type StoreWaiter,
 } from "@yieldstar/core";
 
@@ -32,7 +22,7 @@ type StoreRecord = {
   version: number;
 };
 
-export class MemoryStoreClient extends StoreClient {
+export class MemoryStoreClient extends CasStoreClient {
   private stores = new Map<string, StoreRecord>();
   private waiters = new Map<string, StoreWaiter>();
   // Applied-steps ledger: (storeName, storeId, executionId, stepKey) ->
@@ -125,291 +115,84 @@ export class MemoryStoreClient extends StoreClient {
     };
   }
 
-  async updateStore<Schema extends StandardSchemaV1>(params: {
-    definition: StoreDefinition<Schema>;
+  protected async getAppliedStoreStep(params: {
+    definition: StoreDefinition;
     id: string;
-    updater: (draft: Draft<StoreState<Schema>>) => void | StoreState<Schema>;
-    stepId?: StoreStepId;
-  }): Promise<StoreUpdateResult<StoreState<Schema>>> {
-    return (await this.updateStoreInternal(params)) as StoreUpdateResult<
-      StoreState<Schema>
-    >;
+    stepId: StoreStepId;
+  }): Promise<{ result: unknown } | undefined> {
+    const applied = this.appliedSteps.get(
+      this.appliedStepKey(params.definition.name, params.id, params.stepId)
+    );
+    return applied ? { result: JSON.parse(applied) } : undefined;
   }
 
-  async updateStoreFrom<Schema extends StandardSchemaV1>(params: {
-    definition: StoreDefinition<Schema>;
-    id: string;
-    snapshot: StoreSnapshot<StoreState<Schema>>;
-    updater: (draft: Draft<StoreState<Schema>>) => void | StoreState<Schema>;
-    stepId?: StoreStepId;
-  }): Promise<StoreUpdateFromResult<StoreState<Schema>>> {
-    const result = await this.updateStoreInternal({
-      ...params,
-      expectedInstanceId: params.snapshot.instanceId,
-      expectedVersion: params.snapshot.version,
-    });
-    return "updated" in result ? result : { updated: true, ...result };
-  }
-
-  private updateStoreInternal<Schema extends StandardSchemaV1>(params: {
-    definition: StoreDefinition<Schema>;
-    id: string;
-    updater: (draft: Draft<StoreState<Schema>>) => void | StoreState<Schema>;
-    stepId?: StoreStepId;
-    expectedInstanceId?: string;
-    expectedVersion?: number;
-  }): Promise<
-    | StoreUpdateResult<StoreState<Schema>>
-    | Extract<StoreUpdateFromResult<StoreState<Schema>>, { updated: false }>
-  > {
+  protected commitStoreMutation(
+    mutation: StoreMutation
+  ): Promise<StoreMutationCommitResult> {
     return this.enqueueWrite(async () => {
-      const key = this.storeKey(params.definition.name, params.id);
-
-      // Exactly-once: if this workflow step already committed, return the
-      // recorded result without re-running the updater.
-      if (params.stepId) {
+      if (mutation.stepId) {
         const applied = this.appliedSteps.get(
-          this.appliedStepKey(params.definition.name, params.id, params.stepId)
+          this.appliedStepKey(
+            mutation.definition.name,
+            mutation.id,
+            mutation.stepId
+          )
         );
         if (applied) {
-          return JSON.parse(applied) as StoreUpdateResult<StoreState<Schema>>;
+          return {
+            status: "already-applied",
+            result: JSON.parse(applied),
+          };
         }
       }
 
-      if (params.expectedVersion !== undefined) {
-        this.assertSnapshotHasInstanceId({
-          instanceId: params.expectedInstanceId,
-        });
-      }
-
+      const key = this.storeKey(mutation.definition.name, mutation.id);
       const record = this.stores.get(key);
       if (!record) {
         throw new Error(
-          `Store "${params.definition.name}:${params.id}" does not exist`
+          `Store "${mutation.definition.name}:${mutation.id}" does not exist`
         );
       }
-
       if (
-        params.expectedInstanceId !== undefined &&
-        params.expectedVersion !== undefined &&
-        (record.instanceId !== params.expectedInstanceId ||
-          record.version !== params.expectedVersion)
+        record.instanceId !== mutation.expected.instanceId ||
+        record.version !== mutation.expected.version
       ) {
         return {
-          updated: false as const,
-          expectedInstanceId: params.expectedInstanceId,
-          actualInstanceId: record.instanceId,
-          expectedVersion: params.expectedVersion,
-          actualVersion: record.version,
+          status: "conflict",
+          snapshot: {
+            state: cloneStoreState(record.state),
+            instanceId: record.instanceId,
+            version: record.version,
+          },
         };
       }
 
-      const previousState = cloneStoreState(
-        record.state
-      ) as StoreState<Schema>;
-      const draft = cloneStoreState(previousState) as Draft<
-        StoreState<Schema>
-      >;
-      // The updater runs against a write-recording proxy so changed paths
-      // are derived from its mutations in O(changes) – the full-state deep
-      // diff is only needed when the updater returns a replacement state
-      // (or validation returns a transformed copy).
-      const tracked = trackStoreUpdater(draft);
-      const updated = params.updater(tracked.draft);
-      assertSynchronousUpdater(updated);
-      const returned =
-        updated === undefined ? undefined : unwrapTrackedValue(updated);
-      const isReplacement = returned !== undefined && returned !== draft;
-      const nextState = await validateStoreState(
-        params.definition,
-        isReplacement ? returned : draft
-      );
-      const changedPaths =
-        !isReplacement && (nextState as unknown) === draft
-          ? tracked.writePaths()
-          : diffStorePaths(previousState, nextState);
-      const version = await this.commitNextState({
-        key,
-        storeName: params.definition.name,
-        storeId: params.id,
+      const version = record.version + 1;
+      this.stores.set(key, {
+        state: cloneStoreState(mutation.nextState),
         instanceId: record.instanceId,
-        changedPaths,
-        nextState,
-        previousVersion: record.version,
-        // Recorded in the same critical section as the state commit
-        appliedStep: params.stepId
-          ? {
-              key: this.appliedStepKey(
-                params.definition.name,
-                params.id,
-                params.stepId
-              ),
-              result: JSON.stringify({
-                state: nextState,
-                previousVersion: record.version,
-                version: record.version + 1,
-              }),
-            }
-          : undefined,
+        version,
       });
 
-      return {
-        state: cloneStoreState(nextState),
-        previousVersion: record.version,
-        version,
-      };
-    });
-  }
-
-  async takeFromStore<Schema extends StandardSchemaV1, R>(params: {
-    definition: StoreDefinition<Schema>;
-    id: string;
-    selector: StoreSelector<StoreState<Schema>, R>;
-    claim: (
-      draft: Draft<StoreState<Schema>>,
-      selected: NonNullable<R>
-    ) => void;
-    stepId?: StoreStepId;
-  }): Promise<StoreTakeResult<R>> {
-    return this.enqueueWrite(async () => {
-      const key = this.storeKey(params.definition.name, params.id);
-
-      // Exactly-once: if this workflow step already committed a claim,
-      // return the recorded outcome without re-running selector/claim.
-      // Only matched takes are recorded – an unmatched take commits
-      // nothing and must be free to re-evaluate on the next wake.
-      if (params.stepId) {
-        const applied = this.appliedSteps.get(
-          this.appliedStepKey(params.definition.name, params.id, params.stepId)
-        );
-        if (applied) {
-          return JSON.parse(applied) as StoreTakeResult<R>;
-        }
-      }
-
-      const record = this.stores.get(key);
-      if (!record) {
-        throw new Error(
-          `Store "${params.definition.name}:${params.id}" does not exist`
+      if (mutation.stepId) {
+        this.appliedSteps.set(
+          this.appliedStepKey(
+            mutation.definition.name,
+            mutation.id,
+            mutation.stepId
+          ),
+          JSON.stringify(mutation.result)
         );
       }
 
-      const previousState = cloneStoreState(
-        record.state
-      ) as StoreState<Schema>;
-      const draft = cloneStoreState(previousState) as Draft<
-        StoreState<Schema>
-      >;
-      // Wrap the draft in a write-recording proxy so the claim's mutations
-      // produce the changed paths (O(changes) instead of a full-state diff).
-      const tracked = trackStoreUpdater(draft);
-
-      // Run the selector against the mutable draft (through the
-      // read-tracking proxy over the recording proxy) so a selected value
-      // that is a reference into state observes the claim mutation before
-      // it is snapshotted – and so mutations through it are recorded.
-      const { result: selectedResult, readPaths } = trackStoreSelector(
-        tracked.draft as StoreState<Schema>,
-        params.selector
-      );
-
-      if (!isStoreSelectorMatch(selectedResult)) {
-        return {
-          matched: false,
-          instanceId: record.instanceId,
-          version: record.version,
-          readPaths,
-        };
-      }
-
-      // Unwraps the selector proxy to the RECORDING proxy, so mutations via
-      // the selected reference are captured as write paths.
-      const selected = unwrapTrackedValue(selectedResult) as NonNullable<R>;
-
-      assertSynchronousClaim(
-        params.claim(tracked.draft as Draft<StoreState<Schema>>, selected)
-      );
-
-      const nextState = await validateStoreState(params.definition, draft);
-      // Snapshot AFTER the claim ran (and unwrap any tracking proxies) so a
-      // selected reference into state reflects the claim mutation.
-      const selectedSnapshot = cloneStoreState(selected);
-      const changedPaths =
-        (nextState as unknown) === draft
-          ? tracked.writePaths()
-          : diffStorePaths(previousState, nextState);
-
-      const version = await this.commitNextState({
-        key,
-        storeName: params.definition.name,
-        storeId: params.id,
-        instanceId: record.instanceId,
-        changedPaths,
-        nextState,
-        previousVersion: record.version,
-        // Recorded in the same critical section as the claim commit
-        appliedStep: params.stepId
-          ? {
-              key: this.appliedStepKey(
-                params.definition.name,
-                params.id,
-                params.stepId
-              ),
-              result: JSON.stringify({
-                matched: true,
-                selected: selectedSnapshot,
-                instanceId: record.instanceId,
-                version: record.version + 1,
-              }),
-            }
-          : undefined,
-      });
-
-      return {
-        matched: true,
-        selected: selectedSnapshot,
-        instanceId: record.instanceId,
+      await this.wakeWaiters({
+        storeName: mutation.definition.name,
+        storeId: mutation.id,
         version,
-      };
+        changedPaths: mutation.changedPaths,
+      });
+      return { status: "committed" };
     });
-  }
-
-  /**
-   * Commits the next state (version + 1) and wakes waiters matching the
-   * changed paths. Must be called while holding the write lock.
-   */
-  private async commitNextState(params: {
-    key: string;
-    storeName: string;
-    storeId: string;
-    instanceId: string;
-    changedPaths: StorePath[];
-    nextState: unknown;
-    previousVersion: number;
-    appliedStep?: { key: string; result: string };
-  }): Promise<number> {
-    const { changedPaths } = params;
-    const version = params.previousVersion + 1;
-
-    this.stores.set(params.key, {
-      state: cloneStoreState(params.nextState),
-      instanceId: params.instanceId,
-      version,
-    });
-
-    // Ledger entry lands in the same synchronous section as the state write
-    if (params.appliedStep) {
-      this.appliedSteps.set(params.appliedStep.key, params.appliedStep.result);
-    }
-
-    await this.wakeWaiters({
-      storeName: params.storeName,
-      storeId: params.storeId,
-      version,
-      changedPaths,
-    });
-
-    return version;
   }
 
   async listStores<Schema extends StandardSchemaV1>(
