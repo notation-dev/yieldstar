@@ -1,4 +1,6 @@
 import { Database } from "bun:sqlite";
+import { expect, test } from "bun:test";
+import { defineStore, type StandardSchemaV1 } from "@yieldstar/core";
 import { SqliteStoreClient } from "../packages/bun-sqlite-runtime/src/sqlite-store";
 import { MemoryStoreClient } from "../packages/test-runtime/src/memory-store";
 import {
@@ -73,3 +75,48 @@ defineStoreClientConformance(sqlite);
 defineWakeDeliveryConformance(sqlite);
 defineSharedBackendConformance(sharedSqlite);
 defineDurableWakeConformance(durableSqlite);
+
+test("memory store retries an updater after a commit conflict", async () => {
+  type State = { messages: string[] };
+  const Store = defineStore("memory-cas-retry", schema<State>());
+  const client = new MemoryStoreClient({ schedulerClient: { async requestWakeUp() {} } });
+  let updaterRuns = 0;
+
+  await client.getOrCreateStore({
+    definition: Store,
+    id: "race",
+    initial: { messages: [] },
+  });
+  await Promise.all([
+    client.updateStore({
+      definition: Store,
+      id: "race",
+      updater(draft) {
+        updaterRuns++;
+        draft.messages.push("a");
+      },
+    }),
+    client.updateStore({
+      definition: Store,
+      id: "race",
+      updater(draft) {
+        updaterRuns++;
+        draft.messages.push("b");
+      },
+    }),
+  ]);
+
+  expect(updaterRuns).toBe(3);
+});
+
+function schema<T>(): StandardSchemaV1<T> {
+  return {
+    "~standard": {
+      version: 1,
+      vendor: "conformance",
+      validate(value) {
+        return { value: value as T };
+      },
+    },
+  };
+}

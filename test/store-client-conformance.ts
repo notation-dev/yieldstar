@@ -562,6 +562,23 @@ export function defineStoreClientConformance(target: StoreClientTarget) {
             draft.messages.push({ id: "new" });
           },
         });
+
+        await harness.client.getOrCreateStore({
+          definition: TakeStore,
+          id: "large-take",
+          initial: {
+            messages: Array.from({ length: 5000 }, (_, index) => ({ id: `${index}` })),
+          },
+        });
+        const take = await harness.client.takeFromStore({
+          definition: TakeStore,
+          id: "large-take",
+          selector: (state) => state.messages.find((message) => !message.claimedBy),
+          claim: (_draft, message) => {
+            message.claimedBy = "worker";
+          },
+        });
+        expect(take.matched).toBe(true);
         expect(diffSpy).not.toHaveBeenCalled();
       } finally {
         diffSpy.mockRestore();
