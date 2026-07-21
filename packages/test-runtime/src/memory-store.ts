@@ -25,6 +25,7 @@ type StoreRecord = {
 export class MemoryStoreClient extends CasStoreClient {
   private stores = new Map<string, StoreRecord>();
   private waiters = new Map<string, StoreWaiter>();
+  private pendingWakes = new Set<string>();
   // Applied-steps ledger: (storeName, storeId, executionId, stepKey) ->
   // serialized committed result. Written in the same synchronous critical
   // section (within the write queue) as the state commit, so a retried
@@ -185,12 +186,13 @@ export class MemoryStoreClient extends CasStoreClient {
         );
       }
 
-      await this.wakeWaiters({
+      this.enqueueMatchingWakes({
         storeName: mutation.definition.name,
         storeId: mutation.id,
         version,
         changedPaths: mutation.changedPaths,
       });
+      await this.drainPendingWakes();
       return { status: "committed" };
     });
   }
@@ -216,6 +218,7 @@ export class MemoryStoreClient extends CasStoreClient {
       for (const [key, waiter] of [...this.waiters.entries()]) {
         if (waiter.storeName === name && waiter.storeId === params.id) {
           this.waiters.delete(key);
+          this.pendingWakes.delete(key);
         }
       }
     });
@@ -268,7 +271,10 @@ export class MemoryStoreClient extends CasStoreClient {
 
       this.stores.delete(key);
       for (const [waiterKey, waiter] of [...this.waiters.entries()]) {
-        if (waiter.instanceId === record.instanceId) this.waiters.delete(waiterKey);
+        if (waiter.instanceId === record.instanceId) {
+          this.waiters.delete(waiterKey);
+          this.pendingWakes.delete(waiterKey);
+        }
       }
       const result = { deleted: true as const };
       if (ledgerKey) this.appliedSteps.set(ledgerKey, JSON.stringify(result));
@@ -297,20 +303,21 @@ export class MemoryStoreClient extends CasStoreClient {
         record.version > waiter.sinceVersion
       ) {
         this.waiters.set(key, cloneStoreState(waiter));
-        await this.deliverWaiter(key, waiter);
+        this.pendingWakes.add(key);
+        await this.drainPendingWakes();
         return;
       }
       this.waiters.set(key, cloneStoreState(waiter));
     });
   }
 
-  private async wakeWaiters(params: {
+  private enqueueMatchingWakes(params: {
     storeName: string;
     storeId: string;
     version: number;
     changedPaths: readonly (readonly (string | number)[])[];
   }) {
-    for (const [key, waiter] of [...this.waiters.entries()]) {
+    for (const [key, waiter] of this.waiters) {
       if (waiter.storeName !== params.storeName) continue;
       if (waiter.storeId !== params.storeId) continue;
       if (waiter.sinceVersion >= params.version) continue;
@@ -318,18 +325,27 @@ export class MemoryStoreClient extends CasStoreClient {
         continue;
       }
 
-      await this.deliverWaiter(key, waiter);
+      this.pendingWakes.add(key);
     }
   }
 
-  private async deliverWaiter(key: string, waiter: StoreWaiter) {
-    try {
-      await this.schedulerClient.requestWakeUp(waiter.event);
-      this.waiters.delete(key);
-    } catch (error) {
-      // The waiter is the retryable wake intent for this non-durable store.
-      // Leave it registered so the next matching mutation retries delivery.
-      console.error("Failed to deliver pending store wake", error);
+  private async drainPendingWakes() {
+    for (const key of [...this.pendingWakes]) {
+      const waiter = this.waiters.get(key);
+      if (!waiter) {
+        this.pendingWakes.delete(key);
+        continue;
+      }
+
+      try {
+        await this.schedulerClient.requestWakeUp(waiter.event);
+        this.pendingWakes.delete(key);
+        this.waiters.delete(key);
+      } catch (error) {
+        // Keep both entries so every later committed mutation retries this
+        // delivery, regardless of which store paths that mutation changed.
+        console.error("Failed to deliver pending store wake", error);
+      }
     }
   }
 
