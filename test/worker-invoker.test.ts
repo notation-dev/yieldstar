@@ -10,10 +10,12 @@ const executeAndWait = async (params: {
   fixture: string;
   executionId: string;
   context?: Map<string, unknown>;
+  execPath?: string;
 }) => {
-  const { fixture, executionId, context = new Map() } = params;
+  const { fixture, executionId, context = new Map(), execPath } = params;
   const invoker = createWorkflowInvoker({
     workerPath: new URL(fixture, fixtures).href,
+    execPath,
     logger,
   });
   const result = once(invoker.workflowEndEmitter, executionId);

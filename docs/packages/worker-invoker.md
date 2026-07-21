@@ -29,6 +29,8 @@ TypeScript worker paths require Node 22.6 or newer for built-in type stripping. 
 | `execPath`   | `string` | Runtime binary used to fork the worker (defaults to `process.execPath`) |
 | `logger`     | `Logger` | Pino logger                                              |
 
+`execPath` must belong to the same runtime family as the parent process (Node forking Node, Bun forking Bun) — the advanced IPC serialization protocol is not interoperable between the two, so a cross-runtime worker never receives the event.
+
 The invoker exposes a `workflowEndEmitter` (`EventEmitter`) that fires when a workflow completes or errors. The local SDK listens on this emitter to resolve `triggerAndWait` promises.
 
 When the child sends `{ status: "completed", response }`, the emitter fires the result. When it sends `{ status: "error", error }`, the error is deserialized with `serialize-error` and emitted. Spawn failures reject `execute`; failures or exits after spawning emit an error for that execution. The child process is killed after each message.
