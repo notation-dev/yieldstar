@@ -47,7 +47,9 @@ const schedulerClient = new SqliteSchedulerClient({
 
 ## `SqliteStoreClient`
 
-`StoreClient` implementation backed by SQLite. Store state, waiting workflows, and the applied-steps ledger live in three tables (`stores`, `store_waiters`, `store_applied_steps`). Each update writes to all three inside a single transaction.
+`StoreClient` implementation backed by SQLite. Store state, waiting workflows,
+recorded workflow-step results, and pending wake-ups live in `stores`,
+`store_waiters`, `store_applied_steps`, and `store_wake_outbox`.
 
 ```ts
 import { SqliteStoreClient } from "@yieldstar/bun-sqlite-runtime";
@@ -55,9 +57,19 @@ import { SqliteStoreClient } from "@yieldstar/bun-sqlite-runtime";
 const storeClient = new SqliteStoreClient({ db, schedulerClient });
 ```
 
-The constructor takes a scheduler as well as the database. When an update changes state that a suspended workflow is waiting on, the client hands that workflow's event to the scheduler, which queues it for re-execution.
+The constructor takes a scheduler as well as the database. When an update
+changes a path that a suspended workflow observed, the same conditional
+transaction that writes the state and applied-step receipt also records a wake
+intent in the outbox. After commit, the client sends pending wake-ups to the
+scheduler. Failed deliveries remain pending and are retried after another
+committed mutation or when a client starts. A scheduler failure does not fail
+an otherwise committed store update or block other pending wake-ups.
 
-Updaters may be async, and an async updater could otherwise let a second update begin while the first transaction is still open. To prevent this, the client pushes every write through an internal queue and runs them one at a time.
+Updaters must be synchronous, deterministic, and side-effect-free. They run
+against a snapshot outside the SQLite transaction; if the conditional commit
+loses a version race, the base store client runs the updater again against the
+latest snapshot. The internal write queue serializes SQLite transactions and
+outbox delivery for each client.
 
 ## `SqliteEventLoop`
 

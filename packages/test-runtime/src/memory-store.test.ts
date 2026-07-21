@@ -4,12 +4,14 @@ import {
   defineStore,
   type SchedulerClient,
   type StandardSchemaV1,
+  type StorePath,
   type WorkflowEvent,
 } from "@yieldstar/core";
 import { MemoryStoreClient } from "./memory-store";
 
 type State = {
   messages: { id: string }[];
+  unrelated?: number;
 };
 
 const Store = defineStore("memory-test", schema<State>());
@@ -61,6 +63,159 @@ test("memory store updates wake matching waiters", async () => {
   expect(events).toEqual([event]);
 });
 
+test("an unrelated mutation retries failed wake delivery", async () => {
+  const events: WorkflowEvent[] = [];
+  let wakeAttempts = 0;
+  let updaterRuns = 0;
+  const client = new MemoryStoreClient({
+    schedulerClient: {
+      async requestWakeUp(wakeEvent) {
+        wakeAttempts++;
+        if (wakeAttempts === 1) throw new Error("wake delivery failed");
+        events.push(wakeEvent);
+      },
+    },
+  });
+  const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+
+  try {
+    const initial = await client.getOrCreateStore({
+      definition: Store,
+      id: "wake-retry",
+      initial: { messages: [] },
+    });
+    await client.registerWaiter({
+      workflowId: event.workflowId,
+      executionId: event.executionId,
+      stepKey: "next-message",
+      event,
+      storeName: Store.name,
+      storeId: "wake-retry",
+      instanceId: initial.instanceId,
+      sinceVersion: 0,
+      readPaths: [["messages"]],
+    });
+
+    const updateOnce = () =>
+      client.updateStore({
+        definition: Store,
+        id: "wake-retry",
+        stepId: { executionId: "execution", stepKey: "wake-retry" },
+        updater(draft) {
+          updaterRuns++;
+          draft.messages.push({ id: "msg-1" });
+        },
+      });
+    const committed = await updateOnce();
+    expect(committed.version).toBe(1);
+    expect(wakeAttempts).toBe(1);
+    expect(events).toEqual([]);
+
+    expect(await updateOnce()).toEqual(committed);
+    expect(updaterRuns).toBe(1);
+    expect(wakeAttempts).toBe(1);
+
+    await client.updateStore({
+      definition: Store,
+      id: "wake-retry",
+      updater(draft) {
+        draft.unrelated = 1;
+      },
+    });
+    expect(wakeAttempts).toBe(2);
+    expect(events).toEqual([event]);
+
+    await client.updateStore({
+      definition: Store,
+      id: "wake-retry",
+      updater(draft) {
+        draft.messages.push({ id: "msg-2" });
+      },
+    });
+    expect(wakeAttempts).toBe(2);
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+  } finally {
+    errorSpy.mockRestore();
+  }
+});
+
+test("recreated stores do not inherit pending wakes from deleted waiters", async () => {
+  const events: WorkflowEvent[] = [];
+  let wakeAttempts = 0;
+  const client = new MemoryStoreClient({
+    schedulerClient: {
+      async requestWakeUp(wakeEvent) {
+        wakeAttempts++;
+        if (wakeAttempts === 1) throw new Error("wake delivery failed");
+        events.push(wakeEvent);
+      },
+    },
+  });
+  const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+
+  try {
+    const original = await client.getOrCreateStore({
+      definition: Store,
+      id: "recreated-wake",
+      initial: { messages: [] },
+    });
+    const waiter = {
+      workflowId: event.workflowId,
+      executionId: event.executionId,
+      stepKey: "next-message",
+      event,
+      storeName: Store.name,
+      storeId: "recreated-wake",
+      instanceId: original.instanceId,
+      sinceVersion: 0,
+      readPaths: [["messages"]] as StorePath[],
+    };
+    await client.registerWaiter(waiter);
+    await client.updateStore({
+      definition: Store,
+      id: "recreated-wake",
+      updater(draft) {
+        draft.messages.push({ id: "old-instance" });
+      },
+    });
+    expect(wakeAttempts).toBe(1);
+
+    await client.deleteStore({ definition: Store, id: "recreated-wake" });
+    const recreated = await client.getOrCreateStore({
+      definition: Store,
+      id: "recreated-wake",
+      initial: { messages: [] },
+    });
+    await client.registerWaiter({
+      ...waiter,
+      instanceId: recreated.instanceId,
+    });
+
+    await client.updateStore({
+      definition: Store,
+      id: "recreated-wake",
+      updater(draft) {
+        draft.unrelated = 1;
+      },
+    });
+    expect(wakeAttempts).toBe(1);
+    expect(events).toEqual([]);
+
+    await client.updateStore({
+      definition: Store,
+      id: "recreated-wake",
+      updater(draft) {
+        draft.messages.push({ id: "new-instance" });
+      },
+    });
+    expect(wakeAttempts).toBe(2);
+    expect(events).toEqual([event]);
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+  } finally {
+    errorSpy.mockRestore();
+  }
+});
+
 test("registering a waiter with a stale sinceVersion triggers an immediate wake", async () => {
   const { client, events } = createClient();
 
@@ -105,8 +260,66 @@ test("registering a waiter with a stale sinceVersion triggers an immediate wake"
   expect(events).toEqual([]);
 });
 
-test("concurrent async updaters both commit", async () => {
+test("failed stale-waiter delivery remains registered for a later mutation", async () => {
+  const events: WorkflowEvent[] = [];
+  let wakeAttempts = 0;
+  const client = new MemoryStoreClient({
+    schedulerClient: {
+      async requestWakeUp(wakeEvent) {
+        wakeAttempts++;
+        if (wakeAttempts === 1) throw new Error("wake delivery failed");
+        events.push(wakeEvent);
+      },
+    },
+  });
+  const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+
+  try {
+    const initial = await client.getOrCreateStore({
+      definition: Store,
+      id: "stale-wake-retry",
+      initial: { messages: [] },
+    });
+    await client.updateStore({
+      definition: Store,
+      id: "stale-wake-retry",
+      updater(draft) {
+        draft.messages.push({ id: "msg-1" });
+      },
+    });
+
+    await client.registerWaiter({
+      workflowId: event.workflowId,
+      executionId: event.executionId,
+      stepKey: "next-message",
+      event,
+      storeName: Store.name,
+      storeId: "stale-wake-retry",
+      instanceId: initial.instanceId,
+      sinceVersion: 0,
+      readPaths: [["messages"]],
+    });
+    expect(wakeAttempts).toBe(1);
+    expect(events).toEqual([]);
+
+    await client.updateStore({
+      definition: Store,
+      id: "stale-wake-retry",
+      updater(draft) {
+        draft.unrelated = 1;
+      },
+    });
+    expect(wakeAttempts).toBe(2);
+    expect(events).toEqual([event]);
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+  } finally {
+    errorSpy.mockRestore();
+  }
+});
+
+test("concurrent synchronous updates retry CAS conflicts and both commit", async () => {
   const { client } = createClient();
+  let updaterRuns = 0;
 
   await client.getOrCreateStore({
     definition: Store,
@@ -118,22 +331,23 @@ test("concurrent async updaters both commit", async () => {
     client.updateStore({
       definition: Store,
       id: "race",
-      async updater(draft) {
-        await Promise.resolve();
+      updater(draft) {
+        updaterRuns++;
         draft.messages.push({ id: "msg-a" });
       },
     }),
     client.updateStore({
       definition: Store,
       id: "race",
-      async updater(draft) {
-        await Promise.resolve();
+      updater(draft) {
+        updaterRuns++;
         draft.messages.push({ id: "msg-b" });
       },
     }),
   ]);
 
   expect([first.version, second.version].sort()).toEqual([1, 2]);
+  expect(updaterRuns).toBe(3);
 
   const snapshot = await client.getStore({ definition: Store, id: "race" });
   expect(snapshot.version).toBe(2);

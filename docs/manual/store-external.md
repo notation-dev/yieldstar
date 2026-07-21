@@ -30,7 +30,10 @@ zero.
 
 ## Writing
 
-`update` takes the same draft-mutating updater as the workflow API. The write commits in a single transaction, validated against the schema, and increments the version by one.
+`update` takes the same synchronous, pure draft-mutating updater as the workflow
+API. The runtime validates the resulting state and increments the version by
+one. Concurrent updates are retried against the latest state, so the updater
+must be synchronous and side-effect-free.
 
 ```ts
 await conversation.update((draft) => {
@@ -86,4 +89,6 @@ const msg = yield* store.take(
 );
 ```
 
-External updates sit outside workflow step caching. There is no step key, so each call applies once, when it runs. If your handler retries, idempotency is yours to manage.
+External updates are not workflow steps and have no step key. If a request
+fails or your handler retries, read the current store and decide whether the
+write still needs to be applied.

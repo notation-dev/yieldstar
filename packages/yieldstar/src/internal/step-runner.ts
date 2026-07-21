@@ -47,12 +47,12 @@ export type WorkflowStore<T> = {
   ): AsyncGenerator<StepResponse, R>;
   update(
     key: string,
-    updater: (draft: Draft<T>) => void | T | Promise<void | T>
+    updater: (draft: Draft<T>) => void | T
   ): AsyncGenerator<StepResponse, StoreUpdateResult<T>>;
   updateFrom(
     key: string,
     snapshot: StoreSnapshot<T>,
-    updater: (draft: Draft<T>) => void | T | Promise<void | T>
+    updater: (draft: Draft<T>) => void | T
   ): AsyncGenerator<StepResponse, StoreUpdateFromResult<T>>;
   deleteFrom(
     key: string,
