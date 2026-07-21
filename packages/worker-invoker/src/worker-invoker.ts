@@ -59,16 +59,18 @@ export function createWorkflowInvoker(params: {
 
       childProcess.on("message", (message: any) => {
         if (settled) return;
+        // A reply settles the child's outcome even when there is nothing to
+        // emit (a suspended workflow resumes later in a fresh child), so the
+        // exit handler must not report the deliberate kill below as an error.
+        settled = true;
         switch (message.status) {
           case "completed":
             const response = message.response;
             if (response) {
-              settled = true;
               workflowEndEmitter.emit(executionId, response.result);
             }
             break;
           case "error":
-            settled = true;
             workflowEndEmitter.emit(
               executionId,
               deserializeError(message.error)

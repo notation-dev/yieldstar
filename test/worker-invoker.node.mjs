@@ -49,6 +49,24 @@ test("rejects when the worker process cannot spawn", { timeout: 2_000 }, async (
   }
 });
 
+test("emits nothing when a suspended workflow replies without a result", { timeout: 2_000 }, async () => {
+  const executionId = "worker-suspend";
+  const invoker = createWorkflowInvoker({
+    workerPath: new URL("suspend.mjs", fixtures).href,
+    logger,
+  });
+  const emissions = [];
+  invoker.workflowEndEmitter.on(executionId, (result) => {
+    emissions.push(result);
+  });
+
+  await invoker.execute({ workflowId: "workflow", executionId, context: new Map() });
+
+  // Wait for the killed child to exit so a spurious exit-handler emission would surface
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  assert.deepEqual(emissions, []);
+});
+
 test("emits an error when the worker exits before replying", { timeout: 2_000 }, async () => {
   const [error] = await executeAndWait({
     fixture: "early-exit.mjs",
