@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { createWorkflow, RetryableError } from "yieldstar";
 import { createTestSdkFactory } from "@yieldstar/test-utils";
 import { pino } from "pino";

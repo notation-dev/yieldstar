@@ -1,11 +1,11 @@
-import { expect, test, mock } from "bun:test";
+import { expect, test, vi } from "vitest";
 import { createWorkflow } from "yieldstar";
 import { createTestSdkFactory } from "@yieldstar/test-utils";
 
 const createSdk = createTestSdkFactory();
 
 test("loop detection with implicit keys", async () => {
-  const runSpy = mock(() => 1);
+  const runSpy = vi.fn(() => 1);
 
   const workflow = createWorkflow(async function* (step) {
     for (let i = 0; i < 2; i++) {
@@ -27,7 +27,7 @@ test("loop detection with implicit keys", async () => {
 });
 
 test("no loop detection with explicit keys", async () => {
-  const runSpy = mock(() => 1);
+  const runSpy = vi.fn(() => 1);
 
   const workflow = createWorkflow(async function* (step) {
     for (let i = 0; i < 2; i++) {

@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { setTimeout } from "node:timers/promises";
 import { createWorkflow } from "yieldstar";
 import { createTestSdkFactory } from "@yieldstar/test-utils";

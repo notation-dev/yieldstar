@@ -1,5 +1,5 @@
 import type { WorkflowFn } from "yieldstar";
-import { expect, test, mock } from "bun:test";
+import { expect, test, vi } from "vitest";
 import { createWorkflow } from "yieldstar";
 import { createTestSdkFactory } from "@yieldstar/test-utils";
 import { EventContext } from "../packages/core/dist";
@@ -7,7 +7,7 @@ import { EventContext } from "../packages/core/dist";
 const createSdk = createTestSdkFactory();
 
 test("running sync workflows to completion", async () => {
-  const mockWorkflowGenerator = mock<
+  const mockWorkflowGenerator = vi.fn<
     WorkflowFn<undefined, number, EventContext>
   >(async function* (step) {
     let num = yield* step.run(() => {
@@ -30,7 +30,7 @@ test("running sync workflows to completion", async () => {
 });
 
 test("deferring workflow execution", async () => {
-  const mockWorkflowGenerator = mock(async function* (step: any) {
+  const mockWorkflowGenerator = vi.fn(async function* (step: any) {
     let num = yield* step.run(() => {
       return 1;
     });

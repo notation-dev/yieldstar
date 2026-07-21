@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { getCallSiteHash } from "../packages/yieldstar/src/internal/utils";
 
 // Mirrors how the step runner uses getCallSiteHash: a synchronous wrapper

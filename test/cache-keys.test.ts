@@ -1,12 +1,12 @@
-import { expect, test, mock } from "bun:test";
+import { expect, test, vi } from "vitest";
 import { createWorkflow } from "yieldstar";
 import { createTestSdkFactory } from "@yieldstar/test-utils";
 
 const createSdk = createTestSdkFactory();
 
 test("step.run without cache keys", async () => {
-  const mock1 = mock(() => 1);
-  const mock2 = mock(() => 2);
+  const mock1 = vi.fn(() => 1);
+  const mock2 = vi.fn(() => 2);
 
   let executionIdx = -1;
 
@@ -28,8 +28,8 @@ test("step.run without cache keys", async () => {
 });
 
 test("step.run with cache keys", async () => {
-  const mock1 = mock(() => 1);
-  const mock2 = mock(() => 2);
+  const mock1 = vi.fn(() => 1);
+  const mock2 = vi.fn(() => 2);
 
   let executionIdx = -1;
 

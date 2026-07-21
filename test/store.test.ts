@@ -1,8 +1,10 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import type { StandardSchemaV1 } from "yieldstar";
 import { createTestSdkFactory, testSchema } from "@yieldstar/test-utils";
 import { defineStore, workflow } from "yieldstar";
 import { setTimeout as sleep } from "node:timers/promises";
+
+const createSdk = createTestSdkFactory();
 
 type Message = {
   id: string;
@@ -20,8 +22,6 @@ const ConversationStore = defineStore(
   "conversation",
   testSchema<ConversationState>()
 );
-
-const createSdk = createTestSdkFactory();
 
 test("workflow stores can be created, read, and updated", async () => {
   const testWorkflow = workflow(async function* (step) {

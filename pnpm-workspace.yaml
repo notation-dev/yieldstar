@@ -3,6 +3,9 @@ packages:
   - examples
   - test
 
+allowBuilds:
+  esbuild: true
+
 overrides:
   shell-quote@<1.8.4: "^1.8.4"
   tmp@<0.2.6: "^0.2.6"

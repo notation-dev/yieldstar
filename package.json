@@ -11,18 +11,21 @@
     "dev": "concurrently -r npm:dev:dts npm:dev:bundle npm:dev:test",
     "dev:dts": "bun run dts --watch",
     "dev:bundle": "bun run bundle --watch",
-    "dev:test": "bun test --watch",
-    "test:node": "bun run bundle && node --test test/*.node.mjs",
+    "dev:test": "vitest",
+    "test": "vitest run",
+    "test:node": "node ./node_modules/vitest/vitest.mjs run",
+    "test:bun": "bun --bun ./node_modules/vitest/vitest.mjs run",
     "start": "bun scripts/run-example.ts",
     "bump": "bunx bumpp --preid alpha -r",
     "prerelease": "pnpm i && bun bundle",
     "release": "bin/release.sh"
   },
   "devDependencies": {
-    "@types/bun": "^1.2.21",
+    "@types/node": "^22.18.0",
     "@types/inquirer": "^9.0.9",
     "concurrently": "^9.2.1",
-    "inquirer": "^9.3.7"
+    "inquirer": "^9.3.7",
+    "vitest": "^3.2.4"
   },
   "peerDependencies": {
     "typescript": "^5.9.2"
