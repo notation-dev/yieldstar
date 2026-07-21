@@ -1,26 +1,17 @@
 import { describe, expect, spyOn, test } from "bun:test";
+import { Database } from "bun:sqlite";
 import * as core from "@yieldstar/core";
 import {
   defineStore,
+  type SchedulerClient,
   type StoreClient,
+  type StorePath,
+  type StoreWaiter,
   type WorkflowEvent,
 } from "@yieldstar/core";
 import { testSchema } from "@yieldstar/test-utils";
 import { MemoryStoreClient } from "../packages/test-runtime/src/memory-store";
-import {
-  durableSqliteStoreTarget,
-  memoryStoreTarget,
-  sharedSqliteStoreTarget,
-  sqliteStoreTarget,
-} from "./store-client-conformance-targets";
-import {
-  collectingScheduler,
-  noopScheduler,
-  storeWaiter,
-  type DurableStoreClientTarget,
-  type SharedStoreClientTarget,
-  type StoreClientTarget,
-} from "./store-client-conformance-utils";
+import { SqliteStoreClient } from "../packages/bun-sqlite-runtime/src/sqlite-store";
 
 type State = {
   messages: { id: string }[];
@@ -37,14 +28,63 @@ const event: WorkflowEvent = {
   params: undefined,
   context: new Map(),
 };
-const waiter = storeWaiter(event);
 
-function storeClientConformanceCases(target: StoreClientTarget) {
-  const Store = defineStore(`${target.name}-store-conformance`, testSchema<State>());
-  const TakeStore = defineStore(`${target.name}-take-conformance`, testSchema<TakeState>());
+const noopScheduler: SchedulerClient = { async requestWakeUp() {} };
+
+function collectingScheduler(events: WorkflowEvent[]): SchedulerClient {
+  return {
+    async requestWakeUp(event) {
+      events.push(event);
+    },
+  };
+}
+
+function waiter(
+  storeName: string,
+  storeId: string,
+  instanceId: string,
+  sinceVersion: number
+): StoreWaiter {
+  return {
+    workflowId: event.workflowId,
+    executionId: event.executionId,
+    stepKey: "wait",
+    event,
+    storeName,
+    storeId,
+    instanceId,
+    sinceVersion,
+    readPaths: [["messages"]] satisfies StorePath[],
+  };
+}
+
+const backends = [
+  {
+    name: "memory",
+    create(schedulerClient: SchedulerClient) {
+      return { client: new MemoryStoreClient({ schedulerClient }), dispose() {} };
+    },
+  },
+  {
+    name: "sqlite",
+    create(schedulerClient: SchedulerClient) {
+      const db = new Database(":memory:");
+      return {
+        client: new SqliteStoreClient({ db, schedulerClient }),
+        dispose() {
+          db.close();
+        },
+      };
+    },
+  },
+];
+
+describe.each(backends)("$name store client", ({ name, create }) => {
+  const Store = defineStore(`${name}-store-conformance`, testSchema<State>());
+  const TakeStore = defineStore(`${name}-take-conformance`, testSchema<TakeState>());
 
   test("concurrent updates both commit", async () => {
-    const harness = await target.create(noopScheduler());
+    const harness = await create(noopScheduler);
     try {
       await harness.client.getOrCreateStore({
         definition: Store,
@@ -82,7 +122,7 @@ function storeClientConformanceCases(target: StoreClientTarget) {
   });
 
   test("async updaters are rejected without committing", async () => {
-    const harness = await target.create(noopScheduler());
+    const harness = await create(noopScheduler);
     try {
       await harness.client.getOrCreateStore({
         definition: Store,
@@ -109,7 +149,7 @@ function storeClientConformanceCases(target: StoreClientTarget) {
   });
 
   test("conditional updates commit from one snapshot and replay ledger-first", async () => {
-    const harness = await target.create(noopScheduler());
+    const harness = await create(noopScheduler);
     try {
       const snapshot = await harness.client.getOrCreateStore({
         definition: Store,
@@ -167,7 +207,7 @@ function storeClientConformanceCases(target: StoreClientTarget) {
   });
 
   test("conditional updates reject snapshots without an instance id", async () => {
-    const harness = await target.create(noopScheduler());
+    const harness = await create(noopScheduler);
     try {
       const snapshot = await harness.client.getOrCreateStore({
         definition: Store,
@@ -188,7 +228,7 @@ function storeClientConformanceCases(target: StoreClientTarget) {
   });
 
   test("step ids make updates exactly-once", async () => {
-    const harness = await target.create(noopScheduler());
+    const harness = await create(noopScheduler);
     try {
       await harness.client.getOrCreateStore({
         definition: Store,
@@ -219,7 +259,7 @@ function storeClientConformanceCases(target: StoreClientTarget) {
   });
 
   test("calls without step ids apply independently", async () => {
-    const harness = await target.create(noopScheduler());
+    const harness = await create(noopScheduler);
     try {
       await harness.client.getOrCreateStore({
         definition: Store,
@@ -249,7 +289,7 @@ function storeClientConformanceCases(target: StoreClientTarget) {
   });
 
   test("step ids are scoped by execution and step key", async () => {
-    const harness = await target.create(noopScheduler());
+    const harness = await create(noopScheduler);
     try {
       await harness.client.getOrCreateStore({
         definition: Store,
@@ -281,8 +321,8 @@ function storeClientConformanceCases(target: StoreClientTarget) {
   });
 
   test("store listing and deletion preserve logical instance semantics", async () => {
-    const harness = await target.create(noopScheduler());
-    const OtherStore = defineStore(`${target.name}-other-conformance`, testSchema<State>());
+    const harness = await create(noopScheduler);
+    const OtherStore = defineStore(`${name}-other-conformance`, testSchema<State>());
     try {
       const first = await harness.client.getOrCreateStore({
         definition: Store,
@@ -315,7 +355,7 @@ function storeClientConformanceCases(target: StoreClientTarget) {
   });
 
   test("conditional deletion protects recreated stores and replays exactly-once", async () => {
-    const harness = await target.create(noopScheduler());
+    const harness = await create(noopScheduler);
     try {
       const original = await harness.client.getOrCreateStore({
         definition: Store,
@@ -371,7 +411,7 @@ function storeClientConformanceCases(target: StoreClientTarget) {
   });
 
   test("concurrent takes claim distinct items", async () => {
-    const harness = await target.create(noopScheduler());
+    const harness = await create(noopScheduler);
     try {
       await harness.client.getOrCreateStore({
         definition: TakeStore,
@@ -398,7 +438,7 @@ function storeClientConformanceCases(target: StoreClientTarget) {
   });
 
   test("unmatched takes report read paths and can match later", async () => {
-    const harness = await target.create(noopScheduler());
+    const harness = await create(noopScheduler);
     try {
       await harness.client.getOrCreateStore({
         definition: TakeStore,
@@ -437,7 +477,7 @@ function storeClientConformanceCases(target: StoreClientTarget) {
   });
 
   test("async take claims are rejected without committing", async () => {
-    const harness = await target.create(noopScheduler());
+    const harness = await create(noopScheduler);
     try {
       await harness.client.getOrCreateStore({
         definition: TakeStore,
@@ -463,7 +503,7 @@ function storeClientConformanceCases(target: StoreClientTarget) {
   });
 
   test("matched takes replay their recorded result", async () => {
-    const harness = await target.create(noopScheduler());
+    const harness = await create(noopScheduler);
     try {
       await harness.client.getOrCreateStore({
         definition: TakeStore,
@@ -500,7 +540,7 @@ function storeClientConformanceCases(target: StoreClientTarget) {
   });
 
   test("committed state contains no tracking proxies", async () => {
-    const harness = await target.create(noopScheduler());
+    const harness = await create(noopScheduler);
     try {
       await harness.client.getOrCreateStore({
         definition: Store,
@@ -527,7 +567,7 @@ function storeClientConformanceCases(target: StoreClientTarget) {
   });
 
   test("mutating updates do not deep-diff the full state", async () => {
-    const harness = await target.create(noopScheduler());
+    const harness = await create(noopScheduler);
     const diffSpy = spyOn(core, "diffStorePaths");
     try {
       await harness.client.getOrCreateStore({
@@ -567,14 +607,14 @@ function storeClientConformanceCases(target: StoreClientTarget) {
       await harness.dispose();
     }
   });
-}
+});
 
-function wakeDeliveryConformanceCases(target: StoreClientTarget) {
-  const Store = defineStore(`${target.name}-wake-conformance`, testSchema<State>());
+describe.each(backends)("$name wake delivery", ({ name, create }) => {
+  const Store = defineStore(`${name}-wake-conformance`, testSchema<State>());
 
   test("updates wake matching waiters but not unrelated paths", async () => {
     const events: WorkflowEvent[] = [];
-    const harness = await target.create(collectingScheduler(events));
+    const harness = await create(collectingScheduler(events));
     try {
       const initial = await harness.client.getOrCreateStore({
         definition: Store,
@@ -605,7 +645,7 @@ function wakeDeliveryConformanceCases(target: StoreClientTarget) {
 
   test("replacement state updates wake matching waiters", async () => {
     const events: WorkflowEvent[] = [];
-    const harness = await target.create(collectingScheduler(events));
+    const harness = await create(collectingScheduler(events));
     try {
       const initial = await harness.client.getOrCreateStore({
         definition: Store,
@@ -629,11 +669,11 @@ function wakeDeliveryConformanceCases(target: StoreClientTarget) {
   test("take claims wake waiters observing the changed path", async () => {
     type ClaimedState = { messages: { id: string; claimedBy?: string }[] };
     const TakeStore = defineStore(
-      `${target.name}-wake-take-conformance`,
+      `${name}-wake-take-conformance`,
       testSchema<ClaimedState>()
     );
     const events: WorkflowEvent[] = [];
-    const harness = await target.create(collectingScheduler(events));
+    const harness = await create(collectingScheduler(events));
     try {
       const initial = await harness.client.getOrCreateStore({
         definition: TakeStore,
@@ -663,11 +703,11 @@ function wakeDeliveryConformanceCases(target: StoreClientTarget) {
   test("take splices wake waiters observing shifted indices", async () => {
     type QueueState = { messages: { id: string }[] };
     const QueueStore = defineStore(
-      `${target.name}-wake-splice-conformance`,
+      `${name}-wake-splice-conformance`,
       testSchema<QueueState>()
     );
     const events: WorkflowEvent[] = [];
-    const harness = await target.create(collectingScheduler(events));
+    const harness = await create(collectingScheduler(events));
     try {
       const initial = await harness.client.getOrCreateStore({
         definition: QueueStore,
@@ -697,7 +737,7 @@ function wakeDeliveryConformanceCases(target: StoreClientTarget) {
 
   test("stale waiter registration wakes immediately and does not linger", async () => {
     const events: WorkflowEvent[] = [];
-    const harness = await target.create(collectingScheduler(events));
+    const harness = await create(collectingScheduler(events));
     try {
       const initial = await harness.client.getOrCreateStore({
         definition: Store,
@@ -731,7 +771,7 @@ function wakeDeliveryConformanceCases(target: StoreClientTarget) {
     const events: WorkflowEvent[] = [];
     let attempts = 0;
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
-    const harness = await target.create({
+    const harness = await create({
       async requestWakeUp(wakeEvent) {
         attempts++;
         if (attempts === 1) throw new Error("temporary scheduler failure");
@@ -775,7 +815,7 @@ function wakeDeliveryConformanceCases(target: StoreClientTarget) {
     let attempts = 0;
     let updaterRuns = 0;
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
-    const harness = await target.create({
+    const harness = await create({
       async requestWakeUp(wakeEvent) {
         attempts++;
         if (attempts === 1) throw new Error("temporary scheduler failure");
@@ -823,7 +863,7 @@ function wakeDeliveryConformanceCases(target: StoreClientTarget) {
   test("one failed wake does not block another", async () => {
     const delivered: string[] = [];
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
-    const harness = await target.create({
+    const harness = await create({
       async requestWakeUp(wakeEvent) {
         if (wakeEvent.executionId === "poison") throw new Error("poisoned wake");
         delivered.push(wakeEvent.executionId);
@@ -860,7 +900,7 @@ function wakeDeliveryConformanceCases(target: StoreClientTarget) {
     const events: WorkflowEvent[] = [];
     let attempts = 0;
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
-    const harness = await target.create({
+    const harness = await create({
       async requestWakeUp(wakeEvent) {
         attempts++;
         if (attempts === 1) throw new Error("temporary scheduler failure");
@@ -903,40 +943,44 @@ function wakeDeliveryConformanceCases(target: StoreClientTarget) {
       await harness.dispose();
     }
   });
-}
+});
 
-function sharedBackendConformanceCases(target: SharedStoreClientTarget) {
-  const Store = defineStore(`${target.name}-shared-conformance`, testSchema<State>());
+describe("sqlite shared backend", () => {
+  const Store = defineStore("sqlite-shared-conformance", testSchema<State>());
 
   test("wake delivery preserves a waiter re-registered by another client", async () => {
+    const db = new Database(":memory:");
     let secondClient: StoreClient;
     let wakeCount = 0;
-    const harness = await target.create([
-      {
-        async requestWakeUp() {
-          wakeCount++;
-          if (wakeCount === 1) {
-            const current = await secondClient.getStore({ definition: Store, id: "re-register" });
-            await secondClient.registerWaiter(
-              waiter(Store.name, "re-register", current.instanceId, current.version)
-            );
-          }
+    const clients: [StoreClient, StoreClient] = [
+      new SqliteStoreClient({
+        db,
+        schedulerClient: {
+          async requestWakeUp() {
+            wakeCount++;
+            if (wakeCount === 1) {
+              const current = await secondClient.getStore({ definition: Store, id: "re-register" });
+              await secondClient.registerWaiter(
+                waiter(Store.name, "re-register", current.instanceId, current.version)
+              );
+            }
+          },
         },
-      },
-      noopScheduler(),
-    ]);
-    secondClient = harness.clients[1];
+      }),
+      new SqliteStoreClient({ db, schedulerClient: noopScheduler }),
+    ];
+    secondClient = clients[1];
     try {
-      const initial = await harness.clients[0].getOrCreateStore({
+      const initial = await clients[0].getOrCreateStore({
         definition: Store,
         id: "re-register",
         initial: { messages: [] },
       });
-      await harness.clients[0].registerWaiter(
+      await clients[0].registerWaiter(
         waiter(Store.name, "re-register", initial.instanceId, initial.version)
       );
       for (const id of ["first", "second"]) {
-        await harness.clients[0].updateStore({
+        await clients[0].updateStore({
           definition: Store,
           id: "re-register",
           updater(draft) {
@@ -946,31 +990,35 @@ function sharedBackendConformanceCases(target: SharedStoreClientTarget) {
       }
       expect(wakeCount).toBe(2);
     } finally {
-      await harness.dispose();
+      db.close();
     }
   });
-}
+});
 
-function durableWakeConformanceCases(target: DurableStoreClientTarget) {
-  const Store = defineStore(`${target.name}-durable-wake-conformance`, testSchema<State>());
+describe("sqlite durable wake delivery", () => {
+  const Store = defineStore("sqlite-durable-wake-conformance", testSchema<State>());
 
   test("a new client recovers a committed wake", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
-    const harness = await target.create({
-      async requestWakeUp() {
-        throw new Error("scheduler unavailable");
+    const db = new Database(":memory:");
+    const client = new SqliteStoreClient({
+      db,
+      schedulerClient: {
+        async requestWakeUp() {
+          throw new Error("scheduler unavailable");
+        },
       },
     });
     try {
-      const initial = await harness.client.getOrCreateStore({
+      const initial = await client.getOrCreateStore({
         definition: Store,
         id: "recovery",
         initial: { messages: [] },
       });
-      await harness.client.registerWaiter(
+      await client.registerWaiter(
         waiter(Store.name, "recovery", initial.instanceId, initial.version)
       );
-      await harness.client.updateStore({
+      await client.updateStore({
         definition: Store,
         id: "recovery",
         updater(draft) {
@@ -983,31 +1031,30 @@ function durableWakeConformanceCases(target: DurableStoreClientTarget) {
       const recoveryComplete = new Promise<void>((resolve) => {
         resolveRecovery = resolve;
       });
-      await harness.restart({
-        async requestWakeUp(recoveredEvent) {
-          recovered.push(recoveredEvent);
-          resolveRecovery();
+      const recoveredClient = new SqliteStoreClient({
+        db,
+        schedulerClient: {
+          async requestWakeUp(recoveredEvent) {
+            recovered.push(recoveredEvent);
+            resolveRecovery();
+          },
         },
       });
       await recoveryComplete;
       expect(recovered).toEqual([event]);
+      // Flush the startup wake drain (a fire-and-forget write chain) before
+      // closing the db.
+      await recoveredClient.updateStore({
+        definition: Store,
+        id: "recovery",
+        updater() {},
+      });
     } finally {
       errorSpy.mockRestore();
-      await harness.dispose();
+      db.close();
     }
   });
-}
-
-for (const target of [memoryStoreTarget, sqliteStoreTarget]) {
-  describe(`${target.name} store client`, () => storeClientConformanceCases(target));
-  describe(`${target.name} wake delivery`, () => wakeDeliveryConformanceCases(target));
-}
-
-describe(`${sharedSqliteStoreTarget.name} shared backend`, () =>
-  sharedBackendConformanceCases(sharedSqliteStoreTarget));
-
-describe(`${durableSqliteStoreTarget.name} durable wake delivery`, () =>
-  durableWakeConformanceCases(durableSqliteStoreTarget));
+});
 
 test("memory store retries an updater after a commit conflict", async () => {
   type State = { messages: string[] };
