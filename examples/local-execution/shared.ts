@@ -1,5 +1,5 @@
 import { createWorkflowRouter } from "yieldstar";
-import { SqliteEventLoop, createSqliteDb } from "@yieldstar/bun-sqlite-runtime";
+import { SqliteEventLoop, createSqliteDb } from "@yieldstar/sqlite-runtime/bun";
 import { simpleWorkflow } from "../workflows/simple";
 import { dynamicWorkflow } from "../workflows/dynamic";
 

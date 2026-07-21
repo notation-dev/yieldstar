@@ -1,4 +1,4 @@
-import { Database } from "bun:sqlite";
+import type { SqliteDriver } from "../sqlite-driver";
 
 class StepReponseRow {
   execution_id!: string;
@@ -9,9 +9,9 @@ class StepReponseRow {
 }
 
 export class StepResponsesDao {
-  private db: Database;
+  private db: SqliteDriver;
 
-  constructor(db: Database) {
+  constructor(db: SqliteDriver) {
     this.db = db;
     this.setupDb();
   }
@@ -42,14 +42,12 @@ export class StepResponsesDao {
   }
 
   getLatestStepResponse(executionId: string, stepKey: string) {
-    const query = this.db
-      .query(
-        `SELECT * FROM step_responses 
-         WHERE execution_id = $executionId 
-         AND step_key = $stepKey
-         ORDER BY step_attempt DESC LIMIT 1`
-      )
-      .as(StepReponseRow);
+    const query = this.db.query<StepReponseRow>(
+      `SELECT * FROM step_responses
+       WHERE execution_id = $executionId
+       AND step_key = $stepKey
+       ORDER BY step_attempt DESC LIMIT 1`
+    );
 
     const result = query.get({
       $executionId: executionId,

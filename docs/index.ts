@@ -61,7 +61,7 @@ export const categories: DocCategory[] = [
           { label: "yieldstar", slug: "packages/yieldstar" },
           { label: "@yieldstar/core", slug: "packages/core" },
           { label: "bun-http-server", slug: "packages/bun-http-server" },
-          { label: "bun-sqlite-runtime", slug: "packages/bun-sqlite-runtime" },
+          { label: "sqlite-runtime", slug: "packages/sqlite-runtime" },
           { label: "bun-worker-invoker", slug: "packages/bun-worker-invoker" },
         ],
       },

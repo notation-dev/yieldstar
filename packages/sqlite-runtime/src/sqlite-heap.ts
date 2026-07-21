@@ -1,11 +1,11 @@
 import type { HeapClient } from "@yieldstar/core";
-import { Database } from "bun:sqlite";
 import { StepResponsesDao } from "./dao/step-response-dao";
+import type { SqliteDriver } from "./sqlite-driver";
 
 export class SqliteHeapClient implements HeapClient {
   private stepResponsesDao: StepResponsesDao;
 
-  constructor(db: Database) {
+  constructor(db: SqliteDriver) {
     this.stepResponsesDao = new StepResponsesDao(db);
   }
 

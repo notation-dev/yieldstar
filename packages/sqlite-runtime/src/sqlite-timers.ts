@@ -1,14 +1,14 @@
-import { Database } from "bun:sqlite";
 import { TimersDao } from "./dao/timers-dao";
 import { SqliteTaskQueue } from "./sqlite-task-queue";
 import { FreezableMap } from "@yieldstar/core";
 import type { WorkflowEvent } from "@yieldstar/core";
+import type { SqliteDriver } from "./sqlite-driver";
 
 export class SqliteTimers {
   private timersDao: TimersDao;
   private taskQueue: SqliteTaskQueue;
 
-  constructor(params: { db: Database; taskQueue: SqliteTaskQueue }) {
+  constructor(params: { db: SqliteDriver; taskQueue: SqliteTaskQueue }) {
     this.timersDao = new TimersDao(params.db);
     this.taskQueue = params.taskQueue;
   }
@@ -30,7 +30,7 @@ export class SqliteTimers {
 export class SqliteTimersClient {
   private timersDao: TimersDao;
 
-  constructor(db: Database) {
+  constructor(db: SqliteDriver) {
     this.timersDao = new TimersDao(db);
   }
 

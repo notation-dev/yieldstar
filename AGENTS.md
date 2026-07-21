@@ -68,7 +68,7 @@ The monorepo contains these packages:
 - `yieldstar` - Main workflow SDK and exports
 - `bun-http-server` - HTTP server runtime for Bun
 - `bun-postgres-runtime` - PostgreSQL-backed runtime for Bun
-- `bun-sqlite-runtime` - SQLite-backed runtime for Bun
+- `sqlite-runtime` - Driver-agnostic SQLite runtime with Bun and Node connectors
 - `bun-worker-invoker` - Worker-based step invoker for Bun
 - `test-invoker` - Test utilities for step invocation
 - `test-runtime` - In-memory runtime for testing

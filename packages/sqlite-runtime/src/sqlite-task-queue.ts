@@ -1,13 +1,13 @@
 import type { WorkflowEvent } from "@yieldstar/core";
-import { Database } from "bun:sqlite";
 import { TaskQueueDao } from "./dao/task-queue-dao";
+import type { SqliteDriver } from "./sqlite-driver";
 
 const VISIBILITY_WINDOW = 300000;
 
 export class SqliteTaskQueue {
   private taskQueueDao: TaskQueueDao;
 
-  constructor(db: Database) {
+  constructor(db: SqliteDriver) {
     this.taskQueueDao = new TaskQueueDao(db);
     this.taskQueueDao.setupDb();
   }
@@ -54,7 +54,7 @@ export class SqliteTaskQueue {
 export class SqliteTaskQueueClient {
   private taskQueueDao: TaskQueueDao;
 
-  constructor(db: Database) {
+  constructor(db: SqliteDriver) {
     this.taskQueueDao = new TaskQueueDao(db);
   }
 

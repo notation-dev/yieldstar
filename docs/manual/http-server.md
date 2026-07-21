@@ -8,7 +8,7 @@ The HTTP server wraps the same worker and SQLite infrastructure as the local wor
 import pino from "pino";
 import { createRoutes, createMiddleware } from "@yieldstar/bun-http-server";
 import { createWorkflowInvoker } from "@yieldstar/bun-worker-invoker";
-import { SqliteEventLoop, createSqliteDb } from "@yieldstar/bun-sqlite-runtime";
+import { SqliteEventLoop, createSqliteDb } from "@yieldstar/sqlite-runtime/bun";
 import { router } from "./shared";
 
 const logger = pino();

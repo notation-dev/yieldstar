@@ -12,7 +12,7 @@ bun add yieldstar
 
 Runtimes and adapters:
 
-- Local execution: `@yieldstar/bun-worker-invoker`, `@yieldstar/bun-sqlite-runtime`
+- Local execution: `@yieldstar/bun-worker-invoker`, `@yieldstar/sqlite-runtime`
 - HTTP server (Bun): `@yieldstar/bun-http-server`, `@yieldstar/bun-worker-invoker`
 
 ## Quick Look

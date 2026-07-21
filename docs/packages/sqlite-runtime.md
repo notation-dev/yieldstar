@@ -1,19 +1,27 @@
-# @yieldstar/bun-sqlite-runtime
+# @yieldstar/sqlite-runtime
 
-SQLite-backed implementations of the heap, scheduler, task queue, timers, durable stores, and event loop. Provides all persistence and scheduling infrastructure for running workflows locally.
+Driver-agnostic SQLite implementations of the heap, scheduler, task queue, timers, durable stores, and event loop. Bun and Node connector entry points provide the native database driver.
 
 ## Install
 
 ```sh
-bun add @yieldstar/bun-sqlite-runtime
+bun add @yieldstar/sqlite-runtime
 ```
 
 ## `createSqliteDb({ path })`
 
-Creates and returns a Bun `Database` instance at the given file path. Tables are created automatically on first use.
+Creates and returns a `SqliteDriver` at the given file path. Tables are created automatically on first use. Use the `/bun` connector with Bun or the `/node` connector with Node.
 
 ```ts
-import { createSqliteDb } from "@yieldstar/bun-sqlite-runtime";
+import { createSqliteDb } from "@yieldstar/sqlite-runtime/bun";
+
+const db = createSqliteDb({ path: "./.db/local.sqlite" });
+```
+
+The Node connector has the same API:
+
+```ts
+import { createSqliteDb } from "@yieldstar/sqlite-runtime/node";
 
 const db = createSqliteDb({ path: "./.db/local.sqlite" });
 ```
@@ -23,7 +31,7 @@ const db = createSqliteDb({ path: "./.db/local.sqlite" });
 `HeapClient` implementation backed by SQLite. Stores step results keyed by `(executionId, stepKey)`.
 
 ```ts
-import { SqliteHeapClient } from "@yieldstar/bun-sqlite-runtime";
+import { SqliteHeapClient } from "@yieldstar/sqlite-runtime";
 
 const heapClient = new SqliteHeapClient(db);
 ```
@@ -37,7 +45,7 @@ import {
   SqliteSchedulerClient,
   SqliteTaskQueueClient,
   SqliteTimersClient,
-} from "@yieldstar/bun-sqlite-runtime";
+} from "@yieldstar/sqlite-runtime";
 
 const schedulerClient = new SqliteSchedulerClient({
   taskQueueClient: new SqliteTaskQueueClient(db),
@@ -52,7 +60,7 @@ recorded workflow-step results, and pending wake-ups live in `stores`,
 `store_waiters`, `store_applied_steps`, and `store_wake_outbox`.
 
 ```ts
-import { SqliteStoreClient } from "@yieldstar/bun-sqlite-runtime";
+import { SqliteStoreClient } from "@yieldstar/sqlite-runtime";
 
 const storeClient = new SqliteStoreClient({ db, schedulerClient });
 ```
@@ -76,7 +84,7 @@ outbox delivery for each client.
 Polls the task queue and timer system on a 10ms interval. When a timer fires, it enqueues the event. When the queue has work, it calls `onNewEvent` for each task.
 
 ```ts
-import { SqliteEventLoop } from "@yieldstar/bun-sqlite-runtime";
+import { SqliteEventLoop } from "@yieldstar/sqlite-runtime";
 
 const loop = new SqliteEventLoop(db);
 loop.start({ onNewEvent: invoker.execute, logger });

@@ -1,4 +1,5 @@
 import type { SchedulerClient } from "@yieldstar/core";
+import { v7 as uuidv7 } from "uuid";
 import {
   CasStoreClient,
   cloneStoreState,
@@ -81,7 +82,7 @@ export class MemoryStoreClient extends CasStoreClient {
         : initialValue;
     const state = await validateStoreState(params.definition, initial);
 
-    const instanceId = Bun.randomUUIDv7();
+    const instanceId = uuidv7();
     this.stores.set(key, {
       state: cloneStoreState(state),
       instanceId,

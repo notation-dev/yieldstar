@@ -4,7 +4,7 @@
   "private": true,
   "dependencies": {
     "@yieldstar/bun-http-server": "workspace:*",
-    "@yieldstar/bun-sqlite-runtime": "workspace:*",
+    "@yieldstar/sqlite-runtime": "workspace:*",
     "@yieldstar/bun-worker-invoker": "workspace:*",
     "@yieldstar/core": "workspace:*",
     "pino": "^9.9.0",
