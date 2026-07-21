@@ -5,13 +5,13 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "bun build src/index.ts --outfile dist/index.js --target bun --packages=external"
+    "build": "bun build src/index.ts --outfile dist/index.js --target node --packages=external"
   },
   "dependencies": {
     "@yieldstar/core": "workspace:*",
     "pino": "^9.9.0"
   },
   "devDependencies": {
-    "@types/bun": "^1.2.21"
+    "@types/node": "^22.18.0"
   }
 }

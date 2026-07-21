@@ -16,14 +16,14 @@ bun add yieldstar
 
 Depending on how you run workflows, also install:
 
-- Local (recommended): `@yieldstar/bun-worker-invoker` and `@yieldstar/sqlite-runtime`
-- HTTP server (Bun): `@yieldstar/bun-http-server` and `@yieldstar/bun-worker-invoker`
+- Local (recommended): `@yieldstar/worker-invoker` and `@yieldstar/sqlite-runtime`
+- HTTP server: `@yieldstar/http-server` and `@yieldstar/worker-invoker`
 
 Note: `@yieldstar/test-utils` is an internal testing helper used by this repository. For local application use, prefer the SQLite runtime.
 
 ## Quick Start: Local (SQLite)
 
-Run a workflow locally with persistence and timers using a Bun worker and the SQLite runtime.
+Run a workflow locally with persistence and timers using a subprocess worker and the SQLite runtime.
 
 ```ts
 // router.ts
@@ -43,7 +43,7 @@ export type Router = typeof router;
 // worker.ts
 import pino from "pino";
 import { WorkflowRunner } from "@yieldstar/core";
-import { createWorkflowWorker } from "@yieldstar/bun-worker-invoker";
+import { createWorkflowWorker } from "@yieldstar/worker-invoker";
 import { SqliteHeapClient, SqliteTimersClient, SqliteTaskQueueClient, SqliteSchedulerClient, createSqliteDb } from "@yieldstar/sqlite-runtime/bun";
 import { router } from "./router";
 
@@ -66,7 +66,7 @@ createWorkflowWorker(runner, logger).listen();
 ```ts
 // app.ts
 import pino from "pino";
-import { createWorkflowInvoker } from "@yieldstar/bun-worker-invoker";
+import { createWorkflowInvoker } from "@yieldstar/worker-invoker";
 import { createLocalSdk } from "yieldstar";
 import { SqliteEventLoop, createSqliteDb } from "@yieldstar/sqlite-runtime/bun";
 
@@ -83,11 +83,13 @@ const result = await sdk.triggerAndWait({ workflowId: "simple-workflow" });
 console.log(result); // 2
 ```
 
+TypeScript worker paths require Node 22.6 or newer for built-in type stripping. Use compiled JavaScript workers on older Node versions.
+
 ## Pick Your Runtime
 
 ### Option A: Local Worker + SQLite (single process)
 
-Use a Bun worker to execute steps and a SQLite‑backed runtime for persistence, timers, and a task queue.
+Use a subprocess worker to execute steps and a SQLite-backed runtime for persistence, timers, and a task queue.
 
 1) Define workflows and a router:
 
@@ -109,7 +111,7 @@ export const router = createWorkflowRouter({ "dynamic-workflow": dynamic });
 // worker.ts
 import pino from "pino";
 import { WorkflowRunner } from "@yieldstar/core";
-import { createWorkflowWorker } from "@yieldstar/bun-worker-invoker";
+import { createWorkflowWorker } from "@yieldstar/worker-invoker";
 import { SqliteHeapClient, SqliteTimersClient, SqliteTaskQueueClient, SqliteSchedulerClient } from "@yieldstar/sqlite-runtime/bun";
 import { router } from "./router";
 import { createSqliteDb } from "@yieldstar/sqlite-runtime/bun";
@@ -135,7 +137,7 @@ createWorkflowWorker(runner, logger).listen();
 ```ts
 // app.ts
 import pino from "pino";
-import { createWorkflowInvoker } from "@yieldstar/bun-worker-invoker";
+import { createWorkflowInvoker } from "@yieldstar/worker-invoker";
 import { createLocalSdk } from "yieldstar";
 import { SqliteEventLoop, createSqliteDb } from "@yieldstar/sqlite-runtime/bun";
 
@@ -162,8 +164,8 @@ Server:
 
 ```ts
 import pino from "pino";
-import { createRoutes, createMiddleware } from "@yieldstar/bun-http-server";
-import { createWorkflowInvoker } from "@yieldstar/bun-worker-invoker";
+import { createRoutes, createMiddleware } from "@yieldstar/http-server";
+import { createWorkflowInvoker } from "@yieldstar/worker-invoker";
 import { SqliteEventLoop, createSqliteDb } from "@yieldstar/sqlite-runtime/bun";
 import { router } from "./router";
 

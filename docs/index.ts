@@ -60,9 +60,9 @@ export const categories: DocCategory[] = [
         links: [
           { label: "yieldstar", slug: "packages/yieldstar" },
           { label: "@yieldstar/core", slug: "packages/core" },
-          { label: "bun-http-server", slug: "packages/bun-http-server" },
+          { label: "http-server", slug: "packages/http-server" },
           { label: "sqlite-runtime", slug: "packages/sqlite-runtime" },
-          { label: "bun-worker-invoker", slug: "packages/bun-worker-invoker" },
+          { label: "worker-invoker", slug: "packages/worker-invoker" },
         ],
       },
     ],

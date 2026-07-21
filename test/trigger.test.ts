@@ -1,5 +1,5 @@
 import type { WorkflowFn } from "yieldstar";
-import { sleep } from "bun";
+import { setTimeout as sleep } from "node:timers/promises";
 import { expect, test, mock } from "bun:test";
 import { workflow } from "yieldstar";
 import { createTestSdkFactory } from "@yieldstar/test-utils";

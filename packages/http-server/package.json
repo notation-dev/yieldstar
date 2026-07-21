@@ -1,11 +1,11 @@
 {
-  "name": "@yieldstar/bun-http-server",
+  "name": "@yieldstar/http-server",
   "version": "0.4.6",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "bun build src/index.ts --outfile dist/index.js --target bun --packages=external"
+    "build": "bun build src/index.ts --outfile dist/index.js --target node --packages=external"
   },
   "dependencies": {
     "@yieldstar/core": "workspace:*",
@@ -13,6 +13,6 @@
     "serialize-error": "^11.0.3"
   },
   "devDependencies": {
-    "@types/bun": "^1.2.21"
+    "@types/node": "^22.18.0"
   }
 }

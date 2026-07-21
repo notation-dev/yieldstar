@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { setTimeout } from "node:timers/promises";
 import { createWorkflow } from "yieldstar";
 import { createTestSdkFactory } from "@yieldstar/test-utils";
 
@@ -30,7 +31,7 @@ test("handling async steps", async () => {
     });
 
     num = yield* step.run(async () => {
-      await Bun.sleep(10);
+      await setTimeout(10);
       return Promise.resolve(num * 2);
     });
 

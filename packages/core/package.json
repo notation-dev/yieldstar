@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "bun build src/index.ts --outfile dist/index.js --target bun --packages=external"
+    "build": "bun build src/index.ts --outfile dist/index.js --target node --packages=external"
   },
   "dependencies": {
     "@standard-schema/spec": "^1.1.0"

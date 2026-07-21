@@ -5,7 +5,7 @@ A Yieldstar application has three parts: **workflows** that define the work, a *
 ## Install
 
 ```sh
-bun add yieldstar @yieldstar/core @yieldstar/bun-worker-invoker @yieldstar/sqlite-runtime
+bun add yieldstar @yieldstar/core @yieldstar/worker-invoker @yieldstar/sqlite-runtime
 ```
 
 ## 1. Define a workflow
@@ -38,7 +38,7 @@ The worker is a subprocess that runs workflow executions in isolation. It connec
 ```ts [worker.ts]
 import pino from "pino";
 import { WorkflowRunner } from "@yieldstar/core";
-import { createWorkflowWorker } from "@yieldstar/bun-worker-invoker";
+import { createWorkflowWorker } from "@yieldstar/worker-invoker";
 import {
   SqliteHeapClient,
   SqliteSchedulerClient,
@@ -68,7 +68,7 @@ The app entry point starts the event loop, creates an invoker that spawns worker
 
 ```ts [app.ts]
 import pino from "pino";
-import { createWorkflowInvoker } from "@yieldstar/bun-worker-invoker";
+import { createWorkflowInvoker } from "@yieldstar/worker-invoker";
 import { createLocalSdk } from "yieldstar";
 import { eventLoop } from "./shared";
 import type { Router } from "./shared";

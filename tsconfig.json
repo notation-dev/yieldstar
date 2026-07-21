@@ -7,8 +7,8 @@
     { "path": "./packages/test-invoker" },
     { "path": "./packages/test-runtime" },
     { "path": "./packages/test-utils" },
-    { "path": "./packages/bun-http-server" },
+    { "path": "./packages/http-server" },
     { "path": "./packages/sqlite-runtime" },
-    { "path": "./packages/bun-worker-invoker" }
+    { "path": "./packages/worker-invoker" }
   ]
 }

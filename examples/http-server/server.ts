@@ -1,6 +1,6 @@
 import pino from "pino";
-import { createMiddleware, createRoutes } from "@yieldstar/bun-http-server";
-import { createWorkflowInvoker } from "@yieldstar/bun-worker-invoker";
+import { createMiddleware, createRoutes } from "@yieldstar/http-server";
+import { createWorkflowInvoker } from "@yieldstar/worker-invoker";
 import { sqliteEventLoop } from "./shared";
 
 const logger = pino();

@@ -46,8 +46,8 @@ Yieldstar is a monorepo of composable packages:
 | `yieldstar`                     | Core SDK with `workflow`, `createWorkflowRouter`, `RetryableError`, and the local and HTTP SDKs |
 | `@yieldstar/core`               | Base types and the `WorkflowRunner` execution engine                                 |
 | `@yieldstar/sqlite-runtime` | Driver-agnostic SQLite heap, scheduler, task queue, timers, and event loop           |
-| `@yieldstar/bun-worker-invoker` | Bun subprocess invoker and worker process                                            |
-| `@yieldstar/bun-http-server`    | HTTP routes and middleware for triggering workflows over the network                 |
+| `@yieldstar/worker-invoker`     | Subprocess invoker and worker process                                                |
+| `@yieldstar/http-server`        | HTTP routes and middleware for triggering workflows over the network                 |
 
 The runtime splits into four subsystems. 
 

@@ -6,8 +6,8 @@ The HTTP server wraps the same worker and SQLite infrastructure as the local wor
 
 ```ts [server.ts]
 import pino from "pino";
-import { createRoutes, createMiddleware } from "@yieldstar/bun-http-server";
-import { createWorkflowInvoker } from "@yieldstar/bun-worker-invoker";
+import { createRoutes, createMiddleware } from "@yieldstar/http-server";
+import { createWorkflowInvoker } from "@yieldstar/worker-invoker";
 import { SqliteEventLoop, createSqliteDb } from "@yieldstar/sqlite-runtime/bun";
 import { router } from "./shared";
 
@@ -65,7 +65,7 @@ createRoutes({ invoker, logger, basePath: "/api/workflows" });
 Middleware functions run before the workflow is invoked and can inspect the request, modify the event context, or short-circuit with an early response:
 
 ```ts
-import { createMiddleware } from "@yieldstar/bun-http-server";
+import { createMiddleware } from "@yieldstar/http-server";
 
 const auth = createMiddleware(async (req, event, next, logger) => {
   const token = req.headers.get("Authorization");

@@ -1,20 +1,22 @@
-# @yieldstar/bun-http-server
+# @yieldstar/http-server
 
 ## Features
 
 - Route handlers for triggering and monitoring workflows
 - Middleware for request/response/context processing
 
+Handlers use the standard `Request` and `Response` APIs. The routes object plugs into `Bun.serve({ routes })` or any router that accepts `Request` to `Response` handlers.
+
 ## Installation
 
 ```sh
-npm install @yieldstar/bun-http-server
+npm install @yieldstar/http-server
 ```
 
 ## Basic Usage
 
 ```ts
-import { createRoutes } from "@yieldstar/bun-http-server";
+import { createRoutes } from "@yieldstar/http-server";
 import { pino } from "pino";
 
 const logger = pino();
@@ -58,7 +60,7 @@ Middleware can be passed to the server. Middleware enables:
 - setting HTTP response headers
 
 ```ts
-import { createRoutes, createMiddleware } from "@yieldstar/bun-http-server";
+import { createRoutes, createMiddleware } from "@yieldstar/http-server";
 
 // CORS middleware
 const corsMiddleware = createMiddleware(async (req, event, next) => {
@@ -110,7 +112,7 @@ const server = Bun.serve({
 ### Middleware lifecycle
 
 ```ts
-import { createMiddleware } from "@yieldstar/bun-http-server";
+import { createMiddleware } from "@yieldstar/http-server";
 
 const myMiddleware = createMiddleware(async (req, event, next) => {
   // Read the HTTP request

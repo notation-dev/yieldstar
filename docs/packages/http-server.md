@@ -1,19 +1,19 @@
-# @yieldstar/bun-http-server
+# @yieldstar/http-server
 
-HTTP routes and middleware for triggering workflows over the network. Designed for Bun's built-in `Bun.serve` router.
+HTTP routes and middleware for triggering workflows over the network. Handlers use the standard `Request` and `Response` APIs.
 
 ## Install
 
 ```sh
-bun add @yieldstar/bun-http-server
+bun add @yieldstar/http-server
 ```
 
 ## `createRoutes({ invoker, logger, middleware?, basePath? })`
 
-Returns route handlers for `POST /trigger` and `POST /events`, compatible with `Bun.serve({ routes })`.
+Returns route handlers for `POST /trigger` and `POST /events`. The routes object plugs directly into `Bun.serve({ routes })` or any router that accepts `Request` to `Response` handlers.
 
 ```ts
-import { createRoutes } from "@yieldstar/bun-http-server";
+import { createRoutes } from "@yieldstar/http-server";
 
 Bun.serve({
   port: 8080,
@@ -43,7 +43,7 @@ Accepts `{ executionId }` JSON body. Blocks until the workflow completes by list
 Wraps a middleware function for use with `createRoutes`. Middleware receives `(req, event, next, logger)`.
 
 ```ts
-import { createMiddleware } from "@yieldstar/bun-http-server";
+import { createMiddleware } from "@yieldstar/http-server";
 
 const auth = createMiddleware(async (req, event, next, logger) => {
   const token = req.headers.get("Authorization");

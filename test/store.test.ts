@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import type { StandardSchemaV1 } from "yieldstar";
 import { createTestSdkFactory, testSchema } from "@yieldstar/test-utils";
 import { defineStore, workflow } from "yieldstar";
-import { sleep } from "bun";
+import { setTimeout as sleep } from "node:timers/promises";
 
 type Message = {
   id: string;
