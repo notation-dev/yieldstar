@@ -12,7 +12,7 @@ test("step.run without cache keys", async () => {
     executionIdx++;
     if (executionIdx === 0) {
       yield* step.run(mock1);
-      yield* step.delay(1);
+      yield* step.delay(10);
     } else if (executionIdx === 1) {
       yield* step.run(mock2);
     }
@@ -35,7 +35,7 @@ test("step.run with cache keys", async () => {
     executionIdx++;
     if (executionIdx === 0) {
       yield* step.run("step 1", mock1);
-      yield* step.delay(1);
+      yield* step.delay(10);
     } else if (executionIdx === 1) {
       yield* step.run("step 2", mock2);
     }

@@ -19,6 +19,17 @@ test("failing steps can be caught", async () => {
   expect(result).toBe(true);
 });
 
+test("triggerAndWait rejects workflow errors", async () => {
+  const workflow = createWorkflow(async function* () {
+    throw new Error("Workflow error");
+  });
+  const sdk = createSdk({ workflow });
+
+  await expect(
+    sdk.triggerAndWait({ workflowId: "workflow" })
+  ).rejects.toThrow("Workflow error");
+});
+
 test.skip("errors should be thrown by trigger", async () => {
   const workflow = createWorkflow(async function* (step) {
     throw new Error("Step error");

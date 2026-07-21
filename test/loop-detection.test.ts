@@ -12,16 +12,13 @@ test("loop detection with implicit keys", async () => {
   });
 
   const sdk = createSdk({ workflow });
-  const result = await sdk.triggerAndWait({ workflowId: "workflow" });
+  await expect(
+    sdk.triggerAndWait({ workflowId: "workflow" })
+  ).rejects.toThrow("Each step in a loop must have a unique cache key.");
 
   // The loop should be detected on the second attempt, so the function
   // backing step.run should only be executed once
   expect(runSpy).toBeCalledTimes(1);
-
-  expect(result).toBeInstanceOf(Error);
-  expect((result as unknown as Error).message).toContain(
-    "Each step in a loop must have a unique cache key.",
-  );
 });
 
 test("no loop detection with explicit keys", async () => {

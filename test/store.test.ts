@@ -248,9 +248,9 @@ test("schema validation on create and update", async () => {
   });
 
   const sdk1 = createSdk({ workflow: testWorkflowInvalidCreate });
-  const result1 = await sdk1.triggerAndWait({ workflowId: "workflow" });
-  expect(result1).toBeInstanceOf(Error);
-  expect((result1 as Error).message).toMatch(/Invalid store state/);
+  await expect(
+    sdk1.triggerAndWait({ workflowId: "workflow" })
+  ).rejects.toThrow(/Invalid store state/);
 
   const testWorkflowInvalidUpdate = workflow(async function* (step) {
     const store = yield* step.store(StrictStore, {
@@ -264,9 +264,9 @@ test("schema validation on create and update", async () => {
   });
 
   const sdk2 = createSdk({ workflow: testWorkflowInvalidUpdate });
-  const result2 = await sdk2.triggerAndWait({ workflowId: "workflow" });
-  expect(result2).toBeInstanceOf(Error);
-  expect((result2 as Error).message).toMatch(/Invalid store state/);
+  await expect(
+    sdk2.triggerAndWait({ workflowId: "workflow" })
+  ).rejects.toThrow(/Invalid store state/);
 });
 
 test("when returns immediately when selector matches", async () => {
@@ -610,10 +610,9 @@ test("claim validation failure leaves item unclaimed", async () => {
   });
 
   const sdk = createSdk({ workflow: testWorkflow });
-  const result = await sdk.triggerAndWait({ workflowId: "workflow" });
-
-  expect(result).toBeInstanceOf(Error);
-  expect((result as Error).message).toMatch(/Invalid store state/);
+  await expect(
+    sdk.triggerAndWait({ workflowId: "workflow" })
+  ).rejects.toThrow(/Invalid store state/);
 
   const snapshot = await sdk.store(StrictStore, "take-invalid").get();
   expect(snapshot.state.messages).toEqual([{ id: "msg-1" }]);
@@ -640,10 +639,9 @@ test("async claim rejected", async () => {
   });
 
   const sdk = createSdk({ workflow: testWorkflow });
-  const result = await sdk.triggerAndWait({ workflowId: "workflow" });
-
-  expect(result).toBeInstanceOf(Error);
-  expect((result as Error).message).toMatch(/synchronous/);
+  await expect(
+    sdk.triggerAndWait({ workflowId: "workflow" })
+  ).rejects.toThrow(/synchronous/);
 
   const snapshot = await sdk.store(ConversationStore, "take-async-claim").get();
   expect(snapshot.state.messages[0]!.claimedBy).toBeUndefined();
