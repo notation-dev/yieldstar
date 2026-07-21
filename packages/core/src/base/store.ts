@@ -137,14 +137,27 @@ export type StoreWaiter = {
   readPaths: StorePath[];
 };
 
+export type StoreMutationCommitResult =
+  | { status: "committed" }
+  | { status: "already-applied"; result: unknown }
+  | { status: "conflict"; snapshot: StoreSnapshot<unknown> };
+
+export type StoreMutation = {
+  definition: StoreDefinition;
+  id: string;
+  expected: StoreSnapshot<unknown>;
+  nextState: unknown;
+  changedPaths: StorePath[];
+  stepId?: StoreStepId;
+  result: unknown;
+};
+
 export type RuntimeStore<T> = {
   get(): Promise<StoreSnapshot<T>>;
-  update(
-    updater: (draft: Draft<T>) => void | T | Promise<void | T>
-  ): Promise<StoreUpdateResult<T>>;
+  update(updater: (draft: Draft<T>) => void | T): Promise<StoreUpdateResult<T>>;
   updateFrom(
     snapshot: StoreSnapshot<T>,
-    updater: (draft: Draft<T>) => void | T | Promise<void | T>
+    updater: (draft: Draft<T>) => void | T
   ): Promise<StoreUpdateFromResult<T>>;
   deleteFrom(snapshot: StoreSnapshot<T>): Promise<StoreDeleteFromResult>;
 };
@@ -204,9 +217,8 @@ export abstract class StoreClient {
 
   /**
    * Updates a store's state atomically.
-   * NOTE: Updaters should ideally be synchronous. Although the signature allows async updaters,
-   * holding open transactions (e.g. SQLite BEGIN IMMEDIATE) across long-running async steps
-   * will block other clients from writing. Avoid network, timers, or other async tasks in updaters.
+   * Updaters must be synchronous, deterministic, and side-effect-free. CAS-backed
+   * clients may run an updater again when another writer wins the version race.
    *
    * When `stepId` is provided the update is exactly-once per
    * (executionId, stepKey): the committed StoreUpdateResult is recorded in
@@ -217,15 +229,14 @@ export abstract class StoreClient {
   abstract updateStore<Schema extends StandardSchemaV1>(params: {
     definition: StoreDefinition<Schema>;
     id: string;
-    updater: (
-      draft: Draft<StoreState<Schema>>
-    ) => void | StoreState<Schema> | Promise<void | StoreState<Schema>>;
+    updater: (draft: Draft<StoreState<Schema>>) => void | StoreState<Schema>;
     stepId?: StoreStepId;
   }): Promise<StoreUpdateResult<StoreState<Schema>>>;
 
   /**
    * Updates a store only if it has not changed since `snapshot` was read.
-   * A conflict does not run the updater or change the store. When `stepId`
+   * A conflict does not change the store, though a racing writer may cause a
+   * pure updater to have been evaluated before the conflict is observed. When `stepId`
    * identifies an update that already committed, its recorded result wins
    * over the version check so replay remains exactly-once.
    */
@@ -233,16 +244,14 @@ export abstract class StoreClient {
     definition: StoreDefinition<Schema>;
     id: string;
     snapshot: StoreSnapshot<StoreState<Schema>>;
-    updater: (
-      draft: Draft<StoreState<Schema>>
-    ) => void | StoreState<Schema> | Promise<void | StoreState<Schema>>;
+    updater: (draft: Draft<StoreState<Schema>>) => void | StoreState<Schema>;
     stepId?: StoreStepId;
   }): Promise<StoreUpdateFromResult<StoreState<Schema>>>;
 
   /**
-   * Atomically selects and claims from a store. The selector and claim
-   * mutation run inside the SAME store update transaction, committing as a
-   * single version bump. If the selector does not match, nothing is
+   * Atomically selects and claims from a store. The selector and claim run
+   * locally against a snapshot, then commit with a single conditional version
+   * bump. A conflict re-runs both functions against the new snapshot. If the selector does not match, nothing is
    * committed and the store's current version plus the selector's tracked
    * read paths are returned so the caller can register a waiter with the
    * correct sinceVersion (closing the lost-wakeup gap by construction).
@@ -296,6 +305,252 @@ export abstract class StoreClient {
   }): Promise<StoreDeleteFromResult>;
 }
 
+/**
+ * Implements store transformations as read/compute/compare-and-swap loops.
+ * Storage connectors only implement the atomic mutation protocol and never
+ * execute application callbacks while holding a storage transaction.
+ */
+export abstract class CasStoreClient extends StoreClient {
+  protected abstract getAppliedStoreStep(params: {
+    definition: StoreDefinition;
+    id: string;
+    stepId: StoreStepId;
+  }): Promise<{ result: unknown } | undefined>;
+
+  /**
+   * Atomically compares `expected`, writes the next state, records the step
+   * result, and persists the changed paths for durable wake delivery.
+   */
+  protected abstract commitStoreMutation(
+    mutation: StoreMutation
+  ): Promise<StoreMutationCommitResult>;
+
+  async updateStore<Schema extends StandardSchemaV1>(params: {
+    definition: StoreDefinition<Schema>;
+    id: string;
+    updater: (draft: Draft<StoreState<Schema>>) => void | StoreState<Schema>;
+    stepId?: StoreStepId;
+  }): Promise<StoreUpdateResult<StoreState<Schema>>> {
+    const applied = await this.getAppliedResult(params);
+    if (applied) {
+      return applied.result as StoreUpdateResult<StoreState<Schema>>;
+    }
+
+    while (true) {
+      const snapshot = await this.getStore({
+        definition: params.definition,
+        id: params.id,
+      });
+      const prepared = await prepareStoreUpdate(
+        params.definition,
+        snapshot,
+        params.updater
+      );
+      const result: StoreUpdateResult<StoreState<Schema>> = {
+        state: cloneStoreState(prepared.nextState),
+        previousVersion: snapshot.version,
+        version: snapshot.version + 1,
+      };
+      const committed = await this.commitStoreMutation({
+        definition: params.definition,
+        id: params.id,
+        expected: snapshot,
+        nextState: prepared.nextState,
+        changedPaths: prepared.changedPaths,
+        stepId: params.stepId,
+        result,
+      });
+
+      if (committed.status === "committed") return result;
+      if (committed.status === "already-applied") {
+        return committed.result as StoreUpdateResult<StoreState<Schema>>;
+      }
+    }
+  }
+
+  async updateStoreFrom<Schema extends StandardSchemaV1>(params: {
+    definition: StoreDefinition<Schema>;
+    id: string;
+    snapshot: StoreSnapshot<StoreState<Schema>>;
+    updater: (draft: Draft<StoreState<Schema>>) => void | StoreState<Schema>;
+    stepId?: StoreStepId;
+  }): Promise<StoreUpdateFromResult<StoreState<Schema>>> {
+    const applied = await this.getAppliedResult(params);
+    if (applied) {
+      return normalizeUpdateFromResult<StoreState<Schema>>(applied.result);
+    }
+
+    const current = await this.getStore({
+      definition: params.definition,
+      id: params.id,
+    });
+    if (!sameStoreVersion(current, params.snapshot)) {
+      return storeUpdateConflict(params.snapshot, current);
+    }
+
+    const prepared = await prepareStoreUpdate(
+      params.definition,
+      params.snapshot,
+      params.updater
+    );
+    const result: StoreUpdateFromResult<StoreState<Schema>> = {
+      updated: true,
+      state: cloneStoreState(prepared.nextState),
+      previousVersion: params.snapshot.version,
+      version: params.snapshot.version + 1,
+    };
+    const committed = await this.commitStoreMutation({
+      definition: params.definition,
+      id: params.id,
+      expected: params.snapshot,
+      nextState: prepared.nextState,
+      changedPaths: prepared.changedPaths,
+      stepId: params.stepId,
+      result,
+    });
+
+    if (committed.status === "committed") return result;
+    if (committed.status === "already-applied") {
+      return normalizeUpdateFromResult<StoreState<Schema>>(committed.result);
+    }
+    return storeUpdateConflict(params.snapshot, committed.snapshot);
+  }
+
+  async takeFromStore<Schema extends StandardSchemaV1, R>(params: {
+    definition: StoreDefinition<Schema>;
+    id: string;
+    selector: StoreSelector<StoreState<Schema>, R>;
+    claim: (
+      draft: Draft<StoreState<Schema>>,
+      selected: NonNullable<R>
+    ) => void;
+    stepId?: StoreStepId;
+  }): Promise<StoreTakeResult<R>> {
+    const applied = await this.getAppliedResult(params);
+    if (applied) return applied.result as StoreTakeResult<R>;
+
+    while (true) {
+      const snapshot = await this.getStore({
+        definition: params.definition,
+        id: params.id,
+      });
+      const previousState = cloneStoreState(snapshot.state);
+      const draft = cloneStoreState(previousState) as Draft<StoreState<Schema>>;
+      const tracked = trackStoreUpdater(draft);
+      const { result: selectedResult, readPaths } = trackStoreSelector(
+        tracked.draft as StoreState<Schema>,
+        params.selector
+      );
+
+      if (!isStoreSelectorMatch(selectedResult)) {
+        return {
+          matched: false,
+          instanceId: snapshot.instanceId,
+          version: snapshot.version,
+          readPaths,
+        };
+      }
+
+      const selected = unwrapTrackedValue(selectedResult) as NonNullable<R>;
+      assertSynchronousClaim(params.claim(tracked.draft, selected));
+      const nextState = await validateStoreState(params.definition, draft);
+      const selectedSnapshot = cloneStoreState(selected);
+      const changedPaths =
+        (nextState as unknown) === draft
+          ? tracked.writePaths()
+          : diffStorePaths(previousState, nextState);
+      const result: StoreTakeResult<R> = {
+        matched: true,
+        selected: selectedSnapshot,
+        instanceId: snapshot.instanceId,
+        version: snapshot.version + 1,
+      };
+      const committed = await this.commitStoreMutation({
+        definition: params.definition,
+        id: params.id,
+        expected: snapshot,
+        nextState,
+        changedPaths,
+        stepId: params.stepId,
+        result,
+      });
+
+      if (committed.status === "committed") return result;
+      if (committed.status === "already-applied") {
+        return committed.result as StoreTakeResult<R>;
+      }
+    }
+  }
+
+  private getAppliedResult(params: {
+    definition: StoreDefinition;
+    id: string;
+    stepId?: StoreStepId;
+  }) {
+    return params.stepId
+      ? this.getAppliedStoreStep({
+          definition: params.definition,
+          id: params.id,
+          stepId: params.stepId,
+        })
+      : Promise.resolve(undefined);
+  }
+}
+
+async function prepareStoreUpdate<Schema extends StandardSchemaV1>(
+  definition: StoreDefinition<Schema>,
+  snapshot: StoreSnapshot<StoreState<Schema>>,
+  updater: (draft: Draft<StoreState<Schema>>) => void | StoreState<Schema>
+) {
+  const previousState = cloneStoreState(snapshot.state);
+  const draft = cloneStoreState(previousState) as Draft<StoreState<Schema>>;
+  const tracked = trackStoreUpdater(draft);
+  const updated = updater(tracked.draft);
+  assertSynchronousUpdater(updated);
+  const returned = updated === undefined ? undefined : unwrapTrackedValue(updated);
+  const isReplacement = returned !== undefined && returned !== draft;
+  const nextState = await validateStoreState(
+    definition,
+    isReplacement ? returned : draft
+  );
+  const changedPaths =
+    !isReplacement && (nextState as unknown) === draft
+      ? tracked.writePaths()
+      : diffStorePaths(previousState, nextState);
+  return { nextState, changedPaths };
+}
+
+function sameStoreVersion(
+  left: StoreSnapshot<unknown>,
+  right: StoreSnapshot<unknown>
+) {
+  return (
+    left.instanceId === right.instanceId && left.version === right.version
+  );
+}
+
+function storeUpdateConflict(
+  expected: StoreSnapshot<unknown>,
+  actual: StoreSnapshot<unknown>
+): Extract<StoreUpdateFromResult<never>, { updated: false }> {
+  return {
+    updated: false,
+    expectedInstanceId: expected.instanceId,
+    actualInstanceId: actual.instanceId,
+    expectedVersion: expected.version,
+    actualVersion: actual.version,
+  };
+}
+
+function normalizeUpdateFromResult<T>(
+  result: unknown
+): StoreUpdateFromResult<T> {
+  const recorded = result as StoreUpdateFromResult<T> | StoreUpdateResult<T>;
+  return "updated" in recorded
+    ? recorded
+    : { updated: true, ...recorded };
+}
+
 export function isStoreSelectorMatch<R>(
   result: R
 ): result is Exclude<R, undefined | null | false> {
@@ -308,6 +563,15 @@ export function assertSynchronousClaim(claimResult: unknown): void {
     typeof (claimResult as PromiseLike<unknown>).then === "function"
   ) {
     throw new Error("Store take claims must be synchronous");
+  }
+}
+
+export function assertSynchronousUpdater(updaterResult: unknown): void {
+  if (
+    updaterResult &&
+    typeof (updaterResult as PromiseLike<unknown>).then === "function"
+  ) {
+    throw new Error("Store updaters must be synchronous");
   }
 }
 

@@ -57,6 +57,197 @@ test("sqlite store updates wake matching waiters", async () => {
   expect(events).toEqual([event]);
 });
 
+test("retry delivers a wake whose first enqueue failed after the store commit", async () => {
+  const db = new Database(":memory:");
+  const events: WorkflowEvent[] = [];
+  let wakeAttempts = 0;
+  const schedulerClient: SchedulerClient = {
+    async requestWakeUp(event) {
+      wakeAttempts += 1;
+      if (wakeAttempts === 1) throw new Error("wake enqueue failed");
+      events.push(event);
+    },
+  };
+  const client = new SqliteStoreClient({ db, schedulerClient });
+  const event = {
+    workflowId: "workflow",
+    executionId: "execution",
+    params: undefined,
+    context: new Map(),
+  };
+
+  const initial = await client.getOrCreateStore({
+    definition: Store,
+    id: "wake-enqueue-retry",
+    initial: { messages: [] },
+  });
+  await client.registerWaiter({
+    workflowId: event.workflowId,
+    executionId: event.executionId,
+    stepKey: "next-message",
+    event,
+    storeName: Store.name,
+    storeId: "wake-enqueue-retry",
+    instanceId: initial.instanceId,
+    sinceVersion: initial.version,
+    readPaths: [["messages"]],
+  });
+
+  const update = () =>
+    client.updateStore({
+      definition: Store,
+      id: "wake-enqueue-retry",
+      updater(draft) {
+        draft.messages.push({ id: "msg-1" });
+      },
+      stepId: { executionId: "updater", stepKey: "append-message" },
+    });
+
+  await expect(update()).rejects.toThrow("wake enqueue failed");
+  await update();
+
+  expect(wakeAttempts).toBe(2);
+  expect(events).toEqual([event]);
+  expect(
+    await client.getStore({
+      definition: Store,
+      id: "wake-enqueue-retry",
+    })
+  ).toMatchObject({
+    state: { messages: [{ id: "msg-1" }] },
+    version: 1,
+  });
+});
+
+test("a new sqlite store client recovers a committed wake after interruption", async () => {
+  const db = new Database(":memory:");
+  const interruptedClient = new SqliteStoreClient({
+    db,
+    schedulerClient: {
+      async requestWakeUp() {
+        throw new Error("process interrupted before wake enqueue");
+      },
+    },
+  });
+  const event = {
+    workflowId: "workflow",
+    executionId: "execution",
+    params: undefined,
+    context: new Map(),
+  };
+
+  const initial = await interruptedClient.getOrCreateStore({
+    definition: Store,
+    id: "wake-recovery",
+    initial: { messages: [] },
+  });
+  await interruptedClient.registerWaiter({
+    workflowId: event.workflowId,
+    executionId: event.executionId,
+    stepKey: "next-message",
+    event,
+    storeName: Store.name,
+    storeId: "wake-recovery",
+    instanceId: initial.instanceId,
+    sinceVersion: initial.version,
+    readPaths: [["messages"]],
+  });
+
+  await expect(
+    interruptedClient.updateStore({
+      definition: Store,
+      id: "wake-recovery",
+      updater(draft) {
+        draft.messages.push({ id: "msg-1" });
+      },
+      stepId: { executionId: "updater", stepKey: "append-message" },
+    })
+  ).rejects.toThrow("process interrupted before wake enqueue");
+
+  const recoveredEvents: WorkflowEvent[] = [];
+  new SqliteStoreClient({
+    db,
+    schedulerClient: {
+      async requestWakeUp(recoveredEvent) {
+        recoveredEvents.push(recoveredEvent);
+      },
+    },
+  });
+  await Bun.sleep(0);
+
+  expect(recoveredEvents).toEqual([event]);
+});
+
+test("wake delivery does not delete a waiter re-registered by another client", async () => {
+  const db = new Database(":memory:");
+  const event = {
+    workflowId: "workflow",
+    executionId: "execution",
+    params: undefined,
+    context: new Map(),
+  };
+  let secondClient: SqliteStoreClient;
+  let wakeCount = 0;
+  const firstClient = new SqliteStoreClient({
+    db,
+    schedulerClient: {
+      async requestWakeUp() {
+        wakeCount++;
+        if (wakeCount === 1) {
+          const current = await secondClient.getStore({
+            definition: Store,
+            id: "re-register",
+          });
+          await secondClient.registerWaiter({
+            workflowId: event.workflowId,
+            executionId: event.executionId,
+            stepKey: "next-message",
+            event,
+            storeName: Store.name,
+            storeId: "re-register",
+            instanceId: current.instanceId,
+            sinceVersion: current.version,
+            readPaths: [["messages"]],
+          });
+        }
+      },
+    },
+  });
+  secondClient = new SqliteStoreClient({
+    db,
+    schedulerClient: { async requestWakeUp() {} },
+  });
+
+  const initial = await firstClient.getOrCreateStore({
+    definition: Store,
+    id: "re-register",
+    initial: { messages: [] },
+  });
+  await firstClient.registerWaiter({
+    workflowId: event.workflowId,
+    executionId: event.executionId,
+    stepKey: "next-message",
+    event,
+    storeName: Store.name,
+    storeId: "re-register",
+    instanceId: initial.instanceId,
+    sinceVersion: initial.version,
+    readPaths: [["messages"]],
+  });
+
+  for (const id of ["msg-1", "msg-2"]) {
+    await firstClient.updateStore({
+      definition: Store,
+      id: "re-register",
+      updater(draft) {
+        draft.messages.push({ id });
+      },
+    });
+  }
+
+  expect(wakeCount).toBe(2);
+});
+
 test("registering a waiter with a stale sinceVersion triggers an immediate wake", async () => {
   const db = new Database(":memory:");
   const events: WorkflowEvent[] = [];
@@ -114,7 +305,7 @@ test("registering a waiter with a stale sinceVersion triggers an immediate wake"
   expect(events).toEqual([]);
 });
 
-test("concurrent async updaters on one client both commit", async () => {
+test("concurrent synchronous updates on one client both commit", async () => {
   const db = new Database(":memory:");
   const schedulerClient: SchedulerClient = {
     async requestWakeUp() {},
@@ -131,16 +322,14 @@ test("concurrent async updaters on one client both commit", async () => {
     client.updateStore({
       definition: Store,
       id: "race",
-      async updater(draft) {
-        await Promise.resolve();
+      updater(draft) {
         draft.messages.push({ id: "msg-a" });
       },
     }),
     client.updateStore({
       definition: Store,
       id: "race",
-      async updater(draft) {
-        await Promise.resolve();
+      updater(draft) {
         draft.messages.push({ id: "msg-b" });
       },
     }),
@@ -151,6 +340,33 @@ test("concurrent async updaters on one client both commit", async () => {
   const snapshot = await client.getStore({ definition: Store, id: "race" });
   expect(snapshot.version).toBe(2);
   expect(snapshot.state.messages).toEqual([{ id: "msg-a" }, { id: "msg-b" }]);
+});
+
+test("async updaters are rejected without committing", async () => {
+  const db = new Database(":memory:");
+  const client = new SqliteStoreClient({
+    db,
+    schedulerClient: { async requestWakeUp() {} },
+  });
+  await client.getOrCreateStore({
+    definition: Store,
+    id: "async-updater",
+    initial: { messages: [] },
+  });
+
+  await expect(
+    client.updateStore({
+      definition: Store,
+      id: "async-updater",
+      updater: (async (draft: State) => {
+        draft.messages.push({ id: "never-committed" });
+      }) as any,
+    })
+  ).rejects.toThrow("Store updaters must be synchronous");
+
+  expect(
+    await client.getStore({ definition: Store, id: "async-updater" })
+  ).toMatchObject({ state: { messages: [] }, version: 0 });
 });
 
 test("updateStoreFrom commits only from the supplied snapshot and replays ledger-first", async () => {
@@ -219,6 +435,41 @@ test("updateStoreFrom commits only from the supplied snapshot and replays ledger
     actualVersion: 2,
   });
   expect(updaterRuns).toBe(1);
+});
+
+test("updateStoreFrom normalizes legacy applied-step receipts", async () => {
+  const db = new Database(":memory:");
+  const client = new SqliteStoreClient({
+    db,
+    schedulerClient: { async requestWakeUp() {} },
+  });
+  const snapshot = await client.getOrCreateStore({
+    definition: Store,
+    id: "legacy-receipt",
+    initial: { messages: [] },
+  });
+  const result = {
+    state: { messages: [{ id: "msg-1" }] },
+    previousVersion: 0,
+    version: 1,
+  };
+  db.query(
+    `INSERT INTO store_applied_steps
+       (store_name, store_id, execution_id, step_key, result)
+     VALUES (?, ?, ?, ?, ?)`
+  ).run(Store.name, "legacy-receipt", "execution", "update", JSON.stringify(result));
+
+  expect(
+    await client.updateStoreFrom({
+      definition: Store,
+      id: "legacy-receipt",
+      snapshot,
+      stepId: { executionId: "execution", stepKey: "update" },
+      updater() {
+        throw new Error("legacy receipt should win before updater execution");
+      },
+    })
+  ).toEqual({ updated: true, ...result });
 });
 
 test("listStores and deleteStore manage logical store instances", async () => {

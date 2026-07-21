@@ -1,6 +1,7 @@
 import type { SchedulerClient } from "@yieldstar/core";
 import {
   assertSynchronousClaim,
+  assertSynchronousUpdater,
   cloneStoreState,
   diffStorePaths,
   isStoreSelectorMatch,
@@ -40,8 +41,7 @@ export class MemoryStoreClient extends StoreClient {
   // workflow step returns the recorded result instead of re-applying.
   private appliedSteps = new Map<string, string>();
   private schedulerClient: SchedulerClient;
-  // Serializes writes so concurrent async updaters can't interleave between
-  // reading a record's version and writing the incremented version back.
+  // Serializes writes so concurrent commits cannot interleave.
   private writeLock: Promise<unknown> = Promise.resolve();
 
   constructor(params: { schedulerClient: SchedulerClient }) {
@@ -128,9 +128,7 @@ export class MemoryStoreClient extends StoreClient {
   async updateStore<Schema extends StandardSchemaV1>(params: {
     definition: StoreDefinition<Schema>;
     id: string;
-    updater: (
-      draft: Draft<StoreState<Schema>>
-    ) => void | StoreState<Schema> | Promise<void | StoreState<Schema>>;
+    updater: (draft: Draft<StoreState<Schema>>) => void | StoreState<Schema>;
     stepId?: StoreStepId;
   }): Promise<StoreUpdateResult<StoreState<Schema>>> {
     return (await this.updateStoreInternal(params)) as StoreUpdateResult<
@@ -142,9 +140,7 @@ export class MemoryStoreClient extends StoreClient {
     definition: StoreDefinition<Schema>;
     id: string;
     snapshot: StoreSnapshot<StoreState<Schema>>;
-    updater: (
-      draft: Draft<StoreState<Schema>>
-    ) => void | StoreState<Schema> | Promise<void | StoreState<Schema>>;
+    updater: (draft: Draft<StoreState<Schema>>) => void | StoreState<Schema>;
     stepId?: StoreStepId;
   }): Promise<StoreUpdateFromResult<StoreState<Schema>>> {
     const result = await this.updateStoreInternal({
@@ -158,9 +154,7 @@ export class MemoryStoreClient extends StoreClient {
   private updateStoreInternal<Schema extends StandardSchemaV1>(params: {
     definition: StoreDefinition<Schema>;
     id: string;
-    updater: (
-      draft: Draft<StoreState<Schema>>
-    ) => void | StoreState<Schema> | Promise<void | StoreState<Schema>>;
+    updater: (draft: Draft<StoreState<Schema>>) => void | StoreState<Schema>;
     stepId?: StoreStepId;
     expectedInstanceId?: string;
     expectedVersion?: number;
@@ -221,7 +215,8 @@ export class MemoryStoreClient extends StoreClient {
       // diff is only needed when the updater returns a replacement state
       // (or validation returns a transformed copy).
       const tracked = trackStoreUpdater(draft);
-      const updated = await params.updater(tracked.draft);
+      const updated = params.updater(tracked.draft);
+      assertSynchronousUpdater(updated);
       const returned =
         updated === undefined ? undefined : unwrapTrackedValue(updated);
       const isReplacement = returned !== undefined && returned !== draft;

@@ -105,7 +105,7 @@ test("registering a waiter with a stale sinceVersion triggers an immediate wake"
   expect(events).toEqual([]);
 });
 
-test("concurrent async updaters both commit", async () => {
+test("concurrent synchronous updates both commit", async () => {
   const { client } = createClient();
 
   await client.getOrCreateStore({
@@ -118,16 +118,14 @@ test("concurrent async updaters both commit", async () => {
     client.updateStore({
       definition: Store,
       id: "race",
-      async updater(draft) {
-        await Promise.resolve();
+      updater(draft) {
         draft.messages.push({ id: "msg-a" });
       },
     }),
     client.updateStore({
       definition: Store,
       id: "race",
-      async updater(draft) {
-        await Promise.resolve();
+      updater(draft) {
         draft.messages.push({ id: "msg-b" });
       },
     }),

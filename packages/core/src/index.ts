@@ -19,11 +19,15 @@ export type {
   StoreUpdateResult,
   StoreVersion,
   StoreWaiter,
+  StoreMutation,
+  StoreMutationCommitResult,
   TrackedStoreUpdater,
 } from "./base/store";
 export {
   StoreClient,
+  CasStoreClient,
   assertSynchronousClaim,
+  assertSynchronousUpdater,
   cloneStoreState,
   defineStore,
   diffStorePaths,
