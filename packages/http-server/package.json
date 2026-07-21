@@ -1,6 +1,11 @@
 {
   "name": "@yieldstar/http-server",
   "version": "0.5.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/notationlabs/yieldstar.git",
+    "directory": "packages/http-server"
+  },
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

@@ -1,6 +1,12 @@
 {
   "name": "@yieldstar/test-utils",
   "version": "0.5.0",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/notationlabs/yieldstar.git",
+    "directory": "packages/test-utils"
+  },
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

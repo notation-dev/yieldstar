@@ -1,6 +1,11 @@
 {
   "name": "@yieldstar/core",
   "version": "0.5.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/notationlabs/yieldstar.git",
+    "directory": "packages/core"
+  },
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
