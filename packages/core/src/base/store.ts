@@ -384,7 +384,7 @@ export abstract class CasStoreClient extends StoreClient {
   }): Promise<StoreUpdateFromResult<StoreState<Schema>>> {
     const applied = await this.getAppliedResult(params);
     if (applied) {
-      return normalizeUpdateFromResult<StoreState<Schema>>(applied.result);
+      return applied.result as StoreUpdateFromResult<StoreState<Schema>>;
     }
 
     assertStoreSnapshotInstanceId(params.snapshot);
@@ -420,7 +420,7 @@ export abstract class CasStoreClient extends StoreClient {
 
     if (committed.status === "committed") return result;
     if (committed.status === "already-applied") {
-      return normalizeUpdateFromResult<StoreState<Schema>>(committed.result);
+      return committed.result as StoreUpdateFromResult<StoreState<Schema>>;
     }
     return storeUpdateConflict(params.snapshot, committed.snapshot);
   }
@@ -579,15 +579,6 @@ function storeUpdateConflict(
   };
 }
 
-function normalizeUpdateFromResult<T>(
-  result: unknown
-): StoreUpdateFromResult<T> {
-  const recorded = result as StoreUpdateFromResult<T> | StoreUpdateResult<T>;
-  return "updated" in recorded
-    ? recorded
-    : { updated: true, ...recorded };
-}
-
 export function isStoreSelectorMatch<R>(
   result: R
 ): result is Exclude<R, undefined | null | false> {
@@ -641,10 +632,8 @@ export function cloneStoreState<T>(state: T): T {
 /**
  * Diffs two store states and returns the set of changed paths.
  *
- * This is O(total state size), so it is no longer the primary source of
- * changed paths – `trackStoreUpdater` records write paths in O(changes)
- * while the updater runs. The diff remains as the fallback for the cases a
- * recording proxy cannot observe:
+ * This is O(total state size). `trackStoreUpdater` records ordinary mutation
+ * paths in O(changes); the diff handles cases a recording proxy cannot observe:
  * - the updater RETURNED a replacement state instead of mutating the draft
  * - schema validation returned a transformed copy of the draft
  *

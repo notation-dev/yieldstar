@@ -90,8 +90,8 @@ Updates are idempotent by step key. On replay, the runtime returns the cached re
 
 What if the process crashes after the store commits, but before the step result is recorded? The store covers this case itself. Every workflow update writes a row to an applied-steps ledger, in the same transaction as the state change. When the workflow replays, the store finds the ledger row and returns the recorded result, rather than running the updater a second time.
 
-Updaters must be synchronous, deterministic, and side-effect-free. The public
-signature no longer accepts promises. Do not perform network calls, timers, or
+Updaters must be synchronous, deterministic, and side-effect-free. Updater
+signatures do not accept promises. Do not perform network calls, timers, or
 other observable work: CAS conflicts may re-run the updater.
 
 An update rejection does not prove that its state change rolled back. A runtime

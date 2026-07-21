@@ -519,41 +519,6 @@ test("updateStoreFrom commits only from the supplied snapshot and replays ledger
   expect(updaterRuns).toBe(1);
 });
 
-test("updateStoreFrom normalizes legacy applied-step receipts", async () => {
-  const db = new Database(":memory:");
-  const client = new SqliteStoreClient({
-    db,
-    schedulerClient: { async requestWakeUp() {} },
-  });
-  const snapshot = await client.getOrCreateStore({
-    definition: Store,
-    id: "legacy-receipt",
-    initial: { messages: [] },
-  });
-  const result = {
-    state: { messages: [{ id: "msg-1" }] },
-    previousVersion: 0,
-    version: 1,
-  };
-  db.query(
-    `INSERT INTO store_applied_steps
-       (store_name, store_id, execution_id, step_key, result)
-     VALUES (?, ?, ?, ?, ?)`
-  ).run(Store.name, "legacy-receipt", "execution", "update", JSON.stringify(result));
-
-  expect(
-    await client.updateStoreFrom({
-      definition: Store,
-      id: "legacy-receipt",
-      snapshot,
-      stepId: { executionId: "execution", stepKey: "update" },
-      updater() {
-        throw new Error("legacy receipt should win before updater execution");
-      },
-    })
-  ).toEqual({ updated: true, ...result });
-});
-
 test("listStores and deleteStore manage logical store instances", async () => {
   const db = new Database(":memory:");
   const client = new SqliteStoreClient({
