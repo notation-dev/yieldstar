@@ -8,3 +8,5 @@ process.on("message", (event) => {
     },
   });
 });
+
+process.send({ status: "ready" });

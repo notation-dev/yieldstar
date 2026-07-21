@@ -27,9 +27,10 @@ TypeScript worker paths require Node 22.6 or newer for built-in type stripping. 
 | ------------ | -------- | -------------------------------------------------------- |
 | `workerPath` | `string` | Path or `file://` URL to the worker script               |
 | `execPath`   | `string` | Runtime binary used to fork the worker (defaults to `process.execPath`) |
+| `handshakeTimeout` | `number` | Milliseconds to wait for the worker's `ready` handshake (defaults to `5000`) |
 | `logger`     | `Logger` | Pino logger                                              |
 
-`execPath` must belong to the same runtime family as the parent process (Node forking Node, Bun forking Bun) — the advanced IPC serialization protocol is not interoperable between the two, so a cross-runtime worker never receives the event.
+The worker sends a `ready` handshake when `listen()` starts, and the invoker holds the event back until it arrives. A worker that never handshakes — most commonly an `execPath` from a different runtime family than the parent, since Node's advanced IPC serialization is not interoperable with Bun's — is killed after `handshakeTimeout` and an error is emitted for the execution. Node must fork Node, and Bun must fork Bun.
 
 The invoker exposes a `workflowEndEmitter` (`EventEmitter`) that fires when a workflow completes or errors. The local SDK listens on this emitter to resolve `triggerAndWait` promises.
 
@@ -47,4 +48,4 @@ const runner = new WorkflowRunner({ router, heapClient, schedulerClient, logger 
 createWorkflowWorker(runner, logger).listen();
 ```
 
-The worker listens on `process.on("message")`, converts the incoming `MiddlewareEvent` context into a `ReadOnlyMap`, and passes the event to `workflowRunner.run`. The result or error is sent back to the parent via `process.send`.
+The worker listens on `process.on("message")`, converts the incoming `MiddlewareEvent` context into a `ReadOnlyMap`, and passes the event to `workflowRunner.run`. The result or error is sent back to the parent via `process.send`. On `listen()` the worker also sends the `ready` handshake that the invoker waits for before delivering the event.

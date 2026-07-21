@@ -8,10 +8,11 @@ import { deserializeError } from "serialize-error";
 export function createWorkflowInvoker(params: {
   workerPath: string;
   execPath?: string;
+  handshakeTimeout?: number;
   logger: Logger;
 }): WorkflowInvoker {
   const workflowEndEmitter = new EventEmitter();
-  const { logger, workerPath, execPath } = params;
+  const { logger, workerPath, execPath, handshakeTimeout = 5_000 } = params;
   return {
     workflowEndEmitter,
     async execute(event: MiddlewareEvent) {
@@ -30,6 +31,7 @@ export function createWorkflowInvoker(params: {
       let settled = false;
 
       const emitWorkflowError = (error: Error) => {
+        clearTimeout(handshakeTimer);
         if (settled) return;
         settled = true;
         workflowEndEmitter.emit(executionId, error);
@@ -43,6 +45,7 @@ export function createWorkflowInvoker(params: {
         });
         childProcess.on("error", (error) => {
           if (!spawned) {
+            clearTimeout(handshakeTimer);
             settled = true;
             reject(error);
             return;
@@ -51,7 +54,23 @@ export function createWorkflowInvoker(params: {
         });
       });
 
+      // The worker sends a "ready" message once it is listening. Until it
+      // arrives we hold the event back: a worker running a different runtime
+      // (or an incompatible IPC serialization) can never decode our frames,
+      // so a missing handshake turns a silent hang into a clear error.
+      let ready = false;
+      const handshakeTimer = setTimeout(() => {
+        emitWorkflowError(
+          new Error(
+            `Worker did not complete the IPC handshake within ${handshakeTimeout}ms. ` +
+              "Check that the worker calls listen() and that execPath runs the same runtime as the parent process."
+          )
+        );
+        childProcess.kill();
+      }, handshakeTimeout);
+
       childProcess.on("exit", (code, signal) => {
+        clearTimeout(handshakeTimer);
         if (settled) return;
         const detail = signal ? `signal ${signal}` : `code ${code}`;
         emitWorkflowError(
@@ -61,6 +80,18 @@ export function createWorkflowInvoker(params: {
 
       childProcess.on("message", (message: any) => {
         if (settled) return;
+        if (message.status === "ready") {
+          if (ready) return;
+          ready = true;
+          clearTimeout(handshakeTimer);
+          childProcess.send(event, (error) => {
+            if (error) {
+              emitWorkflowError(error);
+              childProcess.kill();
+            }
+          });
+          return;
+        }
         // A reply settles the child's outcome even when there is nothing to
         // emit (a suspended workflow resumes later in a fresh child), so the
         // exit handler must not report the deliberate kill below as an error.
@@ -84,13 +115,6 @@ export function createWorkflowInvoker(params: {
 
       logger.info({ executionId }, "Starting child process");
       await spawn;
-
-      childProcess.send(event, (error) => {
-        if (error) {
-          emitWorkflowError(error);
-          childProcess.kill();
-        }
-      });
     },
   };
 }

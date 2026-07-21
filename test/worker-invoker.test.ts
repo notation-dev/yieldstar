@@ -11,11 +11,13 @@ const executeAndWait = async (params: {
   executionId: string;
   context?: Map<string, unknown>;
   execPath?: string;
+  handshakeTimeout?: number;
 }) => {
-  const { fixture, executionId, context = new Map(), execPath } = params;
+  const { fixture, executionId, context = new Map(), execPath, handshakeTimeout } = params;
   const invoker = createWorkflowInvoker({
     workerPath: new URL(fixture, fixtures).href,
     execPath,
+    handshakeTimeout,
     logger,
   });
   const result = once(invoker.workflowEndEmitter, executionId);
@@ -67,6 +69,34 @@ test("emits nothing when a suspended workflow replies without a result", async (
   // Wait for the killed child to exit so a spurious exit-handler emission would surface
   await new Promise((resolve) => setTimeout(resolve, 500));
   expect(emissions).toEqual([]);
+});
+
+// A Node worker under a Bun parent cannot decode Bun's IPC frames, so the
+// handshake never completes; the invoker reports it instead of hanging.
+const nodePath = Bun.which("node");
+test.skipIf(!nodePath)(
+  "surfaces an error when forking a Node worker (cross-runtime IPC unsupported)",
+  async () => {
+    const [error] = (await executeAndWait({
+      fixture: "success.mjs",
+      executionId: "worker-cross-runtime-node",
+      context: new Map([["requestId", "request"]]),
+      execPath: nodePath!,
+      handshakeTimeout: 1_000,
+    })) as [Error];
+
+    expect(error.message).toMatch(/exited before replying|IPC handshake/);
+  }
+);
+
+test("emits an error when the worker never completes the handshake", async () => {
+  const [error] = (await executeAndWait({
+    fixture: "never-ready.mjs",
+    executionId: "worker-never-ready",
+    handshakeTimeout: 500,
+  })) as [Error];
+
+  expect(error.message).toMatch(/did not complete the IPC handshake within 500ms/);
 });
 
 test("emits an error when the worker exits before replying", async () => {

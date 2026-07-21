@@ -12,10 +12,17 @@ const which = (runtime) => {
   return result.status === 0 ? result.stdout.trim() : undefined;
 };
 
-const executeAndWait = async ({ fixture, executionId, context = new Map(), execPath }) => {
+const executeAndWait = async ({
+  fixture,
+  executionId,
+  context = new Map(),
+  execPath,
+  handshakeTimeout,
+}) => {
   const invoker = createWorkflowInvoker({
     workerPath: new URL(fixture, fixtures).href,
     execPath,
+    handshakeTimeout,
     logger,
   });
   const result = once(invoker.workflowEndEmitter, executionId);
@@ -70,8 +77,8 @@ test("emits nothing when a suspended workflow replies without a result", { timeo
 });
 
 // Bun does not speak Node's advanced IPC serialization protocol, so a Bun
-// worker under a Node parent exits without ever receiving the event. This
-// pins the failure mode: an emitted error rather than a hang.
+// worker under a Node parent never completes the handshake. This pins the
+// failure mode: an emitted error rather than a hang.
 test(
   "surfaces an error when forking a Bun worker (cross-runtime IPC unsupported)",
   { timeout: 2_000, skip: !which("bun") && "bun not found on PATH" },
@@ -81,11 +88,22 @@ test(
       executionId: "worker-cross-runtime-bun",
       context: new Map([["requestId", "request"]]),
       execPath: which("bun"),
+      handshakeTimeout: 1_000,
     });
 
-    assert.match(error.message, /exited before replying/);
+    assert.match(error.message, /exited before replying|IPC handshake/);
   }
 );
+
+test("emits an error when the worker never completes the handshake", { timeout: 2_000 }, async () => {
+  const [error] = await executeAndWait({
+    fixture: "never-ready.mjs",
+    executionId: "worker-never-ready",
+    handshakeTimeout: 500,
+  });
+
+  assert.match(error.message, /did not complete the IPC handshake within 500ms/);
+});
 
 test("emits an error when the worker exits before replying", { timeout: 2_000 }, async () => {
   const [error] = await executeAndWait({
