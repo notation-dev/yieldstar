@@ -434,6 +434,17 @@ test("updateStoreFrom commits only from the supplied snapshot and replays ledger
     expectedVersion: 0,
     actualVersion: 2,
   });
+
+  await expect(
+    client.updateStoreFrom({
+      definition: Store,
+      id: "conditional",
+      snapshot: { ...snapshot, instanceId: "" },
+      updater() {
+        updaterRuns++;
+      },
+    })
+  ).rejects.toThrow("Store snapshot is missing instanceId");
   expect(updaterRuns).toBe(1);
 });
 

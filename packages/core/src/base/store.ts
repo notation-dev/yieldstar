@@ -219,6 +219,10 @@ export abstract class StoreClient {
    * Updates a store's state atomically.
    * Updaters must be synchronous, deterministic, and side-effect-free. CAS-backed
    * clients may run an updater again when another writer wins the version race.
+   * A rejected promise does not prove that the mutation was rolled back: a
+   * connector may commit state and then fail while delivering its durable wake
+   * intents. Retrying is exactly-once only when the same `stepId` is supplied.
+   * Callers without a `stepId` must read and reconcile instead of blindly retrying.
    *
    * When `stepId` is provided the update is exactly-once per
    * (executionId, stepKey): the committed StoreUpdateResult is recorded in
@@ -336,11 +340,11 @@ export abstract class CasStoreClient extends StoreClient {
       return applied.result as StoreUpdateResult<StoreState<Schema>>;
     }
 
+    let snapshot = await this.getStore({
+      definition: params.definition,
+      id: params.id,
+    });
     while (true) {
-      const snapshot = await this.getStore({
-        definition: params.definition,
-        id: params.id,
-      });
       const prepared = await prepareStoreUpdate(
         params.definition,
         snapshot,
@@ -365,6 +369,9 @@ export abstract class CasStoreClient extends StoreClient {
       if (committed.status === "already-applied") {
         return committed.result as StoreUpdateResult<StoreState<Schema>>;
       }
+      snapshot = committed.snapshot as StoreSnapshot<StoreState<Schema>>;
+      // TODO: add a configurable retry cap/backoff policy before remote CAS
+      // connectors are introduced; SQLite serializes commits locally.
     }
   }
 
@@ -379,6 +386,8 @@ export abstract class CasStoreClient extends StoreClient {
     if (applied) {
       return normalizeUpdateFromResult<StoreState<Schema>>(applied.result);
     }
+
+    assertStoreSnapshotInstanceId(params.snapshot);
 
     const current = await this.getStore({
       definition: params.definition,
@@ -429,11 +438,11 @@ export abstract class CasStoreClient extends StoreClient {
     const applied = await this.getAppliedResult(params);
     if (applied) return applied.result as StoreTakeResult<R>;
 
+    let snapshot = await this.getStore({
+      definition: params.definition,
+      id: params.id,
+    });
     while (true) {
-      const snapshot = await this.getStore({
-        definition: params.definition,
-        id: params.id,
-      });
       const previousState = cloneStoreState(snapshot.state);
       const draft = cloneStoreState(previousState) as Draft<StoreState<Schema>>;
       const tracked = trackStoreUpdater(draft);
@@ -479,6 +488,8 @@ export abstract class CasStoreClient extends StoreClient {
       if (committed.status === "already-applied") {
         return committed.result as StoreTakeResult<R>;
       }
+      snapshot = committed.snapshot as StoreSnapshot<StoreState<Schema>>;
+      // TODO: share the configurable retry cap/backoff policy with updateStore.
     }
   }
 
@@ -527,6 +538,14 @@ function sameStoreVersion(
   return (
     left.instanceId === right.instanceId && left.version === right.version
   );
+}
+
+function assertStoreSnapshotInstanceId(snapshot: { instanceId?: string }) {
+  if (!snapshot.instanceId) {
+    throw new Error(
+      "Store snapshot is missing instanceId; read a fresh snapshot"
+    );
+  }
 }
 
 function storeUpdateConflict(

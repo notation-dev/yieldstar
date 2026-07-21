@@ -189,13 +189,13 @@ interface WorkflowStore<T> {
 
   update(
     key: string,
-    updater: (draft: Draft<T>) => void | T | Promise<void | T>
+    updater: (draft: Draft<T>) => void | T
   ): AsyncGenerator<StepResponse, StoreUpdateResult<T>>
 
   updateFrom(
     key: string,
     snapshot: StoreSnapshot<T>,
-    updater: (draft: Draft<T>) => void | T | Promise<void | T>
+    updater: (draft: Draft<T>) => void | T
   ): AsyncGenerator<StepResponse, StoreUpdateFromResult<T>>
 
   deleteFrom(
@@ -278,6 +278,9 @@ yield* store.update(`start:${message.id}`, draft => {
 
 `update` is a durable step. The key is the workflow step key for that update.
 
+Updaters are synchronous, deterministic, and side-effect-free. A CAS conflict
+may run the updater again against a newer snapshot before it commits.
+
 If replayed, the workflow step cache returns the recorded `StoreUpdateResult` and the runtime does not call the store updater again. This holds even when the previous run crashed after the store commit but before the workflow heap write, because the store itself records the committed result in the applied-steps ledger (see below) inside the same transaction as the state change.
 
 Public `paths` are not accepted. The runtime derives changed paths from the update itself: the updater runs against a write-recording proxy over the draft, and every `set`/`deleteProperty` through the proxy records its full path (mutating array methods are captured naturally via the index/length writes they perform). This makes path derivation O(changes) rather than O(state size). If the updater returns a replacement state instead of mutating the draft, the runtime falls back to deep-diffing the previous and next states. Changed paths only affect wake precision, never state correctness, so ambiguous operations are recorded conservatively – an extra path is at worst a spurious wake, which replay absorbs.
@@ -289,6 +292,9 @@ Update semantics:
 - The updated state is validated against the store schema before commit.
 - The update result records `previousVersion` and `version`.
 - The runtime records changed paths internally for waiter wakeups.
+- A rejected update does not prove that its mutation rolled back: wake delivery
+  can fail after the state commit. Retrying is exactly-once only with the same
+  workflow `stepId`; external callers must read and reconcile before retrying.
 
 ## `when`
 
@@ -356,10 +362,10 @@ The key is REQUIRED – takes live in loops, and a call-site-hash default would 
 Semantics:
 
 - `take` is a durable step: on cache hit, replay returns the recorded selected value; the selector and claim never re-run.
-- On first execution, within the store's write transaction:
+- On first execution, using the store's CAS protocol:
   1. Run the selector against the current state via the read-tracking proxy.
-  2. If the selector returns a truthy value: apply `claim(draft, selected)`, validate the resulting state against the schema, commit as a single update (version + 1), compute changed paths and wake other waiters exactly like `update` does, persist the selected value as the step result, and return it.
-  3. If the selector returns a falsy value: commit nothing, register a waiter with the tracked read paths and the version observed inside the transaction (so the sinceVersion is exact by construction, closing the lost-wakeup gap), and suspend.
+  2. If the selector returns a truthy value: apply `claim(draft, selected)`, validate the resulting state against the schema, conditionally commit a single version bump, record the changed paths and selected step result, and return it. A CAS conflict restarts selection and claiming from the newer snapshot.
+  3. If the selector returns a falsy value: commit nothing, register a waiter with the tracked read paths and observed version, then recheck the store version before suspending. This closes the lost-wakeup gap without holding a transaction while the selector runs.
 - On wake, replay re-runs the whole take. A competing consumer may have already claimed the item – the selector then misses and the waiter re-registers. Spurious wakes are safe.
 - Return value (reference-snapshot rule): the selector runs against the draft, so a selected value that is a reference into state is snapshotted AFTER the claim runs – e.g. a claimed message is returned with `claimedBy` populated. A derived value (a `filter().length`, a mapped object) is returned as computed; the claim cannot appear in it. The selector cannot be re-run post-claim, because a correct claim makes the selector stop matching.
 - `claim` must be synchronous. The runtime rejects (throws) if it returns a Promise.
@@ -434,12 +440,12 @@ interface RuntimeStore<T> {
   get(): Promise<StoreSnapshot<T>>
 
   update(
-    updater: (draft: Draft<T>) => void | T | Promise<void | T>
+    updater: (draft: Draft<T>) => void | T
   ): Promise<StoreUpdateResult<T>>
 
   updateFrom(
     snapshot: StoreSnapshot<T>,
-    updater: (draft: Draft<T>) => void | T | Promise<void | T>
+    updater: (draft: Draft<T>) => void | T
   ): Promise<StoreUpdateFromResult<T>>
 
   deleteFrom(snapshot: StoreSnapshot<T>): Promise<StoreDeleteFromResult>

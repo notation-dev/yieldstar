@@ -30,7 +30,14 @@ zero.
 
 ## Writing
 
-`update` takes the same draft-mutating updater as the workflow API. The write commits in a single transaction, validated against the schema, and increments the version by one.
+`update` takes the same synchronous, pure draft-mutating updater as the workflow
+API. The runtime validates the resulting state and conditionally commits one
+version increment. A version conflict may re-run the updater against newer
+state.
+
+External updates do not carry a workflow `stepId`. If an update rejects after
+the state committed but wake delivery failed, blindly retrying can apply it
+twice. Read the store and reconcile before deciding whether to retry.
 
 ```ts
 await conversation.update((draft) => {

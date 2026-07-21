@@ -81,13 +81,23 @@ yield* store.update(`finish:${msg.id}`, (draft) => {
 });
 ```
 
-Each update runs in a single store transaction. The new state is validated against the schema before it commits, and the version increments by one.
+The updater runs locally against a snapshot. The new state is validated against
+the schema, then committed with a conditional version check and a single
+version increment. If another writer wins, the updater may run again against
+the newer snapshot.
 
 Updates are idempotent by step key. On replay, the runtime returns the cached result and skips the updater.
 
 What if the process crashes after the store commits, but before the step result is recorded? The store covers this case itself. Every workflow update writes a row to an applied-steps ledger, in the same transaction as the state change. When the workflow replays, the store finds the ledger row and returns the recorded result, rather than running the updater a second time.
 
-Keep updaters synchronous and pure. The signature allows async, but an updater holds the store's write transaction open while it runs – no network calls, no timers.
+Updaters must be synchronous, deterministic, and side-effect-free. The public
+signature no longer accepts promises. Do not perform network calls, timers, or
+other observable work: CAS conflicts may re-run the updater.
+
+An update rejection does not prove that its state change rolled back. A runtime
+can commit the mutation and then fail while delivering its durable wake intents.
+Workflow updates retry exactly once when they reuse the same step key; external
+callers have no `stepId` and must read and reconcile before retrying.
 
 When a decision depends on an earlier read, use `updateFrom` to commit only if
 the store has not changed since that snapshot:

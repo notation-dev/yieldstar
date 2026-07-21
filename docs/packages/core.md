@@ -70,7 +70,11 @@ interface SchedulerClient {
 
 ## `StoreClient` (abstract class)
 
-Persistence layer for [durable stores](../manual/stores.md). An implementation owns three things: store state and versions, the waiters created when `when`/`take` suspends a workflow, and an applied-steps ledger. The ledger records the result of each committed workflow update, keyed by `(executionId, stepKey)`, so that a replayed step can return the recorded result instead of running its updater again.
+Persistence layer for [durable stores](../manual/stores.md). An implementation
+owns store state and versions, waiters created by `when`/`take`, an applied-steps
+ledger, and durable wake delivery. The ledger records each committed workflow
+update by `(executionId, stepKey)`, while connector-specific wake intents ensure
+a committed change is eventually delivered after an interruption.
 
 ```ts
 abstract getOrCreateStore(params: {
@@ -117,7 +121,9 @@ An implementation must uphold four contracts:
 - Snapshot-based updates and deletions compare both the instance ID and version.
 - When `stepId` is provided and the ledger already holds that step, the implementation returns the recorded result and does not run the updater.
 - `registerWaiter` compares the store's current instance and version with the waiter; if either has moved on, it wakes the waiter immediately rather than leaving it to sleep through a write that already happened.
-- A waiter is removed only after its wake-up is queued. A crash in between produces a duplicate wake, which replay absorbs – the reverse order would lose the wake entirely.
+- A waiter is removed only after its durable wake is queued. SQLite records the
+  wake intent atomically with the mutation and drains it through an outbox; a
+  crash can produce a duplicate wake, which replay safely absorbs.
 
 ## `WorkflowInvoker` (type)
 
