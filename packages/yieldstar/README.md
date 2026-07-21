@@ -4,7 +4,7 @@ JavaScript‑native distributed workflows.
 
 Write workflows as async generator functions that yield steps. Use first‑class primitives for retries, delays, and polling. .
 
-Currently supports running on Bun and Sqlite. Postgres support will be added next.
+The resident-process runtime runs on Bun and Node with native SQLite connectors.
 
 ## Install
 
@@ -23,7 +23,7 @@ Note: `@yieldstar/test-utils` is an internal testing helper used by this reposit
 
 ## Quick Start: Local (SQLite)
 
-Run a workflow locally with persistence and timers using a subprocess worker and the SQLite runtime.
+Run a workflow locally with persistence and timers using a subprocess worker and the SQLite runtime. The example uses the Bun connector; Node applications use `@yieldstar/sqlite-runtime/node` with otherwise identical runtime wiring.
 
 ```ts
 // router.ts

@@ -15,7 +15,7 @@ const storeClient = new SqliteStoreClient({ db, schedulerClient });
 const conversation = storeClient.store(ConversationStore, "conversation:123");
 ```
 
-The constructor takes a scheduler as well as the database. When a write changes state that a suspended workflow is waiting on, the store client hands that workflow's event to the scheduler, which queues it for re-execution. See [Local Runtime](./local-runtime.md) for the full wiring.
+The constructor takes a scheduler as well as the database. When a write changes state that a suspended workflow is waiting on, the store client hands that workflow's event to the scheduler, which queues it for re-execution. See [Resident-process runtime](../runtimes/resident-process.md) for the full wiring.
 
 ## Reading
 

@@ -2,6 +2,8 @@
 
 Driver-agnostic SQLite implementations of the heap, scheduler, task queue, timers, durable stores, and event loop. Bun and Node connector entry points provide the native database driver.
 
+See [Bun with SQLite](../runtimes/resident-process-bun.md) and [Node with SQLite](../runtimes/resident-process-node.md) for complete resident-process wiring.
+
 ## Install
 
 ```sh

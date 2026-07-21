@@ -1,8 +1,8 @@
 # YieldStar 🤘
 
-JavaScript‑native distributed workflows.
+JavaScript-native distributed workflows that run on Bun and Node.
 
-Write workflows as async generator functions that yield steps. First‑class primitives for retries, delays, and polling. Runs on Bun + SQLite today; Postgres coming next.
+Write workflows as async generator functions that yield steps. First-class primitives for retries, delays, polling, and durable stores. The resident-process runtime supports real SQLite connectors for both Bun and Node.
 
 ## Install
 
@@ -14,6 +14,8 @@ Runtimes and adapters:
 
 - Local execution: `@yieldstar/worker-invoker`, `@yieldstar/sqlite-runtime`
 - HTTP server: `@yieldstar/http-server`, `@yieldstar/worker-invoker`
+
+Select `@yieldstar/sqlite-runtime/bun` for `bun:sqlite` or `@yieldstar/sqlite-runtime/node` for `node:sqlite`.
 
 ## Quick Look
 
@@ -43,6 +45,8 @@ yield* step.run(async () => {
 ## Learn More
 
 - Full usage, runtimes, APIs, and examples: [packages/yieldstar/README.md](packages/yieldstar/README.md)
+- Runtime families and connectors: [docs/runtimes/index.md](docs/runtimes/index.md)
+- Migrating from 0.4: [docs/migrations/0.4-to-0.5.md](docs/migrations/0.4-to-0.5.md)
 
 ## Contributing
 
