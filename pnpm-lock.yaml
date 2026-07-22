@@ -111,6 +111,15 @@ importers:
         specifier: ^22.18.0
         version: 22.18.0
 
+  packages/store-conformance:
+    devDependencies:
+      '@yieldstar/core':
+        specifier: workspace:*
+        version: link:../core
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@22.18.0)
+
   packages/test-invoker:
     dependencies:
       '@yieldstar/core':
@@ -201,6 +210,9 @@ importers:
       '@yieldstar/sqlite-runtime':
         specifier: workspace:*
         version: link:../packages/sqlite-runtime
+      '@yieldstar/store-conformance':
+        specifier: workspace:*
+        version: link:../packages/store-conformance
       '@yieldstar/test-runtime':
         specifier: workspace:*
         version: link:../packages/test-runtime

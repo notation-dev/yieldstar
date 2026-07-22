@@ -20,6 +20,7 @@
     "test": "vitest run",
     "test:node": "node ./node_modules/vitest/vitest.mjs run",
     "test:bun": "bun --bun ./node_modules/vitest/vitest.mjs run",
+    "test:store-conformance-package": "bun scripts/smoke-store-conformance-package.ts",
     "start": "bun scripts/run-example.ts",
     "bump": "bunx bumpp --preid alpha -r",
     "prerelease": "pnpm i && bun bundle",
