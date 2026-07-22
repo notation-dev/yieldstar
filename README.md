@@ -1,8 +1,8 @@
 # YieldStar 🤘
 
-JavaScript-native distributed workflows that run on Bun and Node.
+JavaScript-native distributed workflows.
 
-Write workflows as async generator functions that yield steps. First-class primitives for retries, delays, polling, and durable stores. The resident-process runtime supports real SQLite connectors for both Bun and Node.
+Write workflows as async generator functions that yield steps. First-class primitives for retries, delays, polling, and durable stores.
 
 ## Install
 
