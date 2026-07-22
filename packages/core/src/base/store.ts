@@ -248,6 +248,12 @@ export abstract class StoreClient {
     stepId?: StoreStepId;
   }): Promise<StoreTakeResult<R>>;
 
+  /**
+   * Registers a versioned read observation. Registration must be linearizable
+   * with mutations: a stale observation is woken immediately, while a current
+   * observation is woken by a later intersecting mutation. Wake delivery is
+   * at-least-once and must remain retryable after scheduler failure.
+   */
   abstract registerWaiter(waiter: StoreWaiter): Promise<void>;
 
   /**
@@ -259,8 +265,9 @@ export abstract class StoreClient {
   abstract listStores(definition: StoreDefinition): Promise<string[]>;
 
   /**
-   * Removes a store instance and all of its associated rows (state, waiters,
-   * applied-steps ledger). A no-op if the store does not exist.
+   * Removes a physical store instance and its waiters. Applied-step receipts
+   * remain authoritative for the logical store key across recreation. A no-op
+   * if the store does not exist.
    */
   abstract deleteStore(params: {
     definition: StoreDefinition;
@@ -289,8 +296,9 @@ export abstract class CasStoreClient extends StoreClient {
   }): Promise<{ result: unknown } | undefined>;
 
   /**
-   * Atomically compares `expected`, writes the next state, records the step
-   * result, and persists the changed paths for durable wake delivery.
+   * Atomically compares `expected`, writes the next state, records the optional
+   * step result, and records the wake obligations created by `changedPaths`.
+   * A transactional outbox is recommended but is not part of the protocol.
    */
   protected abstract commitStoreMutation(
     mutation: StoreMutation

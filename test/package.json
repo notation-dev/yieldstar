@@ -11,6 +11,7 @@
   "dependencies": {
     "@yieldstar/core": "workspace:*",
     "@yieldstar/sqlite-runtime": "workspace:*",
+    "@yieldstar/store-conformance": "workspace:*",
     "@yieldstar/test-runtime": "workspace:*",
     "@yieldstar/test-utils": "workspace:*",
     "@yieldstar/worker-invoker": "workspace:*",

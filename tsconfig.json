@@ -9,6 +9,7 @@
     { "path": "./packages/test-utils" },
     { "path": "./packages/http-server" },
     { "path": "./packages/sqlite-runtime" },
+    { "path": "./packages/store-conformance" },
     { "path": "./packages/worker-invoker" }
   ]
 }
