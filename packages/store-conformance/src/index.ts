@@ -7,6 +7,7 @@ import {
   type StoreWaiter,
   type WorkflowEvent,
 } from "@yieldstar/core";
+import * as core from "@yieldstar/core";
 import { describe, expect, test, vi } from "vitest";
 
 export type StoreConformanceHarness = {
@@ -340,6 +341,71 @@ export function registerStoreClientConformance({
       }
     });
 
+    test("committed state contains no tracking proxies", async () => {
+      const harness = await create(noopScheduler);
+      try {
+        await harness.client.getOrCreateStore({
+          definition: Store,
+          id: "plain-state",
+          initial: { messages: [{ id: "one" }] },
+        });
+        await harness.client.updateStore({
+          definition: Store,
+          id: "plain-state",
+          updater(draft) {
+            (draft as Record<string, unknown>).lastMessage = draft.messages[0];
+            (draft as Record<string, unknown>).wrapped = { inner: draft.messages };
+          },
+        });
+        const snapshot = await harness.client.getStore({ definition: Store, id: "plain-state" });
+        expect(() => structuredClone(snapshot.state)).not.toThrow();
+        expect((snapshot.state as unknown as Record<string, unknown>).lastMessage).toEqual({ id: "one" });
+        expect((snapshot.state as unknown as Record<string, unknown>).wrapped).toEqual({
+          inner: [{ id: "one" }],
+        });
+      } finally {
+        await harness.dispose?.();
+      }
+    });
+
+    test("mutating updates do not deep-diff the full state", async () => {
+      const harness = await create(noopScheduler);
+      const diffSpy = vi.spyOn(core, "diffStorePaths");
+      try {
+        await harness.client.getOrCreateStore({
+          definition: Store,
+          id: "large-update",
+          initial: {
+            messages: Array.from({ length: 5000 }, (_, index) => ({ id: `${index}` })),
+          },
+        });
+        await harness.client.updateStore({
+          definition: Store,
+          id: "large-update",
+          updater(draft) { draft.messages.push({ id: "new" }); },
+        });
+
+        await harness.client.getOrCreateStore({
+          definition: TakeStore,
+          id: "large-take",
+          initial: {
+            messages: Array.from({ length: 5000 }, (_, index) => ({ id: `${index}` })),
+          },
+        });
+        const take = await harness.client.takeFromStore({
+          definition: TakeStore,
+          id: "large-take",
+          selector: (state) => state.messages.find((message) => !message.claimedBy),
+          claim: (_draft, message) => { message.claimedBy = "worker"; },
+        });
+        expect(take.matched).toBe(true);
+        expect(diffSpy).not.toHaveBeenCalled();
+      } finally {
+        diffSpy.mockRestore();
+        await harness.dispose?.();
+      }
+    });
+
     test("conditional updates conflict and replay ledger-first", async () => {
       const harness = await create(noopScheduler);
       let updaterRuns = 0;
@@ -617,6 +683,45 @@ export function registerStoreClientConformance({
         expect(events).toEqual([event]);
       } finally {
         await harness.dispose?.();
+      }
+    });
+
+    test("retries failed stale-registration delivery after an unrelated commit", async () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const events: WorkflowEvent[] = [];
+      let attempts = 0;
+      const harness = await create({
+        async requestWakeUp(wakeEvent) {
+          attempts++;
+          if (attempts === 1) throw new Error("temporary scheduler failure");
+          events.push(wakeEvent);
+        },
+      });
+      try {
+        const initial = await harness.client.getOrCreateStore({
+          definition: Store,
+          id: "stale-retry",
+          initial: { messages: [] },
+        });
+        await harness.client.updateStore({
+          definition: Store,
+          id: "stale-retry",
+          updater(draft) { draft.messages.push({ id: "first" }); },
+        });
+        await harness.client.registerWaiter(
+          waiter(Store.name, "stale-retry", initial.instanceId, initial.version)
+        );
+        expect(attempts).toBe(1);
+        await harness.client.updateStore({
+          definition: Store,
+          id: "stale-retry",
+          updater(draft) { draft.unrelated = 1; },
+        });
+        await eventually(() => expect(events).toEqual([event]));
+        expect(attempts).toBe(2);
+      } finally {
+        await harness.dispose?.();
+        errorSpy.mockRestore();
       }
     });
 
