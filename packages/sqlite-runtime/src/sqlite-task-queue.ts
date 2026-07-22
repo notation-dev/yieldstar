@@ -17,11 +17,11 @@ export class SqliteTaskQueue {
   }
 
   process() {
-    const row = this.taskQueueDao.getNextTask();
+    const now = Date.now();
+    const row = this.taskQueueDao.getNextTask(now);
 
     if (!row) return undefined;
 
-    const now = Date.now();
     const visibilityTimeout = now + VISIBILITY_WINDOW;
 
     this.taskQueueDao.updateTaskVisibility(row.task_id, visibilityTimeout);
@@ -47,7 +47,7 @@ export class SqliteTaskQueue {
   }
 
   get isEmpty(): boolean {
-    return this.taskQueueDao.getTaskCount() === 0;
+    return this.taskQueueDao.getTaskCount(Date.now()) === 0;
   }
 }
 

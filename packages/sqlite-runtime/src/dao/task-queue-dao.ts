@@ -28,15 +28,15 @@ export class TaskQueueDao {
         execution_id TEXT NOT NULL,
         params TEXT,
         context TEXT,
-        visible_from INTEGER DEFAULT (strftime('%s', 'now'))
+        visible_from INTEGER DEFAULT 0
       )
     `);
   }
 
   insertTask(event: WorkflowEvent) {
     const query = this.db.query(
-      `INSERT INTO task_queue (workflow_id, execution_id, params, context)
-      VALUES ($workflowId, $executionId, $params, $context)`
+      `INSERT INTO task_queue (workflow_id, execution_id, params, context, visible_from)
+      VALUES ($workflowId, $executionId, $params, $context, 0)`
     );
 
     query.run({
@@ -49,11 +49,13 @@ export class TaskQueueDao {
     });
   }
 
-  getNextTask() {
+  // `now` is a millisecond Unix timestamp, matching the values written by
+  // updateTaskVisibility
+  getNextTask(now: number) {
     const query = this.db.query<TaskRow>(
-      `SELECT * FROM task_queue WHERE visible_from < strftime('%s', 'now') ORDER BY task_id LIMIT 1`
+      `SELECT * FROM task_queue WHERE visible_from <= $now ORDER BY task_id LIMIT 1`
     );
-    return query.get();
+    return query.get({ $now: now });
   }
 
   updateTaskVisibility(taskId: number, visibleFrom: number) {
@@ -70,10 +72,10 @@ export class TaskQueueDao {
     query.run({ $taskId: id });
   }
 
-  getTaskCount() {
+  getTaskCount(now: number) {
     const query = this.db.query<CountRow>(
-      `SELECT COUNT(*) as count FROM task_queue WHERE visible_from < strftime('%s', 'now')`
+      `SELECT COUNT(*) as count FROM task_queue WHERE visible_from <= $now`
     );
-    return query.get()!.count;
+    return query.get({ $now: now })!.count;
   }
 }
