@@ -99,6 +99,7 @@ Releases are handled by `bin/release.sh`.
 
 - Bump version (pre): `bun run bump`
 - Pre‑release build: `bun run prerelease`
+- Package and inspect every publish target without contacting npm: `bin/release.sh --dry-run`
 - Release: `bun run release`
 
 The script publishes scoped packages under `@yieldstar/*` and the main `yieldstar` package unscoped.

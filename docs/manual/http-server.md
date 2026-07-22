@@ -1,6 +1,6 @@
 # HTTP Server
 
-The HTTP server wraps the same worker and SQLite infrastructure as the local worker in a Bun HTTP server, exposing `/trigger` and `/events` endpoints so clients can start workflows and collect results over the network.
+The HTTP server wraps the resident-process worker and SQLite runtime, exposing `/trigger` and `/events` endpoints so clients can start workflows and collect results over the network. Its handlers use standard `Request` and `Response` types. The example uses `Bun.serve`, but the routes object can plug into any Request-to-Response router.
 
 ## Server
 

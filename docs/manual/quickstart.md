@@ -8,6 +8,8 @@ A Yieldstar application has three parts: **workflows** that define the work, a *
 bun add yieldstar @yieldstar/core @yieldstar/worker-invoker @yieldstar/sqlite-runtime
 ```
 
+This quick start uses Bun. For Node, use the [`node:sqlite` connector guide](../runtimes/resident-process-node.md); the shared runtime APIs are identical.
+
 ## 1. Define a workflow
 
 A workflow is a generator function that yields steps. Each step is a checkpoint, the result of which is persisted by the runtime and can be retrieved if the workflow is paused or needs to be re-run.

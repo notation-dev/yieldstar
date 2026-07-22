@@ -1,6 +1,16 @@
 {
   "name": "@yieldstar/worker-invoker",
   "version": "0.5.0",
+  "license": "MIT",
+  "author": "Daniel Grant",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/notationlabs/yieldstar.git",
+    "directory": "packages/worker-invoker"
+  },
+  "engines": {
+    "node": ">=22.6"
+  },
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
