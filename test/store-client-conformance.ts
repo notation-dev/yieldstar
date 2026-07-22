@@ -6,8 +6,10 @@ import {
   type StoreWaiter,
   type WorkflowEvent,
 } from "@yieldstar/core";
+import * as core from "@yieldstar/core";
 import { testSchema } from "@yieldstar/test-utils";
 import { MemoryStoreClient } from "@yieldstar/test-runtime";
+import { describe, expect, test, vi } from "vitest";
 import {
   SqliteStoreClient,
   type SqliteDriver,
@@ -42,21 +44,10 @@ export function sqliteConformance(name: string, createSqliteDb: () => SqliteDriv
   return { sqliteBackend, createSqliteDb };
 }
 
-type StoreConformanceTestApi = {
-  describe: (name: string, fn: () => void) => void;
-  test: (name: string, fn: () => unknown | Promise<unknown>) => void;
-  expect: any;
-  spyOn: any;
-  spyOnDiffStorePaths?: () => { mockRestore(): void };
-};
-
 export function registerStoreClientConformance(params: {
-  api: StoreConformanceTestApi;
   sqliteBackend: StoreConformanceBackend;
   createSqliteDb(): SqliteDriver;
 }) {
-  const { describe, test, expect, spyOn, spyOnDiffStorePaths } = params.api;
-
 type State = {
   messages: { id: string }[];
   unrelated?: number;
@@ -600,9 +591,9 @@ describe(`${name} store client`, () => {
     }
   });
 
-  if (spyOnDiffStorePaths) test("mutating updates do not deep-diff the full state", async () => {
+  test("mutating updates do not deep-diff the full state", async () => {
     const harness = await create(noopScheduler);
-    const diffSpy = spyOnDiffStorePaths();
+    const diffSpy = vi.spyOn(core, "diffStorePaths");
     try {
       await harness.client.getOrCreateStore({
         definition: Store,
@@ -806,7 +797,7 @@ describe(`${name} wake delivery`, () => {
   test("failed stale waiter delivery is retried by an unrelated commit", async () => {
     const events: WorkflowEvent[] = [];
     let attempts = 0;
-    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const harness = await create({
       async requestWakeUp(wakeEvent) {
         attempts++;
@@ -850,7 +841,7 @@ describe(`${name} wake delivery`, () => {
     const events: WorkflowEvent[] = [];
     let attempts = 0;
     let updaterRuns = 0;
-    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const harness = await create({
       async requestWakeUp(wakeEvent) {
         attempts++;
@@ -898,7 +889,7 @@ describe(`${name} wake delivery`, () => {
 
   test("one failed wake does not block another", async () => {
     const delivered: string[] = [];
-    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const harness = await create({
       async requestWakeUp(wakeEvent) {
         if (wakeEvent.executionId === "poison") throw new Error("poisoned wake");
@@ -935,7 +926,7 @@ describe(`${name} wake delivery`, () => {
   test("deleted waiters do not transfer pending wakes to recreated stores", async () => {
     const events: WorkflowEvent[] = [];
     let attempts = 0;
-    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const harness = await create({
       async requestWakeUp(wakeEvent) {
         attempts++;
@@ -1036,7 +1027,7 @@ describe("sqlite durable wake delivery", () => {
   const Store = defineStore("sqlite-durable-wake-conformance", testSchema<State>());
 
   test("a new client recovers a committed wake", async () => {
-    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const db = params.createSqliteDb();
     const client = new SqliteStoreClient({
       db,

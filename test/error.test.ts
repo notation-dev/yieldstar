@@ -1,8 +1,6 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { createWorkflow } from "yieldstar";
-import { createTestSdkFactory } from "@yieldstar/test-utils";
-
-const createSdk = createTestSdkFactory();
+import { createSdk } from "./sdk";
 
 test("failing steps can be caught", async () => {
   const workflow = createWorkflow(async function* (step) {
@@ -19,6 +17,17 @@ test("failing steps can be caught", async () => {
   const result = await sdk.triggerAndWait({ workflowId: "workflow" });
 
   expect(result).toBe(true);
+});
+
+test("triggerAndWait rejects workflow errors", async () => {
+  const workflow = createWorkflow(async function* () {
+    throw new Error("Workflow error");
+  });
+  const sdk = createSdk({ workflow });
+
+  await expect(
+    sdk.triggerAndWait({ workflowId: "workflow" })
+  ).rejects.toThrow("Workflow error");
 });
 
 test.skip("errors should be thrown by trigger", async () => {

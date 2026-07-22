@@ -1,11 +1,9 @@
-import { expect, test, mock } from "bun:test";
+import { expect, test, vi } from "vitest";
 import { createWorkflow } from "yieldstar";
-import { createTestSdkFactory } from "@yieldstar/test-utils";
-
-const createSdk = createTestSdkFactory();
+import { createSdk } from "./sdk";
 
 test("loop detection with implicit keys", async () => {
-  const runSpy = mock(() => 1);
+  const runSpy = vi.fn(() => 1);
 
   const workflow = createWorkflow(async function* (step) {
     for (let i = 0; i < 2; i++) {
@@ -14,20 +12,17 @@ test("loop detection with implicit keys", async () => {
   });
 
   const sdk = createSdk({ workflow });
-  const result = await sdk.triggerAndWait({ workflowId: "workflow" });
+  await expect(
+    sdk.triggerAndWait({ workflowId: "workflow" })
+  ).rejects.toThrow("Each step in a loop must have a unique cache key.");
 
   // The loop should be detected on the second attempt, so the function
   // backing step.run should only be executed once
   expect(runSpy).toBeCalledTimes(1);
-
-  expect(result).toBeInstanceOf(Error);
-  expect((result as unknown as Error).message).toContain(
-    "Each step in a loop must have a unique cache key.",
-  );
 });
 
 test("no loop detection with explicit keys", async () => {
-  const runSpy = mock(() => 1);
+  const runSpy = vi.fn(() => 1);
 
   const workflow = createWorkflow(async function* (step) {
     for (let i = 0; i < 2; i++) {

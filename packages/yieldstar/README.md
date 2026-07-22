@@ -372,7 +372,7 @@ Use `Router` to type your SDKs so `workflowId` and `params` are enforced.
 For repository development we use an in‑memory runtime driven by `@yieldstar/test-utils` to `triggerAndWait` in tests. This package is internal; application users should test against the same runtime they use in production where possible. Example (internal):
 
 ```ts
-import { test, expect } from "bun:test";
+import { test, expect } from "vitest";
 import { createTestSdkFactory } from "@yieldstar/test-utils";
 import { createWorkflow } from "yieldstar";
 

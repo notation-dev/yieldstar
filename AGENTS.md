@@ -2,14 +2,15 @@
 
 This repository is a TypeScript monorepo set up with:
 - **pnpm** for managing workspaces and dependencies
-- **Bun** for building and testing code
+- **Bun** for building code
+- **Vitest** for running tests under Bun and Node
 - **TypeScript** for connecting package types using project references
 
 ## Layout
 
 - `packages/` – source for all publishable packages (e.g. `core`, `yieldstar`, `http-server`, etc.)
 - `examples/` – small apps and workflow examples
-- `test/` – integration tests written using `bun:test`
+- `test/` – integration tests written using Vitest
 - Workspace configuration is defined in `pnpm-workspace.yaml`:
 
 ```
@@ -35,16 +36,17 @@ This runs each package's `build` script (`bun build`) and then `tsc -b` to gener
 
 ## Running tests
 
-Execute all tests with Bun's test runner:
+Execute all tests under Bun or Node:
 
 ```
-bun test
+bun run test:bun
+pnpm run test:node
 ```
 
-Tests live in the `test/` folder and import from `bun:test` as shown below:
+Tests live in the `test/` folder and import from Vitest as shown below:
 
 ```ts
-import { expect, test, mock } from "bun:test";
+import { expect, test, vi } from "vitest";
 ```
 
 ## Running examples

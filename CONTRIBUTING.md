@@ -9,7 +9,7 @@
 - Keep PRs focused and reasonably small; include a clear description and motivation.
 - Add tests if you change behavior or fix a bug.
 - Update documentation where relevant.
-- Ensure `bun test` passes locally.
+- Ensure `bun run test:bun` and `pnpm run test:node` pass locally.
 
 This repository is a TypeScript monorepo using pnpm workspaces and Bun. It contains the core SDK, runtimes, server integrations, examples, and tests.
 
@@ -30,7 +30,7 @@ By contributing, you affirm that you have the right to submit your contributions
 - `packages/test-invoker` – Minimal invoker to run workflows in tests
 - `packages/test-utils` – Internal test utilities (see note below)
 - `examples/` – Workflow and runtime examples (HTTP server, local execution)
-- `test/` – Integration tests with `bun:test`
+- `test/` – Integration tests with Vitest
 
 Workspace configuration is in `pnpm-workspace.yaml`.
 
@@ -67,10 +67,11 @@ This runs each package’s `build` script (`bun build`) and then `tsc -b`.
 ### Run Tests
 
 ```
-bun test
+bun run test:bun
+pnpm run test:node
 ```
 
-Tests live in `test/` and import from `bun:test`.
+Tests live in `test/` and import from Vitest. The full suite runs under both Bun and Node.
 
 ### Dev Workflow
 

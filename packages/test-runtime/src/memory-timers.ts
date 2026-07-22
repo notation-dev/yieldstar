@@ -3,7 +3,7 @@ import type { MemoryTaskQueue } from "./memory-task-queue";
 
 export class MemoryTimers {
   private taskQueue: MemoryTaskQueue;
-  private timers: Set<Timer>;
+  private timers: Set<ReturnType<typeof setTimeout>>;
 
   constructor(params: { taskQueue: MemoryTaskQueue }) {
     this.taskQueue = params.taskQueue;

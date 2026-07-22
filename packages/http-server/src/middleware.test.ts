@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, mock } from "bun:test";
+import { beforeEach, expect, it, vi } from "vitest";
 import pino from "pino";
 import { FreezableMap, MiddlewareEvent } from "@yieldstar/core";
 import { createMiddleware, executeMiddlewareChain } from "./middleware";
@@ -6,7 +6,7 @@ import { createMiddleware, executeMiddlewareChain } from "./middleware";
 const logger = pino();
 
 const reqFixture = new Request("http://localhost");
-const handlerMock = mock(async () => new Response("OK"));
+const handlerMock = vi.fn(async () => new Response("OK"));
 
 const eventFixture: MiddlewareEvent = {
   context: new FreezableMap<string, any>(),

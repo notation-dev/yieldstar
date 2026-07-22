@@ -1,14 +1,12 @@
 import type { WorkflowFn } from "yieldstar";
 import { setTimeout as sleep } from "node:timers/promises";
-import { expect, test, mock } from "bun:test";
+import { expect, test, vi } from "vitest";
 import { workflow } from "yieldstar";
-import { createTestSdkFactory } from "@yieldstar/test-utils";
-
-const createSdk = createTestSdkFactory();
+import { createSdk } from "./sdk";
 
 // todo – use sqlite runtime
 test("triggering a workflow", async () => {
-  const mockWorkflowGenerator = mock<WorkflowFn<any, any>>(async function* (
+  const mockWorkflowGenerator = vi.fn<WorkflowFn<any, any>>(async function* (
     step
   ) {
     return yield* step.run(() => 1);

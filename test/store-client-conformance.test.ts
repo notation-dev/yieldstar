@@ -1,20 +1,15 @@
-import { describe, expect, spyOn, test } from "bun:test";
-import * as core from "@yieldstar/core";
-import { createSqliteDb } from "@yieldstar/sqlite-runtime/bun";
 import {
   registerStoreClientConformance,
   sqliteConformance,
 } from "./store-client-conformance";
 
+const isBun = "Bun" in globalThis;
+const { createSqliteDb } = isBun
+  ? await import("@yieldstar/sqlite-runtime/bun")
+  : await import("@yieldstar/sqlite-runtime/node");
+
 registerStoreClientConformance({
-  api: {
-    describe,
-    test,
-    expect,
-    spyOn,
-    spyOnDiffStorePaths: () => spyOn(core, "diffStorePaths"),
-  },
-  ...sqliteConformance("sqlite-bun", () =>
+  ...sqliteConformance(isBun ? "sqlite-bun" : "sqlite-node", () =>
     createSqliteDb({ path: ":memory:", wal: false })
   ),
 });

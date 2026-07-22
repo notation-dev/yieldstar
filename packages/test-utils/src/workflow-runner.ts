@@ -61,12 +61,15 @@ export function createTestSdkFactory(params?: { logger?: Logger }) {
         memoryEventLoop.start({ onNewEvent: invoker.execute });
 
         const sdk = createLocalSdk<typeof workflowRouter>(invoker);
-        const result = await sdk.triggerAndWait(event);
-
-        memoryEventLoop.stop();
-        memoryEventLoop.reset();
-
-        return result;
+        try {
+          const result = await sdk.triggerAndWait(event);
+          const outcome: unknown = result;
+          if (outcome instanceof Error) throw outcome;
+          return result;
+        } finally {
+          memoryEventLoop.stop();
+          memoryEventLoop.reset();
+        }
       },
       store: storeClient.store.bind(storeClient),
       storeClient,

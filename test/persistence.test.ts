@@ -1,8 +1,6 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { createWorkflow } from "yieldstar";
-import { createTestSdkFactory } from "@yieldstar/test-utils";
-
-const createSdk = createTestSdkFactory();
+import { createSdk } from "./sdk";
 
 test("retrieving previous steps from cache", async () => {
   const returnedValues: number[] = [];

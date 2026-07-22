@@ -1,16 +1,14 @@
 import type { WorkflowFn } from "yieldstar";
 import { setTimeout as sleep } from "node:timers/promises";
-import { expect, test, mock } from "bun:test";
+import { expect, test, vi } from "vitest";
 import { workflow } from "yieldstar";
-import { createTestSdkFactory } from "@yieldstar/test-utils";
-
-const createSdk = createTestSdkFactory();
+import { createSdk } from "./sdk";
 
 test("passing params to a workflow", async () => {
   const testParams = { foo: "bar", count: 42 };
   let capturedParams: any;
 
-  const mockWorkflowGenerator = mock<WorkflowFn<any, any>>(async function* (
+  const mockWorkflowGenerator = vi.fn<WorkflowFn<any, any>>(async function* (
     step,
     event
   ) {
@@ -36,7 +34,7 @@ test("passing params to a workflow", async () => {
 test("params are optional", async () => {
   let capturedParams: any;
 
-  const mockWorkflowGenerator = mock<WorkflowFn<any, any>>(async function* (
+  const mockWorkflowGenerator = vi.fn<WorkflowFn<any, any>>(async function* (
     step,
     event
   ) {
