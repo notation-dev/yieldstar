@@ -21,6 +21,9 @@
     "dist",
     "README.md"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "bun build src/index.ts --outfile dist/index.js --target node --packages=external"
   },

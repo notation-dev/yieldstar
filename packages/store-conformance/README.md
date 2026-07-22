@@ -31,10 +31,14 @@ The base factory qualifies a process-local connector. A backend that supports mu
 ```ts
 create(schedulerClient) {
   const backend = createCleanBackend();
+  const client = new MyStoreClient({ backend, schedulerClient });
   return {
-    client: new MyStoreClient({ backend, schedulerClient }),
+    client,
     createPeer: (scheduler) => new MyStoreClient({ backend, schedulerClient: scheduler }),
-    restart: (scheduler) => new MyStoreClient({ backend, schedulerClient: scheduler }),
+    restart: async (scheduler) => {
+      await client.close();
+      return new MyStoreClient({ backend: backend.reopen(), schedulerClient: scheduler });
+    },
     dispose: () => backend.close(),
   };
 }
