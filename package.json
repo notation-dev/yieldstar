@@ -27,10 +27,13 @@
     "release": "bin/release.sh"
   },
   "devDependencies": {
-    "@types/node": "^22.18.0",
+    "@pokit/core": "^0.6.0",
+    "@pokit/terminal": "^0.6.0",
     "@types/inquirer": "^9.0.9",
+    "@types/node": "^22.18.0",
     "concurrently": "^9.2.1",
     "inquirer": "^9.3.7",
+    "pokit": "^0.3.2",
     "vitest": "^3.2.4"
   },
   "peerDependencies": {
