@@ -1,4 +1,4 @@
-import type { DocCategory } from "../../../packages/templates/docs";
+import type { DocCategory } from "@notation/docs/config";
 
 export const categories: DocCategory[] = [
   {
