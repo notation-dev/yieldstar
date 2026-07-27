@@ -2,9 +2,14 @@ packages:
   - packages/*
   - examples
   - test
+  - docs
 
 allowBuilds:
   esbuild: true
+  lightningcss: true
+  # Pulled in by Wrangler's image bindings, which the docs site does not use.
+  sharp: false
+  workerd: true
 
 overrides:
   shell-quote@<1.8.4: "^1.8.4"

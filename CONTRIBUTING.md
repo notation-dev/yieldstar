@@ -85,6 +85,14 @@ pok dev
 
 Run `pok` with no arguments for the full command menu.
 
+### Documentation
+
+`docs/` holds both the Markdown and the site that publishes it: `pok docs dev`
+to preview, `pok docs build`, `pok docs deploy`. Each category keeps its sidebar
+in a `nav.ts` beside its Markdown, and the build fails on a broken link or a
+duplicate slug. See [docs/README.md](docs/README.md) for the layout and for how
+to refresh the `@notation/docs` framework, which is not published yet.
+
 ### Examples
 
 Examples are in `examples/`.
