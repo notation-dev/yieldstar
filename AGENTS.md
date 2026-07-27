@@ -30,7 +30,7 @@ To type check all monorepo packages, just run `bun dts`, which also generates ty
 
 ## Building the packages
 
-To compile all packages, run `bun run bundle`
+To compile all packages, run `pok build`
 
 This runs each package's `build` script (`bun build`) and then `tsc -b` to generate type declarations.
 
@@ -39,8 +39,8 @@ This runs each package's `build` script (`bun build`) and then `tsc -b` to gener
 Execute all tests under Bun or Node:
 
 ```
-bun run test:bun
-pnpm run test:node
+pok test bun
+pok test node
 ```
 
 Tests live in the `test/` folder and import from Vitest as shown below:
@@ -51,13 +51,13 @@ import { expect, test, vi } from "vitest";
 
 ## Running examples
 
-Example workflows are stored in `examples/workflows/`. The helper script `bun start` currently only imports the chosen file and prints the module – the workflows themselves do
+Example workflows are stored in `examples/workflows/`. The helper command `pok start` currently only imports the chosen file and prints the module – the workflows themselves do
 not run automatically. Consider this directory a work in progress.
 
 To inspect an example interactively you can still run:
 
 ```
-bun start
+pok start
 ```
 
 This will prompt you to select a workflow file to import.
@@ -84,6 +84,6 @@ Releases are handled by `bin/release.sh` which:
 - Handles npm account switching between `yieldstar` and `notation` users
 
 Use these commands for releases:
-- `bun run bump` - Bump version with alpha pre-release
-- `bun run prerelease` - Install deps and bundle before release
-- `bun run release` - Execute the release script
+- `pok version` - Bump version with alpha pre-release
+- `pok release publish` - Install deps, rebuild, then execute the release script
+- `pok release dry-run` - Package every publish target without contacting npm

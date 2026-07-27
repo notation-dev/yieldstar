@@ -9,7 +9,7 @@
 - Keep PRs focused and reasonably small; include a clear description and motivation.
 - Add tests if you change behavior or fix a bug.
 - Update documentation where relevant.
-- Ensure `bun run test:bun` and `pnpm run test:node` pass locally.
+- Ensure `pok test bun` and `pok test node` pass locally.
 
 This repository is a TypeScript monorepo using pnpm workspaces and Bun. It contains the core SDK, runtimes, server integrations, examples, and tests.
 
@@ -59,7 +59,7 @@ bun dts
 Compile the packages and emit declarations via project references:
 
 ```
-bun run bundle
+pok build
 ```
 
 This runs each package’s `build` script (`bun build`) and then `tsc -b`.
@@ -67,9 +67,11 @@ This runs each package’s `build` script (`bun build`) and then `tsc -b`.
 ### Run Tests
 
 ```
-bun run test:bun
-pnpm run test:node
+pok test bun
+pok test node
 ```
+
+`pok test all` runs every suite in sequence.
 
 Tests live in `test/` and import from Vitest. The full suite runs under both Bun and Node.
 
@@ -78,17 +80,17 @@ Tests live in `test/` and import from Vitest. The full suite runs under both Bun
 Run type‑checking, builds, and tests concurrently in watch mode:
 
 ```
-bun run dev
+pok dev
 ```
 
-Individual watch scripts are available under `package.json`.
+Run `pok` with no arguments for the full command menu.
 
 ### Examples
 
 Examples are in `examples/`.
 
 - Interactive import/inspect helper:
-  - `bun start` (select a workflow module to import; it does not execute workflows automatically)
+  - `pok start` (select a workflow module to import; it does not execute workflows automatically)
 - Direct example runs:
   - `bun examples/local-execution/app.ts`
   - `bun examples/http-server/server.ts` and in a second terminal `bun examples/http-server/app.ts`
@@ -97,10 +99,9 @@ Examples are in `examples/`.
 
 Releases are handled by `bin/release.sh`.
 
-- Bump version (pre): `bun run bump`
-- Pre‑release build: `bun run prerelease`
-- Package and inspect every publish target without contacting npm: `bin/release.sh --dry-run`
-- Release: `bun run release`
+- Bump version (pre): `pok version`
+- Package and inspect every publish target without contacting npm: `pok release dry-run`
+- Release: `pok release publish` (installs and rebuilds first)
 
 The script publishes scoped packages under `@yieldstar/*` and the main `yieldstar` package unscoped.
 

@@ -26,5 +26,5 @@ jobs:
         with:
           bun-version: 1.3.14
       - run: pnpm install --frozen-lockfile
-      - run: bun run bundle
-      - run: pnpm run test:${{ matrix.runtime }}
+      - run: pnpm exec pok build
+      - run: pnpm exec pok test ${{ matrix.runtime }}

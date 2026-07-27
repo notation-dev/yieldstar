@@ -10,22 +10,6 @@
   "workspaces": [
     "packages/*"
   ],
-  "scripts": {
-    "bundle": "bun --filter '*' build && tsc -b",
-    "dts": "tsc -b",
-    "dev": "concurrently -r npm:dev:dts npm:dev:bundle npm:dev:test",
-    "dev:dts": "bun run dts --watch",
-    "dev:bundle": "bun run bundle --watch",
-    "dev:test": "vitest",
-    "test": "vitest run",
-    "test:node": "node ./node_modules/vitest/vitest.mjs run",
-    "test:bun": "bun --bun ./node_modules/vitest/vitest.mjs run",
-    "test:store-conformance-package": "bun scripts/smoke-store-conformance-package.ts",
-    "start": "bun scripts/run-example.ts",
-    "bump": "bunx bumpp --preid alpha -r",
-    "prerelease": "pnpm i && bun bundle",
-    "release": "bin/release.sh"
-  },
   "devDependencies": {
     "@pokit/core": "^0.6.0",
     "@pokit/terminal": "^0.6.0",
