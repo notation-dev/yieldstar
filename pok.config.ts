@@ -35,7 +35,6 @@ export default defineConfig({
   plugins: [
     docs({ name: "yieldstar-docs" }),
     release({
-      preid: "alpha",
       packages: {
         // `pok version --packages all` bumps every manifest in lockstep; the
         // scoped/cli groups exist so each can publish under its npm account.
