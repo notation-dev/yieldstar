@@ -7,9 +7,9 @@ created_at: 2026-07-30
 
 ## Abstract
 
-Currently, `step.store` creates a durable step for every instance that a store handle is created. A loop or helper that asks for the same store is therefore requires extra ceremony for each caller to share the first handle.
+Currently, `step.store` creates a durable step every time a store handle is requested. A loop or helper that asks for the same store must therefore share the first handle, adding setup that is unrelated to the work it performs.
 
-It turns out that obtaining a store handle does not need to be a durable step at all. With this change, `step.store` will simply return a handle without recording anything, elimating the need for extra ceremony.
+It turns out that obtaining a store handle does not need to be a durable step at all. With this change, callers will be able to request the same handle independently, while store creation, reads, waits, and writes will remain durable.
 
 ## Problem
 

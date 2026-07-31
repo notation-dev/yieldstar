@@ -6,13 +6,13 @@ status: proposal
 
 ## Abstract
 
-When a workflow triggers another workflow it is possible – in rare circumstances – for it to be triggered twice. This occurs when a worker crashes right before the durable step receives confirmation that the workflow trigger was successful. In that case the step is replayed and the workflow is triggered again.
+When a workflow triggers another workflow, it is possible – in rare circumstances – for it to be triggered twice. This occurs when a worker crashes after the inner workflow has been created, but before the durable step records completion. In that case, the step is replayed and the inner workflow is triggered again.
 
-To solve this problem, we will introduce `step.start` to 
+To solve this problem, we will introduce `step.start` specifically for starting another workflow as a durable step. If the step is replayed, it will return the original target execution instead of triggering the workflow again.
 
 ## Problem
 
-An execution is one run of a durable workflow. It has an execution ID. Yieldstar records each completed step so that the execution can resume after a crash.
+Yieldstar records each completed step so that a workflow can resume after a crash.
 
 Yieldstar has no step for starting another workflow. Authors must call `trigger` inside `step.run`:
 
@@ -28,6 +28,7 @@ yield* step.run("start:job:job-1", async () =>
 If `trigger` creates the target and the caller crashes before recording the step, the retry calls `trigger` again. Each call creates a new execution ID, so the target work can run twice.
 
 ## Public API
+`step.start` will take a step key and a target workflow. It will return the execution ID of the target it creates or finds.
 
 ```ts
 type JsonValue =
@@ -66,7 +67,7 @@ const target = yield* step.start("start:job:job-1", {
 // A retry will return this execution ID instead of creating another target.
 ```
 
-Yieldstar will create and return the target execution ID. The start request will be identified by:
+The start request will be identified by:
 
 - the caller's execution ID; and
 - the step key.

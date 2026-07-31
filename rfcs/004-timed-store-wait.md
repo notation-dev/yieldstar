@@ -7,9 +7,9 @@ created_at: 2026-07-30
 
 ## Abstract
 
-Many workflows need to wait for a store change, but only until a deadline. Yieldstar cannot express the store condition and timer in one step, meaning that it becomes the application's responsibility to coordinate them.
+Many workflows need to wait for a store change, but only until a deadline. Yieldstar cannot express the store condition and timer in one step, so the application must coordinate them.
 
-We can solve this by letting `WorkflowStore.when` accept both a store condition and a deadline that race to finish within one durable step. This will allow develoeprs to interlace timing conditions without extra ceremony.
+We will solve this by letting `WorkflowStore.when` accept a store condition and a deadline that race to finish within one durable step. Developers will be able to add a timeout to a store wait without polling or coordinating a second workflow.
 
 ## Problem
 

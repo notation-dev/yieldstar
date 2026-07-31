@@ -8,7 +8,7 @@ status: proposal
 
 A worker can crash after an external system finishes an operation but before Yieldstar saves the result. Therefore, retrying can perform the operation twice, while stopping can leave the workflow without its result.
 
-We solve this with `step.effect`, which will ask the service running the external effect for an idempotency key for the operation. This key can then be used in subsequent tries to check if the operation actaully ran. With this check in place external operations can be retried safely even in the case of the worker crashing.
+We will solve this with `step.effect`, which will use a caller-supplied idempotency key to ask the external service what happened after an uncertain attempt. If the service reports that the operation completed, the step will return its result; if the service proves that it did not start, the step can safely try again.
 
 ## Problem
 
@@ -16,16 +16,16 @@ We solve this with `step.effect`, which will ask the service running the externa
 
 ```ts
 const resource = yield* step.run(`provision:${accountId}`, async () => {
+  // The service may create the resource even if the worker never receives
+  // its response.
   return cloud.provision(configuration)
 })
-
-// If the resource was created but this response was lost, retrying will
-// create another resource.
 ```
 
 If the cloud service creates the resource but the response is lost, retrying this step calls `provision` again.
 
 ## Public API
+`step.effect` will separate the workflow step from the external operation. The step key will identify where the call occurs in one workflow execution; the effect ID will identify the operation in the external service.
 
 ```ts
 type DurableValue =
@@ -81,7 +81,7 @@ Every caller of one external operation must use the same `effectId`. No caller m
 
 `operation` will name the version of the behavior defined by `input`, `lookup`, and `perform`. It will not change after the effect record is created.
 
-Workflow code that can access an effect record will be trusted to read its result.
+`step.effect` will not add authorization to an effect result. A workflow that submits the same `effectId`, `operation`, and `input` will receive the stored result.
 
 An application should build `effectId` from every part needed to identify one external operation. Depending on the application, those parts may include:
 
@@ -185,9 +185,12 @@ interface WorkflowEffectError extends Error {
 }
 ```
 
-`begin` will create a `pending` record before returning `new`. If the record already exists, `begin` will return its state.
+`begin` will create a `pending` record before returning `new`. If the record already exists:
 
-If an existing identity has a different `operation` or `input`, `begin` will return `EFFECT_REQUEST_MISMATCH`. Otherwise, it will also remove any waiter left by the same execution and step after a delivered wake. Values will be equal when their canonical encodings are equal.
+- a different `operation` or `input` will return `EFFECT_REQUEST_MISMATCH`; or
+- matching values will return the record's state and remove any waiter left after a wake delivered the same execution and step.
+
+Values will match when their canonical encodings match.
 
 `settle` will change a `pending` record to `settled` only once.
 
@@ -215,7 +218,7 @@ When `settle` succeeds, it will make one atomic change that:
 
 `EffectWakeDispatcher` will be a long-lived service in the runtime process, not in a child worker. It will own `SchedulerClient`, start with the runtime, and resume draining stored wake requests after every restart.
 
-For a scheduled wake, the dispatcher will pass `max(0, wakeAt - Date.now())` to `SchedulerClient.requestWakeUp`. The scheduler will accept a wake by durably storing the event and resolving its promise. Only then will the dispatcher remove the request.
+For a scheduled wake, the dispatcher will pass `max(0, wakeAt - Date.now())` to `SchedulerClient.requestWakeUp`. A wake will count as accepted only after the scheduler has durably stored the event and resolved its promise. Only then will the dispatcher remove the request.
 
 A lost scheduler response may create a duplicate wake. This will be safe because both deliveries will read the same effect and step records.
 
@@ -277,17 +280,18 @@ The driver behavior is:
 | A callback returns a malformed response or invalid value | The driver will record no step, retain `pending`, and request another delivery with `EFFECT_HANDLER_INVALID`. |
 | `EffectClient` throws `EffectClientInvariantError` | The driver will record no step and request another delivery with its code. |
 
-`INVALID_EFFECT_REQUEST` and `EFFECT_REQUEST_MISMATCH` will be recorded as `WorkflowEffectError` values. Workflow code may catch them, and their stable `code` will survive serialization.
+`INVALID_EFFECT_REQUEST` and `EFFECT_REQUEST_MISMATCH` will be recorded as `WorkflowEffectError` values. Workflow code may catch them, and their `code` will survive serialization.
 
-`EFFECT_CLIENT_UNAVAILABLE` will describe an uncertain failure that may recover without intervention. The following errors will require operator repair if they persist:
+Four error codes will request another delivery instead of reaching workflow code:
 
-- `EFFECT_HANDLER_INVALID`;
-- `EFFECT_RUNTIME_INVARIANT`; and
-- `EFFECT_WAITER_MISMATCH`.
+- `EFFECT_CLIENT_UNAVAILABLE` will describe an uncertain failure that may recover without intervention.
+- `EFFECT_HANDLER_INVALID` will report an invalid callback response or result.
+- `EFFECT_RUNTIME_INVARIANT` will report invalid data or behavior inside the runtime.
+- `EFFECT_WAITER_MISMATCH` will report a repeated wait carrying a different workflow event.
 
-All four errors that request another delivery will pass through workflow code without being caught. They will leave the delivery unacknowledged under [RFC 001](./001-durable-workflow-start.md#delivery-acknowledgement).
+The last three errors will require operator repair if they persist. All four will leave the delivery unacknowledged under [RFC 001](./001-durable-workflow-start.md#delivery-acknowledgement).
 
-While an effect remains pending, the current workflow code must reach the same `effectId` and provide callbacks with the same external-system contract.
+If workflow code changes while an effect is pending, the new code must still call `step.effect` with the same `effectId`. Its callbacks must keep the same external-system guarantees. Otherwise, Yieldstar may be unable to discover or safely repeat the operation.
 
 ## Conformance tests
 
