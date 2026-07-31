@@ -6,7 +6,7 @@ import type { ReleasePackage } from "pok-plugins";
 // The old release flow built everything (`bun --filter '*' build`) and then
 // emitted declarations with `tsc -b`; every package shares that command so the
 // plugin runs it once.
-const build = "bun --filter '*' build && tsc -b";
+const build = "bun --filter '*' build && pnpm exec tsc -b";
 
 // @yieldstar/* publishes from the `yieldstar` npm account.
 const scoped: ReleasePackage[] = [
