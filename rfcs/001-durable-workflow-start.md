@@ -1,5 +1,6 @@
 ---
-status: proposal
+status: proposed
+created_at: 2026-07-30
 ---
 
 # Durable Workflow Start
@@ -14,20 +15,35 @@ To solve this problem, we will introduce `step.start` specifically for starting 
 
 Yieldstar records each completed step so that a workflow can resume after a crash.
 
-Yieldstar has no step for starting another workflow. Authors must call `trigger` inside `step.run`:
+Yieldstar has no step for starting another workflow. Authors must call `trigger` inside `step.run`.
 
 ```ts
-yield* step.run("start:job:job-1", async () =>
-  sdk.trigger({
+yield* step.run("start:job:job-1", async () => {
+  const promisedTarget = sdk.trigger({
     workflowId: "process-job",
     params: { jobId: "job-1" },
   })
-)
+
+  // If the worker crashes here, replay will trigger the workflow again.
+  
+  return promisedTarget;
+})
 ```
 
-If `trigger` creates the target and the caller crashes before recording the step, the retry calls `trigger` again. Each call creates a new execution ID, so the target work can run twice.
+## Proposed solution
 
-## Public API
+`step.start` will start another workflow as a durable step. Replaying it with the same step key will return the first target instead of creating another.
+
+```ts
+// Replaying this step will return the same target execution ID.
+const target = yield* step.start("start:job:job-1", {
+  workflowId: "process-job",
+  params: { jobId: "job-1" },
+})
+```
+
+## Proposed API
+
 `step.start` will take a step key and a target workflow. It will return the execution ID of the target it creates or finds.
 
 ```ts
@@ -54,17 +70,6 @@ interface StepRunner {
     StepResult | StepError
   >
 }
-```
-
-For example:
-
-```ts
-const target = yield* step.start("start:job:job-1", {
-  workflowId: "process-job",
-  params: { jobId: "job-1" },
-})
-
-// A retry will return this execution ID instead of creating another target.
 ```
 
 The start request will be identified by:

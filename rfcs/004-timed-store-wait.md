@@ -1,5 +1,5 @@
 ---
-status: proposal
+status: proposed
 created_at: 2026-07-30
 ---
 
@@ -22,8 +22,6 @@ The application has two workarounds:
 
 The second workflow's timer cannot be cancelled after the wait settles. It will later fire and do nothing.
 
-### Before
-
 ```ts
 const approval = yield* step.store(ApprovalStore, { id: approvalId })
 
@@ -36,11 +34,9 @@ const decision = yield* approval.when(
 yield* step.delay("approval-deadline", deadline - Date.now())
 ```
 
-## Proposal
+## Proposed solution
 
-`WorkflowStore.when` will accept an absolute deadline. The condition and timer will finish one durable step, and the runtime will cancel whichever wait remains:
-
-### After
+`WorkflowStore.when` will accept an absolute deadline. The condition and timer will finish one durable step, and the runtime will cancel whichever wait remains.
 
 ```ts
 // RFC 003 makes store handle access non-durable.

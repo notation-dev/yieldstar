@@ -1,5 +1,6 @@
 ---
-status: proposal
+status: proposed
+created_at: 2026-07-30
 ---
 
 # Durable External Effect
@@ -12,19 +13,41 @@ We will solve this with `step.effect`, which will use a caller-supplied idempote
 
 ## Problem
 
-`step.run` records its result after its function returns:
+`step.run` records its result after its function returns.
 
 ```ts
 const resource = yield* step.run(`provision:${accountId}`, async () => {
-  // The service may create the resource even if the worker never receives
-  // its response.
-  return cloud.provision(configuration)
+  const resource = await cloud.provision(configuration)
+
+  // The resource now exists, but Yieldstar has not recorded the result.
+  // If the worker crashes here, replay will provision it again.
+  return resource
 })
 ```
 
 If the cloud service creates the resource but the response is lost, retrying this step calls `provision` again.
 
-## Public API
+## Proposed solution
+
+`step.effect` will give the external operation a stable identity. After an uncertain attempt, it will look up that identity before deciding whether it is safe to perform the operation again.
+
+```ts
+const resource = yield* step.effect(`provision:${accountId}`, {
+  // This ID belongs to the external operation, not this workflow execution.
+  effectId: `account:${accountId}`,
+  operation: "cloud.provision.v1",
+  input: configuration,
+  retryIn: 60_000,
+  lookup: id => cloud.lookup(id),
+
+  // Yieldstar will call perform again only after lookup proves that no
+  // earlier call exists or can still finish.
+  perform: id => cloud.provision(id, configuration),
+})
+```
+
+## Proposed API
+
 `step.effect` will separate the workflow step from the external operation. The step key will identify where the call occurs in one workflow execution; the effect ID will identify the operation in the external service.
 
 ```ts
@@ -56,23 +79,6 @@ interface StepRunner {
     effect: EffectDescriptor<T>
   ): AsyncGenerator<StepResponse, T, StepResult | StepError>
 }
-```
-
-For example:
-
-```ts
-const resource = yield* step.effect(`provision:${accountId}`, {
-  // The step key belongs to this workflow execution. This ID belongs to the
-  // external operation and must be shared by every caller of that operation.
-  effectId: `account:${accountId}`,
-  operation: "cloud.provision.v1",
-  input: configuration,
-  retryIn: 60_000,
-  lookup: id => cloud.lookup(id),
-  // Yieldstar will call perform again only after lookup proves that no
-  // earlier call exists or can still finish.
-  perform: id => cloud.provision(id, configuration),
-})
 ```
 
 `stepKey` will identify the step within one workflow execution. `effectId` will identify the external operation, even when several runtimes can call the same external system.

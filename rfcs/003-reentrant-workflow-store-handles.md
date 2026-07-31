@@ -1,5 +1,5 @@
 ---
-status: proposal
+status: proposed
 created_at: 2026-07-30
 ---
 
@@ -16,8 +16,6 @@ It turns out that obtaining a store handle does not need to be a durable step at
 `step.store` currently creates the store if necessary and returns a handle for later operations. Because obtaining that handle is itself a durable step keyed by the store definition and id, asking for the same store again repeats the step key and is rejected.
 
 Obtaining the same handle more than once is useful when a loop processes several items from one store or when separate helper functions use that store. Those callers should not need to know who obtained the first handle.
-
-### Before
 
 ```ts
 async function* addTask(step, projectId, task) {
@@ -37,13 +35,11 @@ yield* step.store(ProjectStore, {
 yield* addTask(step, projectId, task)
 ```
 
-## Proposal
+## Proposed solution
 
 `step.store` will return a store handle immediately each time it is called. An explicit `getOrCreate` operation will perform durable initialization.
 
 `step.store` will no longer accept `initial`. The parameter will be removed, not made optional.
-
-### After
 
 ```ts
 async function* addTask(step, projectId, task) {
