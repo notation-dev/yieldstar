@@ -7,15 +7,20 @@ created_at: 2026-07-30
 
 ## Abstract
 
-Many workflows need to wait for a store change, but only until a deadline. Yieldstar cannot express the store condition and timer in one step, pushing responsibility for the deadline into the application layer.
+Many workflows need to wait for a store change, but only until a deadline. Yieldstar cannot express the store condition and timer in one step, meaning that it becomes the application's responsibility to coordinate them.
 
-We can solve this by letting `WorkflowStore.when` accept the store condition and a deadline, then race them within a single durable step. Whichever wins becomes the step's only result, so the workflow handles either the store change or the timeout, never both.
+We can solve this by letting `WorkflowStore.when` accept both a store condition and a deadline that race to finish within one durable step. This will allow develoeprs to interlace timing conditions without extra ceremony.
 
 ## Problem
 
 [`WorkflowStore.when`](../packages/yieldstar/src/internal/step-runner.ts) pauses the workflow before a later `step.delay` can start. Reversing the calls does not help: `step.delay` then pauses the workflow, so a store change cannot resume it.
 
-The application can repeatedly check the store, which delays responses and repeatedly runs code when nothing has changed. Alternatively, it can start a second workflow for the timer and store whether the condition or timeout won, solely to prevent both workflows from acting. After the wait settles, that second workflow's timer cannot be cancelled and later fires as a no-op.
+The application has two workarounds:
+
+- Repeatedly check the store. This delays responses and runs code when nothing has changed.
+- Start a second workflow for the timer, then store whether the condition or timeout won. This extra state exists only to prevent both workflows from acting.
+
+The second workflow's timer cannot be cancelled after the wait settles. It will later fire and do nothing.
 
 ### Before
 
@@ -33,7 +38,7 @@ yield* step.delay("approval-deadline", deadline - Date.now())
 
 ## Proposal
 
-Add an absolute deadline to `WorkflowStore.when`. The condition and timer finish one durable step, and the runtime cancels whichever wait remains:
+`WorkflowStore.when` will accept an absolute deadline. The condition and timer will finish one durable step, and the runtime will cancel whichever wait remains:
 
 ### After
 
@@ -55,7 +60,11 @@ if (result.status === "timed-out") {
 
 ## Proposed API
 
-`when` gains an overload. The existing form without a deadline is unchanged and still returns `NonNullable<R>`; only the timed form returns `TimedWhenResult<R>`. The timed form always takes an explicit key and has no keyless variant.
+`when` will gain an overload:
+
+- The existing form without a deadline will remain unchanged and return `NonNullable<R>`.
+- Only the timed form will return `TimedWhenResult<R>`.
+- The timed form will always take an explicit key. It will have no keyless variant.
 
 ```ts
 type TimedWhenResult<R> =
@@ -78,18 +87,24 @@ interface WorkflowStore<T> {
 
 ## Required Semantics
 
-- The deadline is an absolute timestamp.
-- On arming, the runtime evaluates the selector first. A matching state wins as `matched` even when the deadline has already passed; otherwise a past deadline returns `timed-out` immediately.
-- The store condition and timer compete to complete one durable step.
-- The first recorded result is the only result returned to workflow code.
-- The execution counts as durably suspended under [RFC 001](./001-durable-execution-lifecycle.md), and its delivery may be acknowledged, only after both the store waiter and timer are installed or the step has already resolved. A crash while arming leaves the execution running, and the lifecycle's redelivery completes the arming; no lost-wakeup window exists.
-- Recording the winning result removes the losing registration, either the remaining waiter or timer. It cannot run workflow code, repeating the cleanup after a crash is safe, and a timer with no remaining effect must not survive to fire as an application-visible no-op.
-- The deadline cannot complete the wait before its timestamp; the runtime does not promise to resume the workflow immediately.
-- The existing form of `when` without a deadline remains unchanged.
+- The deadline will be an absolute timestamp.
+- When the wait starts, the runtime will evaluate the selector first.
+- A matching state will win as `matched`, even when the deadline has already passed.
+- If the selector does not match, a past deadline will return `timed-out` immediately.
+- The store condition and timer will compete to complete one durable step.
+- The first recorded result will be the only result returned to workflow code.
+- A delivery will be acknowledged only after both the store waiter and timer are installed, or after the step has resolved.
+- If the worker crashes earlier, the delivery will be retried and will complete the setup.
+- Recording the winning result will remove the losing registration: either the remaining waiter or the timer.
+- Cleanup will not run workflow code. Repeating it after a crash will therefore be safe.
+- A timer with no remaining effect will be removed instead of surviving to fire as an application-visible no-op.
+- The deadline will not complete the wait before its timestamp.
+- The runtime will not promise to resume the workflow immediately after the timestamp.
+- The existing form of `when` without a deadline will remain unchanged.
 
 ## Scope
 
-This RFC does not add a general operation for waiting on several stores. A timed store wait covers one store condition and one deadline.
+This RFC will not add a general operation for waiting on several stores. A timed store wait will cover one store condition and one deadline.
 
 ## Acceptance Histories
 
@@ -103,4 +118,8 @@ An implementation must explain these histories:
 
 ## Not Specified
 
-This RFC does not choose how the wait and timer are stored, how ties are ordered beyond the first recorded result, or when cleanup runs within the resolution.
+This RFC will not choose:
+
+- how the wait and timer are stored;
+- how ties are ordered beyond the first recorded result; or
+- when cleanup runs within the resolution.

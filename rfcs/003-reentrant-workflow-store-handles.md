@@ -7,9 +7,9 @@ created_at: 2026-07-30
 
 ## Abstract
 
-`step.store` treats obtaining a store handle — the value used to read, wait on, or change a store — as a durable step. Consequently, a loop or helper that asks for the same store is rejected unless every caller shares the first handle or coordinates a cache.
+Currently, `step.store` creates a durable step for every instance that a store handle is created. A loop or helper that asks for the same store is therefore requires extra ceremony for each caller to share the first handle.
 
-Obtaining a store handle, however, does not need to be a step at all. Making handle access re-entrant simplifies the API and leaves durability only on store creation, reads, waits, and writes.
+It turns out that obtaining a store handle does not need to be a durable step at all. With this change, `step.store` will simply return a handle without recording anything, elimating the need for extra ceremony.
 
 ## Problem
 
@@ -39,7 +39,9 @@ yield* addTask(step, projectId, task)
 
 ## Proposal
 
-Return a store handle immediately each time it is requested, and move durable initialization to an explicit `getOrCreate` operation. `step.store` no longer accepts `initial`; the parameter is removed, not made optional.
+`step.store` will return a store handle immediately each time it is called. An explicit `getOrCreate` operation will perform durable initialization.
+
+`step.store` will no longer accept `initial`. The parameter will be removed, not made optional.
 
 ### After
 
@@ -83,22 +85,33 @@ interface WorkflowStore<T> {
 }
 ```
 
-`WorkflowStore` keeps its existing durable operations (`get`, `select`, `update`, `updateFrom`, `deleteFrom`, `when`, `take`) and its readonly `definition`, `id`, and `key` properties unchanged, gaining only `getOrCreate`.
+`WorkflowStore` will gain only `getOrCreate`. It will keep:
 
-If `id` is omitted, `step.store` uses `event.executionId`. This is the logical execution identity of [RFC 001](./001-durable-execution-lifecycle.md), stable across continue-as-new, so a replacement incarnation reopens the same store.
+- the existing durable operations `get`, `select`, `update`, `updateFrom`, `deleteFrom`, `when`, and `take`; and
+- the readonly properties `definition`, `id`, and `key`.
+
+If `id` is omitted, `step.store` will use `event.executionId`. Calls from the same workflow execution will therefore open the same store.
 
 ## Required Semantics
 
-- Store identity remains `definition.name + id`. Store identity and state are not incarnation-scoped; the durable receipts of `getOrCreate`, reads, waits, and writes follow RFC 001's incarnation scope like any other step record.
-- Asking for a handle does not read, create, or change the store and records no workflow step. A handle does not imply that the store exists; every operation except `getOrCreate` fails if it does not. This is where today's missing-store step failure moves.
-- Repeated requests for the same identity return handles for the same store.
-- Creation is idempotent on store identity: concurrent or repeated initialization records exactly one initial state. Each `getOrCreate` call is a durable step on its own caller-supplied key, whose recorded result is the snapshot that call observed, whether it created the store or found it existing.
-- `getOrCreate` evaluates `initial` only when the store does not exist.
-- A crash after store creation but before the workflow records the result does not create the store again.
+- Store identity will remain `definition.name + id`.
+- Store identity and state will not be scoped to a workflow execution.
+- Each recorded store step will be scoped to the execution that calls it.
+- Asking for a handle will not read, create, or change the store.
+- Asking for a handle will record no workflow step.
+- A handle will not imply that the store exists. Every operation except `getOrCreate` will fail if the store does not exist. This is where today's missing-store step failure will move.
+- Repeated requests for the same identity will return handles for the same store.
+- Concurrent or repeated initialization will record exactly one initial state for each store identity.
+- Each `getOrCreate` call will be a durable step with its own caller-supplied key.
+- Each call will record the snapshot it observed, whether it created the store or found it already existed.
+- `getOrCreate` will evaluate `initial` only when the store does not exist.
+- A crash after store creation but before the workflow records the result will not create the store again.
 
 ## External Access
 
-[`RuntimeStore`](../packages/core/src/base/store.ts) in `@yieldstar/core` exposes `get`, `update`, `updateFrom`, and `deleteFrom`, but it does not expose creation. The same package publicly exports `StoreClient.getOrCreateStore`, which already owns external creation:
+[`RuntimeStore`](../packages/core/src/base/store.ts) in `@yieldstar/core` currently exposes `get`, `update`, `updateFrom`, and `deleteFrom`. It does not expose creation.
+
+The same package already exports `StoreClient.getOrCreateStore` for code outside a workflow:
 
 ```ts
 await storeClient.getOrCreateStore({
@@ -108,7 +121,12 @@ await storeClient.getOrCreateStore({
 })
 ```
 
-This RFC does not duplicate creation on `RuntimeStore`. Code outside a workflow can use the public `StoreClient` method. `StoreClient.getOrCreateStore` keeps its optional `initial`, while workflow-level `getOrCreate` requires it; the two surfaces are not to be harmonised.
+This RFC will not add creation to `RuntimeStore`. Code outside a workflow will continue to use the public `StoreClient` method.
+
+The two APIs will deliberately differ:
+
+- `StoreClient.getOrCreateStore` will keep its optional `initial`; and
+- workflow-level `getOrCreate` will require `initial`.
 
 ## Acceptance Histories
 
@@ -121,4 +139,8 @@ An implementation must explain these histories:
 
 ## Not Specified
 
-This RFC does not choose whether equivalent handles are the same JavaScript object, whether handles are cached, or how `getOrCreate` records its durable result.
+This RFC will not choose:
+
+- whether equivalent handles are the same JavaScript object;
+- whether handles are cached; or
+- how `getOrCreate` records its durable result.
