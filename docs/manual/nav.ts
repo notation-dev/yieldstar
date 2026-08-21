@@ -11,7 +11,6 @@ export const manual: DocCategory = {
         { label: "Introduction", slug: "manual/introduction" },
         { label: "Installation", slug: "manual/installation" },
         { label: "Quick Start", slug: "manual/quickstart" },
-        { label: "Migrate 0.4 to 0.5", slug: "migrations/0.4-to-0.5" },
       ],
     },
     {
