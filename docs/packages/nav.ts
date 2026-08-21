@@ -13,6 +13,10 @@ export const packages: DocCategory = {
         { label: "http-server", slug: "packages/http-server" },
         { label: "sqlite-runtime", slug: "packages/sqlite-runtime" },
         { label: "worker-invoker", slug: "packages/worker-invoker" },
+        {
+          label: "store-conformance",
+          slug: "packages/store-conformance",
+        },
       ],
     },
   ],

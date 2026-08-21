@@ -1,10 +1,10 @@
 # Introduction
 
-Yieldstar is a workflow engine that provides a du rable runtime for JavaScript generator functions.
+Yieldstar is a workflow engine that provides a durable runtime for JavaScript generator functions.
 
-The state of a generator workflow is stored to a pluggable backend such as a Sqlite file or a Postgres database. There is no requirement to use any particular cloud platform. 
+Version 0.5 ships a resident-process runtime backed by SQLite. It runs on Bun or Node using the host's native SQLite driver and does not require a particular cloud platform.
 
-Workflows are checkpointed by `yield* step()` calls, which he runtime persists, caches, retries, and resumes across process restarts.
+Workflows are checkpointed with primitives such as `yield* step.run()` and `yield* step.delay()`. The runtime persists step results and resumes delayed, retried, or state-waiting workflows across process restarts.
 
 ```ts
 import { workflow } from "yieldstar";
@@ -22,9 +22,9 @@ const checkout = workflow(async function* (step) {
 
 |                       | **Yieldstar**                   | **Temporal**            | **Inngest**            | **Cloudflare Workflows**    |
 | --------------------- | ------------------------------- | ----------------------- | ---------------------- | --------------------------- |
-| **State persistence** | SQLite file (local) or Postgres | Temporal Server cluster | Inngest Cloud (SaaS)   | Cloudflare Durable Objects  |
+| **State persistence** | SQLite file                     | Temporal Server cluster | Inngest Cloud (SaaS)   | Cloudflare Durable Objects  |
 | **Infrastructure**    | Process plus a file             | Multi-service cluster   | SaaS platform          | Cloudflare Workers platform |
-| **Self-hostable**     | Yes, single process             | Yes, but complex        | No                     | No                          |
+| **Self-hostable**     | Yes, single service             | Yes, but complex        | No                     | No                          |
 | **Embeddable**        | Yes                             | No                      | No                     | No                          |
 | **Portability**       | Runs anywhere JS runs           | Needs Temporal Server   | Needs Inngest platform | Needs Cloudflare            |
 | **Deployment safety** | Out-of-order step detection     | Manual versioning       | Manual versioning      | Manual versioning           |
@@ -45,13 +45,18 @@ Yieldstar is a monorepo of composable packages:
 | ------------------------------- | ------------------------------------------------------------------------------------ |
 | `yieldstar`                     | Core SDK with `workflow`, `createWorkflowRouter`, `RetryableError`, and the local and HTTP SDKs |
 | `@yieldstar/core`               | Base types and the `WorkflowRunner` execution engine                                 |
-| `@yieldstar/sqlite-runtime` | Driver-agnostic SQLite heap, scheduler, task queue, timers, and event loop           |
+| `@yieldstar/sqlite-runtime`     | Driver-agnostic SQLite heap, store, scheduler, task queue, timers, and event loop     |
 | `@yieldstar/worker-invoker`     | Subprocess invoker and worker process                                                |
-| `@yieldstar/http-server`        | HTTP routes and middleware for triggering workflows over the network                 |
+| `@yieldstar/http-server`        | Runtime-neutral HTTP routes and middleware using standard `Request` and `Response`    |
+| `@yieldstar/test-runtime`       | In-memory runtime components used by Yieldstar's test tooling                         |
+| `@yieldstar/test-invoker`       | In-process invoker used by Yieldstar's test tooling                                   |
+| `@yieldstar/test-utils`         | Test SDK and schema helpers used internally by this repository                        |
+| `@yieldstar/store-conformance`  | Vitest qualification suite for third-party store connectors                          |
 
-The runtime splits into four subsystems. 
+The resident-process runtime splits into five subsystems.
 
 - A **heap** stores step results so they survive restarts. 
 - A **scheduler** tracks timers and wake-ups. 
-- A **task queue** orders pending work. 
+- A **task queue** orders pending work.
+- A **store** holds schema-validated shared state and workflow waiters.
 - An **event loop** polls the queue and dispatches executions.

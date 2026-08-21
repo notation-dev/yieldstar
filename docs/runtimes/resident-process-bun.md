@@ -26,6 +26,7 @@ import { WorkflowRunner } from "@yieldstar/core";
 import {
   SqliteHeapClient,
   SqliteSchedulerClient,
+  SqliteStoreClient,
   SqliteTaskQueueClient,
   SqliteTimersClient,
 } from "@yieldstar/sqlite-runtime";
@@ -35,10 +36,15 @@ import { db, router } from "./shared";
 const logger = pino();
 const taskQueueClient = new SqliteTaskQueueClient(db);
 const timersClient = new SqliteTimersClient(db);
+const schedulerClient = new SqliteSchedulerClient({
+  taskQueueClient,
+  timersClient,
+});
 const runner = new WorkflowRunner({
   router,
   heapClient: new SqliteHeapClient(db),
-  schedulerClient: new SqliteSchedulerClient({ taskQueueClient, timersClient }),
+  schedulerClient,
+  storeClient: new SqliteStoreClient({ db, schedulerClient }),
   logger,
 });
 

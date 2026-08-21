@@ -44,7 +44,13 @@ Creates a worker that listens for IPC messages in the subprocess. Call `.listen(
 import { WorkflowRunner } from "@yieldstar/core";
 import { createWorkflowWorker } from "@yieldstar/worker-invoker";
 
-const runner = new WorkflowRunner({ router, heapClient, schedulerClient, logger });
+const runner = new WorkflowRunner({
+  router,
+  heapClient,
+  schedulerClient,
+  storeClient,
+  logger,
+});
 createWorkflowWorker(runner, logger).listen();
 ```
 

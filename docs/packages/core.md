@@ -1,6 +1,6 @@
 # @yieldstar/core
 
-Base types, abstract classes, and the `WorkflowRunner` execution engine. This package defines the interfaces that runtime implementations (SQLite, Postgres) must satisfy.
+Base types, abstract classes, and the `WorkflowRunner` execution engine. This package defines the interfaces that runtime implementations such as `@yieldstar/sqlite-runtime` must satisfy.
 
 ## Install
 

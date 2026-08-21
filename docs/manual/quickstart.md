@@ -5,7 +5,7 @@ A Yieldstar application has three parts: **workflows** that define the work, a *
 ## Install
 
 ```sh
-bun add yieldstar @yieldstar/core @yieldstar/worker-invoker @yieldstar/sqlite-runtime
+bun add yieldstar @yieldstar/core @yieldstar/worker-invoker @yieldstar/sqlite-runtime pino
 ```
 
 This quick start uses Bun. For Node, use the [`node:sqlite` connector guide](../runtimes/resident-process-node.md); the shared runtime APIs are identical.
@@ -16,7 +16,8 @@ A workflow is a generator function that yields steps. Each step is a checkpoint,
 
 ```ts [shared.ts]
 import { workflow, createWorkflowRouter } from "yieldstar";
-import { SqliteEventLoop, createSqliteDb } from "@yieldstar/sqlite-runtime/bun";
+import { SqliteEventLoop } from "@yieldstar/sqlite-runtime";
+import { createSqliteDb } from "@yieldstar/sqlite-runtime/bun";
 
 export const greet = workflow<{ name: string }, string>(async function* (step, event) {
   const greeting = yield* step.run(() => `Hello, ${event.params.name}`);
@@ -35,7 +36,7 @@ export const eventLoop = new SqliteEventLoop(db);
 
 ## 2. Create the worker
 
-The worker is a subprocess that runs workflow executions in isolation. It connects the `WorkflowRunner` to the SQLite heap (where step results are cached) and the scheduler (which manages timers and retries), then listens for execution events over IPC.
+The worker is a subprocess that runs workflow executions in isolation. It connects the `WorkflowRunner` to the SQLite heap, scheduler, and durable store, then listens for execution events over IPC.
 
 ```ts [worker.ts]
 import pino from "pino";
@@ -44,20 +45,24 @@ import { createWorkflowWorker } from "@yieldstar/worker-invoker";
 import {
   SqliteHeapClient,
   SqliteSchedulerClient,
+  SqliteStoreClient,
   SqliteTaskQueueClient,
   SqliteTimersClient,
-} from "@yieldstar/sqlite-runtime/bun";
+} from "@yieldstar/sqlite-runtime";
 import { router, db } from "./shared";
 
 const logger = pino();
 
+const schedulerClient = new SqliteSchedulerClient({
+  taskQueueClient: new SqliteTaskQueueClient(db),
+  timersClient: new SqliteTimersClient(db),
+});
+
 const runner = new WorkflowRunner({
   router,
   heapClient: new SqliteHeapClient(db),
-  schedulerClient: new SqliteSchedulerClient({
-    taskQueueClient: new SqliteTaskQueueClient(db),
-    timersClient: new SqliteTimersClient(db),
-  }),
+  schedulerClient,
+  storeClient: new SqliteStoreClient({ db, schedulerClient }),
   logger,
 });
 
